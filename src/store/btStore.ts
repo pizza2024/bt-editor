@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { BTProject, BTNodeDefinition, NodeStatus } from '../types/bt';
+import type { Node, Edge } from '@xyflow/react';
 import { defaultProject, parseXML, serializeXML } from '../utils/btXml';
 import { BUILTIN_NODES } from '../types/bt-constants';
 
@@ -23,11 +24,15 @@ interface BTStore {
   activeTreeId: string;
   selectedNodeId: string | null;
   debugState: DebugState;
+  // Local canvas nodes/edges for lookup before they're saved to project tree
+  localNodes: Node[];
+  localEdges: Edge[];
 
   // Project actions
   loadXML: (xml: string) => void;
   exportXML: () => string;
   setProject: (p: BTProject) => void;
+  setLocalCanvas: (nodes: Node[], edges: Edge[]) => void;
 
   // Tree actions
   setActiveTree: (id: string) => void;
@@ -68,6 +73,12 @@ export const useBTStore = create<BTStore>((set, get) => ({
   activeTreeId: 'MainTree',
   selectedNodeId: null,
   debugState: defaultDebug,
+  localNodes: [],
+  localEdges: [],
+
+  setLocalCanvas(nodes, edges) {
+    set({ localNodes: nodes, localEdges: edges });
+  },
 
   loadXML(xml) {
     try {

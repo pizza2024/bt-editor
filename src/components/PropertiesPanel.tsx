@@ -4,11 +4,33 @@ import type { BTNodeDefinition } from '../types/bt';
 import { BUILTIN_NODES, CATEGORY_COLORS } from '../types/bt-constants';
 
 const PropertiesPanel: React.FC = () => {
-  const { project, activeTreeId, selectedNodeId, updateNodePorts, updateNodeName } = useBTStore();
+  const { project, activeTreeId, selectedNodeId, updateNodePorts, updateNodeName, localNodes } = useBTStore();
 
   // Find the selected BT node in the active tree
   const tree = project.trees.find((t) => t.id === activeTreeId);
-  const btNode = selectedNodeId && tree ? findNode(tree.root, selectedNodeId) : null;
+  // First try to find in store tree, fall back to local canvas nodes
+  let btNode = selectedNodeId && tree ? findNode(tree.root, selectedNodeId) : null;
+
+  // If not found in store tree (e.g., node just created, not yet saved),
+  // look up from local canvas nodes
+  if (!btNode && selectedNodeId) {
+    const localNode = localNodes.find((n) => n.id === selectedNodeId);
+    if (localNode) {
+      const data = localNode.data as {
+        nodeType: string;
+        label: string;
+        ports?: Record<string, string>;
+        category?: string;
+      };
+      btNode = {
+        id: localNode.id,
+        type: data.nodeType,
+        name: data.label !== data.nodeType ? data.label : undefined,
+        ports: (data.ports as Record<string, string>) ?? {},
+        children: [],
+      };
+    }
+  }
 
   const nodeDef: BTNodeDefinition | undefined = btNode
     ? project.nodeModels.find((m) => m.type === btNode.type)

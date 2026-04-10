@@ -55,6 +55,7 @@ const BTCanvas: React.FC = () => {
     debugState,
     addNodeModel,
     updateNodeName,
+    setLocalCanvas,
   } = useBTStore();
 
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
@@ -211,6 +212,11 @@ const BTCanvas: React.FC = () => {
   React.useEffect(() => {
     saveToStore();
   }, [nodes, edges, saveToStore]);
+
+  // Immediately sync localNodes/localEdges to store for lookup (not debounced)
+  React.useEffect(() => {
+    setLocalCanvas(nodes, edges);
+  }, [nodes, edges, setLocalCanvas]);
 
   // Handle node label changes from inline editing
   React.useEffect(() => {
