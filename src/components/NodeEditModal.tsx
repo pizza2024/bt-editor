@@ -153,48 +153,43 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
         {/* Body */}
         <div className="modal-body">
 
-          {/* ─── Node description ───────────────────────────────────────── */}
-          {nodeDef?.description && (
-            <div className="form-group">
-              <label>Description</label>
-              <div className="info-text">{nodeDef.description}</div>
-            </div>
-          )}
-
-          {/* ─── Instance Section ────────────────────────────────────────── */}
-          {(isControl && !isSubTree) && (
-            <div className="edit-section">
-              <div className="edit-section-title">Instance</div>
+          {/* ─── Instance Section (always shown) ─────────────────────────────── */}
+          <div className="edit-section">
+            <div className="edit-section-title">Instance</div>
+            <div className="form-row">
               <div className="form-group">
-                <label>Name (alias)</label>
+                <label>NodeType</label>
                 <input
                   type="text"
-                  value={instanceName}
-                  onChange={(e) => setInstanceName(e.target.value)}
-                  placeholder="optional display name"
+                  value={nodeType}
+                  disabled
+                  className="input-disabled"
                 />
-                <span className="form-hint">Display name shown on the node</span>
+              </div>
+              <div className="form-group">
+                <label>ModelName</label>
+                {isSubTree ? (
+                  <select
+                    value={subTreeTarget}
+                    onChange={(e) => setSubTreeTarget(e.target.value)}
+                  >
+                    <option value="">-- Select Tree --</option>
+                    {availableTrees.map(treeId => (
+                      <option key={treeId} value={treeId}>{treeId}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={instanceName}
+                    onChange={(e) => setInstanceName(e.target.value)}
+                    placeholder="optional"
+                  />
+                )}
               </div>
             </div>
-          )}
-
-          {/* ─── SubTree Section ─────────────────────────────────────────── */}
-          {isSubTree && (
-            <div className="edit-section">
-              <div className="edit-section-title">SubTree</div>
-              <div className="form-group">
-                <label>Target Tree</label>
-                <select
-                  value={subTreeTarget}
-                  onChange={(e) => setSubTreeTarget(e.target.value)}
-                >
-                  <option value="">-- Select Tree --</option>
-                  {availableTrees.map(treeId => (
-                    <option key={treeId} value={treeId}>{treeId}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
+            {isSubTree && (
+              <div className="form-group" style={{ marginTop: 8 }}>
                 <label className="checkbox-label">
                   <input
                     type="checkbox"
@@ -207,8 +202,8 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
                   Automatically map child tree input/output ports to matching parent ports
                 </span>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* ─── Port Values Section ─────────────────────────────────────── */}
           {hasPortValues && (
