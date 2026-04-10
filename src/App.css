@@ -739,6 +739,69 @@
   color: #ffe080;
 }
 
+/* Port view row (edit-instance mode) */
+.port-view-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.port-def {
+  flex: 1;
+  font-size: 11px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.port-def-dir {
+  font-size: 9px;
+  color: #556;
+  text-transform: uppercase;
+  font-family: monospace;
+}
+
+.port-def-name {
+  font-family: monospace;
+  color: #aac;
+  font-weight: 500;
+}
+
+.port-def-desc {
+  color: #667;
+  font-size: 10px;
+  font-style: italic;
+}
+
+.port-def-default {
+  font-size: 9px;
+  color: #556;
+}
+
+.port-value-input {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.port-value-input input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #1a1a2e;
+  border: 1px solid #334;
+  color: #ffe080;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.port-value-input input:focus {
+  border-color: #4a80d0;
+  outline: none;
+}
+
 .preview-port-default {
   opacity: 0.6;
   font-size: 9px;

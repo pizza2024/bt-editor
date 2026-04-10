@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { CATEGORY_COLORS, PORT_DIRECTIONS } from '../types/bt-constants';
+import React, { useState, useEffect, useMemo } from 'react';
+import { CATEGORY_COLORS, PORT_DIRECTIONS, BUILTIN_NODES } from '../types/bt-constants';
 import type { BTNodeCategory, BTNodeDefinition, BTPort, PortDirection } from '../types/bt';
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -9,6 +9,7 @@ interface PortFormState {
   direction: PortDirection;
   description: string;
   defaultValue: string;
+  currentValue: string;
 }
 
 const emptyPort: PortFormState = {
@@ -16,6 +17,7 @@ const emptyPort: PortFormState = {
   direction: 'input',
   description: '',
   defaultValue: '',
+  currentValue: '',
 };
 
 export type NodeModalMode = 'create' | 'edit-instance' | 'edit-definition';
@@ -62,6 +64,18 @@ export interface NodeModalSaveResult {
   updatedDef?: BTNodeDefinition;
 }
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function getNodeDef(nodeType: string, _category: string, nodeModels: BTNodeDefinition[]): BTNodeDefinition | undefined {
+  return BUILTIN_NODES.find(n => n.type === nodeType) ?? nodeModels.find(n => n.type === nodeType);
+}
+
+function isNumericPort(name: string): boolean {
+  const n = name.toLowerCase();
+  return n.includes('count') || n.includes('num') || n.includes('msec') ||
+    n.includes('delay') || n.includes('timeout') || n.includes('attempt') || n.includes('cycle');
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────
 
 const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
@@ -69,19 +83,26 @@ const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
   const isEditInstance = data.mode === 'edit-instance';
   const isEditDefinition = data.mode === 'edit-definition';
 
-  // Form state
+  // ─── Form state ─────────────────────────────────────────────────────────
   const [nodeType, setNodeType] = useState('');
   const [category, setCategory] = useState<BTNodeCategory>('Action');
   const [description, setDescription] = useState('');
   const [ports, setPorts] = useState<PortFormState[]>([]);
 
-  // Name (for edit-instance)
+  // Name (alias) for edit-instance
   const [instanceName, setInstanceName] = useState('');
 
-  // SubTree target (for edit-instance with SubTree)
+  // SubTree target
   const [subTreeTarget, setSubTreeTarget] = useState('');
+  const [autoRemap, setAutoRemap] = useState(false);
 
-  // Initialize form based on mode
+  // ─── Derive node definition (for edit-instance, lookup builtin/custom def) ───
+  const nodeDef = useMemo(() => {
+    if (!isEditInstance) return undefined;
+    return getNodeDef(data.nodeType, data.nodeCategory, []);
+  }, [isEditInstance, data]);
+
+  // ─── Initialize form ────────────────────────────────────────────────────
   useEffect(() => {
     if (isCreate) {
       setNodeType('');
@@ -90,17 +111,35 @@ const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
       setPorts([]);
       setInstanceName('');
       setSubTreeTarget('');
+      setAutoRemap(false);
     } else if (isEditInstance) {
+      const def = getNodeDef(data.nodeType, data.nodeCategory, []);
       setNodeType(data.nodeType);
       setCategory(data.nodeCategory as BTNodeCategory);
       setInstanceName(data.nodeName ?? '');
-      setSubTreeTarget(data.nodeName ?? '');
-      // Convert port values to form state (empty for missing)
-      const portEntries = Object.entries(data.ports);
-      setPorts(portEntries.length > 0
-        ? portEntries.map(([name, value]) => ({ name, direction: 'input' as PortDirection, description: '', defaultValue: value }))
-        : []
-      );
+      setSubTreeTarget(data.nodeType === 'SubTree' ? (data.nodeName ?? '') : '');
+      setAutoRemap(data.ports['__autoremap'] === 'true' || data.ports['__autoremap'] === '1');
+
+      // Build port form state from definition + current values
+      // Filter out __autoremap from the port list — it's handled by the checkbox
+      const defPorts = (def?.ports ?? []).filter(p => p.name !== '__autoremap');
+      const portForms: PortFormState[] = defPorts.map(p => ({
+        name: p.name,
+        direction: p.direction,
+        description: p.description ?? '',
+        defaultValue: p.defaultValue ?? '',
+        currentValue: data.ports[p.name] ?? '',
+      }));
+
+      // Also include any extra ports not in definition (custom/hybrid cases)
+      Object.entries(data.ports).forEach(([k, v]) => {
+        if (k === '__autoremap') return;
+        if (!defPorts.some(p => p.name === k)) {
+          portForms.push({ name: k, direction: 'input', description: '', defaultValue: '', currentValue: v });
+        }
+      });
+
+      setPorts(portForms);
     } else if (isEditDefinition) {
       const def = data.nodeDef;
       setNodeType(def.type);
@@ -111,13 +150,15 @@ const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
         direction: p.direction,
         description: p.description ?? '',
         defaultValue: p.defaultValue ?? '',
+        currentValue: '',
       })) ?? []);
       setInstanceName('');
       setSubTreeTarget('');
+      setAutoRemap(false);
     }
   }, [data]);
 
-  // Port management
+  // ─── Port management (create/edit-definition only) ─────────────────────────
   const handleAddPort = () => setPorts(prev => [...prev, { ...emptyPort }]);
 
   const handleRemovePort = (index: number) => {
@@ -128,6 +169,7 @@ const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
     setPorts(prev => prev.map((p, i) => i === index ? { ...p, [field]: value } : p));
   };
 
+  // ─── Save ──────────────────────────────────────────────────────────────────
   const handleSave = () => {
     if (isCreate) {
       if (!nodeType.trim()) {
@@ -152,18 +194,20 @@ const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
         },
       });
     } else if (isEditInstance) {
-      // For SubTree, name is the target tree ID
-      const name = data.nodeType === 'SubTree' ? subTreeTarget : instanceName;
       const portValues: Record<string, string> = {};
       ports.forEach(p => {
-        if (p.name.trim()) portValues[p.name.trim()] = p.defaultValue;
+        if (p.name.trim() && p.currentValue.trim()) {
+          portValues[p.name.trim()] = p.currentValue.trim();
+        }
       });
 
-      onSave({
-        nodeId: data.nodeId,
-        name: name || undefined,
-        ports: portValues,
-      });
+      // SubTree special fields
+      if (data.nodeType === 'SubTree') {
+        if (subTreeTarget) portValues['__autoremap'] = autoRemap ? 'true' : 'false';
+        onSave({ nodeId: data.nodeId, name: subTreeTarget || undefined, ports: portValues });
+      } else {
+        onSave({ nodeId: data.nodeId, name: instanceName || undefined, ports: portValues });
+      }
     } else if (isEditDefinition) {
       const validPorts: BTPort[] = ports
         .filter(p => p.name.trim())
@@ -192,7 +236,11 @@ const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
 
   const colors = CATEGORY_COLORS[isEditDefinition ? category : (data.mode === 'edit-instance' ? (data.nodeCategory as BTNodeCategory) : category)];
   const isSubTree = nodeType === 'SubTree';
+  const isLeaf = category === 'Action' || category === 'Condition';
 
+  // Determine which sections to show based on mode and category
+  const showNameField = isEditInstance && !isSubTree && !isLeaf;
+  const showPortsSection = (isEditInstance && ports.length > 0) || isCreate || isEditDefinition;
   const getTitle = () => {
     if (isCreate) return 'Create Custom Node';
     if (isEditInstance) return `Edit ${nodeType}`;
@@ -205,14 +253,15 @@ const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
         {/* Header */}
         <div className="modal-header">
           <div className="modal-title">
-            <span style={{ color: '#c8e0ff' }}>{getTitle()}</span>
+            <span style={{ color: colors.text }}>{getTitle()}</span>
           </div>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
 
         {/* Body */}
         <div className="modal-body">
-          {/* Node Type + Category Row (not editable in edit modes) */}
+
+          {/* Node Type + Category Row */}
           <div className="form-row">
             <div className="form-group" style={{ flex: 2 }}>
               <label>Node Type {isCreate ? '*' : ''}</label>
@@ -243,8 +292,8 @@ const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
             </div>
           </div>
 
-          {/* Instance Name (edit-instance only, non-SubTree) */}
-          {isEditInstance && !isSubTree && (
+          {/* Instance Name (Control/Decorator nodes only) */}
+          {showNameField && (
             <div className="form-group">
               <label>Name (alias)</label>
               <input
@@ -257,23 +306,38 @@ const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
             </div>
           )}
 
-          {/* SubTree Target (edit-instance + SubTree) */}
+          {/* SubTree Target */}
           {isEditInstance && isSubTree && (
-            <div className="form-group">
-              <label>SubTree Target</label>
-              <select
-                value={subTreeTarget}
-                onChange={(e) => setSubTreeTarget(e.target.value)}
-              >
-                <option value="">-- Select Tree --</option>
-                {(data as NodeModalEditInstanceData).availableTrees
-                  ?.filter(t => t !== (data as NodeModalEditInstanceData).nodeId.replace(/^n_/, ''))
-                  .map(treeId => (
-                    <option key={treeId} value={treeId}>{treeId}</option>
-                  ))}
-              </select>
-              <span className="form-hint">Select the tree to reference</span>
-            </div>
+            <>
+              <div className="form-group">
+                <label>SubTree Target</label>
+                <select
+                  value={subTreeTarget}
+                  onChange={(e) => setSubTreeTarget(e.target.value)}
+                >
+                  <option value="">-- Select Tree --</option>
+                  {(data as NodeModalEditInstanceData).availableTrees
+                    ?.map(treeId => (
+                      <option key={treeId} value={treeId}>{treeId}</option>
+                    ))}
+                </select>
+                <span className="form-hint">Select the behavior tree to reference</span>
+              </div>
+              <div className="form-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={autoRemap}
+                    onChange={(e) => setAutoRemap(e.target.checked)}
+                    style={{ marginRight: 6 }}
+                  />
+                  Auto-remap ports by name
+                </label>
+                <span className="form-hint">
+                  Automatically map child tree input/output ports to matching parent ports
+                </span>
+              </div>
+            </>
           )}
 
           {/* Description (create/edit-definition only) */}
@@ -289,95 +353,145 @@ const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
             </div>
           )}
 
-          {/* Ports Section */}
-          <div className="form-group">
-            <div className="ports-header">
-              <label>
-                {isEditInstance ? 'Port Values' : 'Ports'}
-                {ports.length > 0 && <span className="ports-count">({ports.length})</span>}
-              </label>
-              {isCreate && (
-                <button type="button" className="btn-add-port" onClick={handleAddPort}>
-                  + Add Port
-                </button>
-              )}
+          {/* Node definition description (edit-instance, read-only) */}
+          {isEditInstance && nodeDef?.description && (
+            <div className="form-group">
+              <label>Description</label>
+              <div className="info-text">{nodeDef.description}</div>
             </div>
+          )}
 
-            {ports.length > 0 && (
-              <div className="ports-list">
-                {ports.map((port, index) => (
-                  <div key={index} className="port-item">
-                    <div className="port-item-header">
-                      <span className="port-index">#{index + 1}</span>
+          {/* Ports Section */}
+          {showPortsSection && (
+            <div className="form-group">
+              <div className="ports-header">
+                <label>
+                  {isEditInstance ? 'Port Values' : 'Port Definitions'}
+                  {ports.length > 0 && <span className="ports-count">({ports.length})</span>}
+                </label>
+                {isCreate && (
+                  <button type="button" className="btn-add-port" onClick={handleAddPort}>
+                    + Add Port
+                  </button>
+                )}
+              </div>
+
+              {ports.length > 0 ? (
+                <div className="ports-list">
+                  {ports.map((port, index) => (
+                    <div key={index} className="port-item">
+                      <div className="port-item-header">
+                        <span className="port-index">#{index + 1}</span>
+                        {isCreate && (
+                          <button
+                            type="button"
+                            className="btn-remove-port"
+                            onClick={() => handleRemovePort(index)}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Edit-instance: show port as read-only definition + editable value */}
+                      {isEditInstance ? (
+                        <div className="port-view-row">
+                          <div className="port-def">
+                            <span className="port-def-dir">[{port.direction}]</span>
+                            <span className="port-def-name">{port.name}</span>
+                            {port.description && (
+                              <span className="port-def-desc">— {port.description}</span>
+                            )}
+                            {port.defaultValue && (
+                              <span className="port-def-default"> (default: {port.defaultValue})</span>
+                            )}
+                          </div>
+                          <div className="port-value-input">
+                            {isNumericPort(port.name) ? (
+                              <input
+                                type="number"
+                                value={port.currentValue}
+                                onChange={(e) => handlePortChange(index, 'currentValue', e.target.value)}
+                                placeholder={port.defaultValue || '0'}
+                                min={0}
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                value={port.currentValue}
+                                onChange={(e) => handlePortChange(index, 'currentValue', e.target.value)}
+                                placeholder={port.defaultValue || '{}'}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        /* Create/edit-definition: full editable form */
+                        <div className="port-item-body">
+                          <div className="port-field port-field-name">
+                            <label>Name</label>
+                            <input
+                              type="text"
+                              value={port.name}
+                              onChange={(e) => handlePortChange(index, 'name', e.target.value)}
+                              placeholder="e.g. msec"
+                              disabled={!isCreate}
+                              className={!isCreate ? 'input-disabled' : ''}
+                            />
+                          </div>
+                          <div className="port-field port-field-dir">
+                            <label>Direction</label>
+                            <select
+                              value={port.direction}
+                              onChange={(e) => handlePortChange(index, 'direction', e.target.value)}
+                              disabled={!isCreate}
+                              className={!isCreate ? 'input-disabled' : ''}
+                            >
+                              {PORT_DIRECTIONS.map(d => (
+                                <option key={d.value} value={d.value}>{d.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="port-field port-field-default">
+                            <label>Default</label>
+                            <input
+                              type="text"
+                              value={port.defaultValue}
+                              onChange={(e) => handlePortChange(index, 'defaultValue', e.target.value)}
+                              placeholder="-1, true, ..."
+                            />
+                          </div>
+                        </div>
+                      )}
                       {isCreate && (
-                        <button
-                          type="button"
-                          className="btn-remove-port"
-                          onClick={() => handleRemovePort(index)}
-                        >
-                          ✕
-                        </button>
+                        <div className="port-field port-field-desc">
+                          <label>Description</label>
+                          <input
+                            type="text"
+                            value={port.description}
+                            onChange={(e) => handlePortChange(index, 'description', e.target.value)}
+                            placeholder="Optional"
+                          />
+                        </div>
                       )}
                     </div>
-                    <div className="port-item-body">
-                      <div className="port-field port-field-name">
-                        <label>Name</label>
-                        <input
-                          type="text"
-                          value={port.name}
-                          onChange={(e) => handlePortChange(index, 'name', e.target.value)}
-                          placeholder="e.g. msec"
-                          disabled={!isCreate}
-                          className={!isCreate ? 'input-disabled' : ''}
-                        />
-                      </div>
-                      <div className="port-field port-field-dir">
-                        <label>Direction</label>
-                        <select
-                          value={port.direction}
-                          onChange={(e) => handlePortChange(index, 'direction', e.target.value)}
-                          disabled={!isCreate}
-                          className={!isCreate ? 'input-disabled' : ''}
-                        >
-                          {PORT_DIRECTIONS.map(d => (
-                            <option key={d.value} value={d.value}>{d.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="port-field port-field-default">
-                        <label>{isEditInstance ? 'Value' : 'Default'}</label>
-                        <input
-                          type="text"
-                          value={port.defaultValue}
-                          onChange={(e) => handlePortChange(index, 'defaultValue', e.target.value)}
-                          placeholder={isEditInstance ? 'current value' : '-1, true, ...'}
-                        />
-                      </div>
-                    </div>
-                    {isCreate && (
-                      <div className="port-field port-field-desc">
-                        <label>Description</label>
-                        <input
-                          type="text"
-                          value={port.description}
-                          onChange={(e) => handlePortChange(index, 'description', e.target.value)}
-                          placeholder="Optional"
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              ) : (
+                <div className="ports-empty">
+                  {isEditInstance
+                    ? 'No configurable ports for this node type'
+                    : 'No ports defined. Click "Add Port" to define input/output parameters.'}
+                </div>
+              )}
 
-            {ports.length === 0 && (
-              <div className="ports-empty">
-                {isEditInstance
-                  ? 'No ports to configure'
-                  : 'No ports defined. Ports are optional — click "Add Port" to define input/output parameters.'}
-              </div>
-            )}
-          </div>
+              {isEditInstance && ports.length > 0 && (
+                <span className="form-hint">
+                  Use <code>{'{key}'}</code> for blackboard references
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Preview (create mode only) */}
           {isCreate && nodeType && (
