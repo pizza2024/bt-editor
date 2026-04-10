@@ -456,3 +456,235 @@
   border-radius: 4px;
   line-height: 1.5;
 }
+
+/* ─── Add Node Modal ───────────────────────────────────────────── */
+.add-node-modal {
+  width: 480px;
+  max-width: 95vw;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+/* Ports section */
+.ports-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ports-header label {
+  font-size: 11px;
+  color: #6677aa;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ports-count {
+  margin-left: 4px;
+  color: #88aacc;
+}
+
+.btn-add-port {
+  background: none;
+  border: 1px solid #334;
+  color: #88aacc;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-add-port:hover {
+  background: #1e2840;
+  border-color: #4a80d0;
+  color: #c8e0ff;
+}
+
+.ports-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.port-item {
+  background: #151525;
+  border: 1px solid #2a3a5a;
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.port-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.port-index {
+  font-size: 10px;
+  color: #556;
+  font-family: monospace;
+}
+
+.btn-remove-port {
+  background: none;
+  border: none;
+  color: #e04040;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: background 0.1s;
+}
+
+.btn-remove-port:hover {
+  background: #2a1a1a;
+}
+
+.port-item-body {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.port-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.port-field label {
+  font-size: 9px;
+  color: #556;
+  text-transform: uppercase;
+}
+
+.port-field input,
+.port-field select {
+  background: #1a1a2e;
+  border: 1px solid #334;
+  color: #ccd;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+.port-field input:focus,
+.port-field select:focus {
+  border-color: #4a80d0;
+  outline: none;
+}
+
+.port-field-name {
+  flex: 2;
+}
+
+.port-field-dir {
+  width: 80px;
+}
+
+.port-field-default {
+  flex: 1;
+}
+
+.port-field-desc {
+  flex: 2;
+}
+
+.port-item-body .port-field-name { flex: 2; min-width: 0; }
+.port-item-body .port-field-dir { width: 80px; flex-shrink: 0; }
+.port-item-body .port-field-default { flex: 1; min-width: 0; }
+
+.ports-empty {
+  text-align: center;
+  padding: 16px;
+  font-size: 11px;
+  color: #556;
+  background: #151525;
+  border: 1px dashed #334;
+  border-radius: 6px;
+}
+
+/* Node Preview */
+.node-preview {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #2a3a5a;
+}
+
+.preview-label {
+  font-size: 10px;
+  color: #556;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+.preview-node {
+  border: 2px solid;
+  border-radius: 6px;
+  padding: 8px 12px;
+  text-align: center;
+}
+
+.preview-category {
+  font-size: 9px;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.preview-type {
+  font-weight: 600;
+  font-size: 14px;
+  font-family: monospace;
+}
+
+.preview-desc {
+  font-size: 10px;
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
+.preview-ports {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.preview-port {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+
+.preview-port-dir {
+  font-size: 8px;
+  opacity: 0.6;
+  text-transform: uppercase;
+}
+
+.preview-port-name {
+  font-family: monospace;
+  color: #ffe080;
+}
+
+.preview-port-default {
+  opacity: 0.6;
+  font-size: 9px;
+}
