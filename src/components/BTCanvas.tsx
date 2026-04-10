@@ -24,6 +24,7 @@ import BTFlowNode from './nodes/BTFlowNode';
 import BTFlowEdge from './edges/BTFlowEdge';
 import { BUILTIN_NODES, CATEGORY_COLORS } from '../types/bt-constants';
 import type { BTNodeDefinition, BTProject } from '../types/bt';
+import { useContextMenu, type MenuConfig } from './ContextMenu';
 
 const nodeTypes = { btNode: BTFlowNode };
 const edgeTypes = { btEdge: BTFlowEdge };
@@ -57,6 +58,9 @@ const BTCanvas: React.FC = () => {
 
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = React.useState<string | null>(null);
+
+  // Context menu
+  const { menuState, showMenu, hideMenu, ContextMenuComponent } = useContextMenu();
 
   // Track if we should force layout (tree switch or initial load)
   const forceLayoutRef = useRef(true);
@@ -155,12 +159,30 @@ const BTCanvas: React.FC = () => {
     [selectNode]
   );
 
-  const onEdgeDoubleClick = useCallback(
+  // Context menu handlers
+  const onEdgeContextMenu = useCallback(
     (event: React.MouseEvent, edge: Edge) => {
-      event.stopPropagation();
-      deleteEdge(edge.id);
+      event.preventDefault();
+      showMenu(event, 'edge', edge.id);
     },
-    [deleteEdge]
+    [showMenu]
+  );
+
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      event.preventDefault();
+      showMenu(event, 'node', node.id);
+    },
+    [showMenu]
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const onPaneContextMenu = useCallback(
+    (event: any) => {
+      event.preventDefault();
+      showMenu(event, 'pane', null);
+    },
+    [showMenu]
   );
 
   // Save tree back to store when nodes/edges change (debounced)
@@ -282,6 +304,40 @@ const BTCanvas: React.FC = () => {
     [project.nodeModels, addNodeModel, setNodes]
   );
 
+  // Build dynamic menu config based on current context
+  const dynamicMenuConfig: MenuConfig = useMemo(() => ({
+    edge: menuState.targetType === 'edge' && menuState.targetId ? [
+      {
+        id: 'delete',
+        label: 'Delete Edge',
+        icon: '🗑️',
+        danger: true,
+        action: () => deleteEdge(menuState.targetId!),
+      },
+    ] : [],
+    node: menuState.targetType === 'node' && menuState.targetId ? [
+      {
+        id: 'delete',
+        label: 'Delete Node',
+        icon: '🗑️',
+        danger: true,
+        action: () => {
+          // Delete node and its edges
+          setNodes((prev) => prev.filter((n) => n.id !== menuState.targetId));
+          setEdges((prev) => prev.filter((e) => e.source !== menuState.targetId && e.target !== menuState.targetId));
+        },
+      },
+    ] : [],
+    pane: menuState.targetType === 'pane' ? [
+      {
+        id: 'fitview',
+        label: 'Fit View',
+        icon: '🔍',
+        action: () => rfInstanceRef.current?.fitView(),
+      },
+    ] : [],
+  }), [menuState, deleteEdge]);
+
   return (
     <div style={{ width: '100%', height: '100%' }}>
       <ReactFlow
@@ -292,10 +348,12 @@ const BTCanvas: React.FC = () => {
         onConnect={onConnect}
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
-        onEdgeDoubleClick={onEdgeDoubleClick}
         onPaneClick={onPaneClick}
         onDrop={onDrop}
         onDragOver={onDragOver}
+        onEdgeContextMenu={onEdgeContextMenu}
+        onNodeContextMenu={onNodeContextMenu}
+        onPaneContextMenu={onPaneContextMenu}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onInit={(instance) => { rfInstanceRef.current = instance; }}
@@ -313,6 +371,16 @@ const BTCanvas: React.FC = () => {
           style={{ background: '#1a1a2e', border: '1px solid #334' }}
         />
       </ReactFlow>
+
+      {/* Context Menu */}
+      {menuState.show && (
+        <ContextMenuComponent
+          position={menuState.position}
+          targetType={menuState.targetType}
+          menuConfig={dynamicMenuConfig}
+          onClose={hideMenu}
+        />
+      )}
     </div>
   );
 };
