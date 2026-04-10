@@ -54,6 +54,7 @@ const BTCanvas: React.FC = () => {
     selectNode,
     debugState,
     addNodeModel,
+    updateNodeName,
   } = useBTStore();
 
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
@@ -216,6 +217,7 @@ const BTCanvas: React.FC = () => {
     const handleLabelChange = (e: Event) => {
       const customEvent = e as CustomEvent<{ nodeId: string; newLabel: string }>;
       const { nodeId, newLabel } = customEvent.detail;
+      // Update local nodes state for immediate UI feedback
       setNodes((prev) =>
         prev.map((n) => {
           if (n.id === nodeId) {
@@ -227,11 +229,13 @@ const BTCanvas: React.FC = () => {
           return n;
         })
       );
+      // Also update the store so it persists
+      updateNodeName(nodeId, newLabel);
     };
 
     window.addEventListener('bt-node-label-change', handleLabelChange);
     return () => window.removeEventListener('bt-node-label-change', handleLabelChange);
-  }, [setNodes]);
+  }, [setNodes, updateNodeName]);
 
   React.useEffect(() => {
     setEdges((prev) => withSelectedEdge(prev, selectedEdgeId, deleteEdge));

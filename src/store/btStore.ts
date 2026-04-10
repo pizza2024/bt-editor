@@ -41,6 +41,10 @@ interface BTStore {
   updateNodeModel: (def: BTNodeDefinition) => void;
   deleteNodeModel: (type: string) => void;
 
+  // Node instance actions
+  updateNodePorts: (nodeId: string, ports: Record<string, string>) => void;
+  updateNodeName: (nodeId: string, name: string) => void;
+
   // Selection
   selectNode: (id: string | null) => void;
 
@@ -158,6 +162,24 @@ export const useBTStore = create<BTStore>((set, get) => ({
     set({ selectedNodeId: id });
   },
 
+  updateNodePorts(nodeId, ports) {
+    const { project, activeTreeId } = get();
+    const trees = project.trees.map((tree) => {
+      if (tree.id !== activeTreeId) return tree;
+      return { ...tree, root: updateNodePortsRecursive(tree.root, nodeId, ports) };
+    });
+    set({ project: { ...project, trees } });
+  },
+
+  updateNodeName(nodeId, name) {
+    const { project, activeTreeId } = get();
+    const trees = project.trees.map((tree) => {
+      if (tree.id !== activeTreeId) return tree;
+      return { ...tree, root: updateNodeNameRecursive(tree.root, nodeId, name) };
+    });
+    set({ project: { ...project, trees } });
+  },
+
   loadDebugLog(text) {
     // Expected format (one per line):
     // timestamp nodeUid nodeType nodeName status [treeId]
@@ -241,4 +263,34 @@ function findNodeId(node: import('../types/bt').BTTreeNode, type: string, name: 
     if (found) return found;
   }
   return null;
+}
+
+function updateNodePortsRecursive(
+  node: import('../types/bt').BTTreeNode,
+  nodeId: string,
+  ports: Record<string, string>
+): import('../types/bt').BTTreeNode {
+  if (node.id === nodeId) {
+    return { ...node, ports: { ...node.ports, ...ports } };
+  }
+  if (node.children.length === 0) return node;
+  return {
+    ...node,
+    children: node.children.map((c) => updateNodePortsRecursive(c, nodeId, ports)),
+  };
+}
+
+function updateNodeNameRecursive(
+  node: import('../types/bt').BTTreeNode,
+  nodeId: string,
+  name: string
+): import('../types/bt').BTTreeNode {
+  if (node.id === nodeId) {
+    return { ...node, name };
+  }
+  if (node.children.length === 0) return node;
+  return {
+    ...node,
+    children: node.children.map((c) => updateNodeNameRecursive(c, nodeId, name)),
+  };
 }

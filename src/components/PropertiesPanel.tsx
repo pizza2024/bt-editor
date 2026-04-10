@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useBTStore } from '../store/btStore';
-import type { BTNodeDefinition, BTPort } from '../types/bt';
+import type { BTNodeDefinition } from '../types/bt';
 import { BUILTIN_NODES, CATEGORY_COLORS } from '../types/bt-constants';
 
 const PropertiesPanel: React.FC = () => {
-  const { project, activeTreeId, selectedNodeId, updateNodeModel } = useBTStore();
+  const { project, activeTreeId, selectedNodeId, updateNodePorts, updateNodeName } = useBTStore();
 
   // Find the selected BT node in the active tree
   const tree = project.trees.find((t) => t.id === activeTreeId);
@@ -15,10 +15,52 @@ const PropertiesPanel: React.FC = () => {
     : undefined;
 
   const builtinDef = btNode ? BUILTIN_NODES.find((n) => n.type === btNode.type) : undefined;
-  const colors = CATEGORY_COLORS[nodeDef?.category ?? builtinDef?.category ?? 'Leaf'];
+  const nodeCategory = nodeDef?.category ?? builtinDef?.category ?? 'Leaf';
+  const colors = CATEGORY_COLORS[nodeCategory];
 
-  const [ports, setPorts] = useState<BTPort[]>(nodeDef?.ports ?? []);
-  useEffect(() => { setPorts(nodeDef?.ports ?? []); }, [nodeDef]);
+  // Local state for edited port values
+  const [localPorts, setLocalPorts] = useState<Record<string, string>>({});
+  useEffect(() => {
+    setLocalPorts(btNode?.ports ? { ...btNode.ports } : {});
+  }, [btNode]);
+
+  // Local state for node name
+  const [localName, setLocalName] = useState('');
+  useEffect(() => {
+    setLocalName(btNode?.name ?? '');
+  }, [btNode]);
+
+  // Local state for SubTree target
+  const [localSubTreeId, setLocalSubTreeId] = useState('');
+  useEffect(() => {
+    setLocalSubTreeId(btNode?.name ?? '');
+  }, [btNode]);
+
+  const allPorts = builtinDef?.ports ?? nodeDef?.ports ?? [];
+  const isLeaf = nodeCategory === 'Leaf' || (btNode && !builtinDef);
+  const isSubTree = btNode?.type === 'SubTree';
+
+  // Save handler for port values
+  const handleSavePorts = useCallback(() => {
+    if (!btNode) return;
+    updateNodePorts(btNode.id, localPorts);
+  }, [btNode, localPorts, updateNodePorts]);
+
+  // Save handler for name
+  const handleSaveName = useCallback(() => {
+    if (!btNode || !builtinDef) return;
+    updateNodeName(btNode.id, localName);
+  }, [btNode, localName, updateNodeName, builtinDef]);
+
+  // Save handler for SubTree target
+  const handleSaveSubTree = useCallback(() => {
+    if (!btNode) return;
+    updateNodeName(btNode.id, localSubTreeId);
+  }, [btNode, localSubTreeId, updateNodeName]);
+
+  const updatePort = (name: string, value: string) => {
+    setLocalPorts((prev) => ({ ...prev, [name]: value }));
+  };
 
   if (!btNode) {
     return (
@@ -30,26 +72,6 @@ const PropertiesPanel: React.FC = () => {
       </div>
     );
   }
-
-  const isBuiltin = !!builtinDef?.builtin;
-  const allPorts = builtinDef?.ports ?? nodeDef?.ports ?? [];
-
-  const handleSavePorts = () => {
-    if (!nodeDef || isBuiltin) return;
-    updateNodeModel({ ...nodeDef, ports });
-  };
-
-  const addPort = () => {
-    setPorts((prev) => [...prev, { name: '', direction: 'input' }]);
-  };
-
-  const updatePort = (idx: number, field: keyof BTPort, value: string) => {
-    setPorts((prev) => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p));
-  };
-
-  const removePort = (idx: number) => {
-    setPorts((prev) => prev.filter((_, i) => i !== idx));
-  };
 
   return (
     <div className="panel properties-panel">
@@ -66,12 +88,9 @@ const PropertiesPanel: React.FC = () => {
         }}
       >
         <div style={{ fontSize: 10, color: colors.text, opacity: 0.7, textTransform: 'uppercase' }}>
-          {nodeDef?.category ?? 'Unknown'}
+          {nodeDef?.category ?? builtinDef?.category ?? 'Unknown'}
         </div>
         <div style={{ fontWeight: 700, color: colors.text, fontSize: 14 }}>{btNode.type}</div>
-        {btNode.name && btNode.name !== btNode.type && (
-          <div style={{ color: colors.text, opacity: 0.8, fontSize: 12 }}>alias: {btNode.name}</div>
-        )}
         {(nodeDef?.description ?? builtinDef?.description) && (
           <div style={{ fontSize: 11, color: '#8899bb', marginTop: 4 }}>
             {nodeDef?.description ?? builtinDef?.description}
@@ -79,68 +98,76 @@ const PropertiesPanel: React.FC = () => {
         )}
       </div>
 
-      {/* Blackboard port values */}
+      {/* Node Name (for Control/Decorator/SubTree) */}
+      {(builtinDef || isSubTree) && !isLeaf && (
+        <Section title="Name">
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              value={localName}
+              onChange={(e) => setLocalName(e.target.value)}
+              placeholder="optional alias"
+              style={inputStyle}
+            />
+            {(builtinDef || isSubTree) && (
+              <button className="btn-primary" onClick={handleSaveName} style={{ flexShrink: 0 }}>
+                Save
+              </button>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {/* SubTree Target */}
+      {isSubTree && (
+        <Section title="SubTree Target">
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            <select
+              value={localSubTreeId}
+              onChange={(e) => setLocalSubTreeId(e.target.value)}
+              style={{ ...inputStyle, flex: 1 }}
+            >
+              <option value="">-- Select Tree --</option>
+              {project.trees
+                .filter((t) => t.id !== activeTreeId)
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.id}
+                  </option>
+                ))}
+            </select>
+            <button className="btn-primary" onClick={handleSaveSubTree} style={{ flexShrink: 0 }}>
+              Save
+            </button>
+          </div>
+          <div style={{ fontSize: 10, color: '#556' }}>
+            Available trees: {project.trees.map((t) => t.id).join(', ')}
+          </div>
+        </Section>
+      )}
+
+      {/* Port Values */}
       {allPorts.length > 0 && (
         <Section title="Port Values">
           {allPorts.map((p) => (
-            <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
               <label style={{ fontSize: 11, color: '#8899bb', minWidth: 80, flexShrink: 0 }}>
                 {p.name}
                 <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 2 }}>({p.direction})</span>
               </label>
               <input
-                value={btNode.ports?.[p.name] ?? ''}
-                readOnly
-                placeholder="{key}"
+                value={localPorts[p.name] ?? ''}
+                onChange={(e) => updatePort(p.name, e.target.value)}
+                placeholder="{}"
                 style={inputStyle}
+                title={p.description}
               />
             </div>
           ))}
+          <button className="btn-primary" onClick={handleSavePorts} style={{ marginTop: 4 }}>
+            Apply
+          </button>
           <div style={{ fontSize: 10, color: '#556', marginTop: 4 }}>
-            To edit port values, update via the canvas node.
-          </div>
-        </Section>
-      )}
-
-      {/* For SubTree: show target tree */}
-      {btNode.type === 'SubTree' && (
-        <Section title="SubTree Target">
-          <div style={{ color: '#ffe080', fontWeight: 500 }}>{btNode.name ?? '(none)'}</div>
-          <div style={{ fontSize: 10, color: '#667' }}>
-            Available: {project.trees.map((t) => t.id).join(', ')}
-          </div>
-        </Section>
-      )}
-
-      {/* Node definition ports editor (custom nodes only) */}
-      {!isBuiltin && nodeDef && (
-        <Section title="Port Definitions">
-          {ports.map((p, idx) => (
-            <div key={idx} style={{ display: 'flex', gap: 4, marginBottom: 4, alignItems: 'center' }}>
-              <input
-                value={p.name}
-                onChange={(e) => updatePort(idx, 'name', e.target.value)}
-                placeholder="name"
-                style={{ ...inputStyle, flex: 2 }}
-              />
-              <select
-                value={p.direction}
-                onChange={(e) => updatePort(idx, 'direction', e.target.value)}
-                style={{ ...inputStyle, flex: 1 }}
-              >
-                <option value="input">in</option>
-                <option value="output">out</option>
-                <option value="inout">inout</option>
-              </select>
-              <button
-                onClick={() => removePort(idx)}
-                style={{ background: 'none', border: 'none', color: '#e04040', cursor: 'pointer', fontSize: 14, padding: '0 2px' }}
-              >✕</button>
-            </div>
-          ))}
-          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-            <button className="btn-secondary" onClick={addPort} style={{ flex: 1 }}>+ Port</button>
-            <button className="btn-primary" onClick={handleSavePorts} style={{ flex: 1 }}>Save</button>
+            Use <code style={{ color: '#88aacc' }}>{'{key}'}</code> for blackboard references
           </div>
         </Section>
       )}

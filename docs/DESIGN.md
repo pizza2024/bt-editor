@@ -186,7 +186,14 @@ const handleBlur = () => {
 - [ ] 双击 Action/Condition 节点无效果（type 不可改）
 - [ ] 编辑后 name 正确显示在节点和导出 XML 中
 
-### 5.3 整体验收
+### 5.3 Port Values 验收
+- [ ] 选择带有 ports 的节点，PropertiesPanel 显示可编辑的 port values
+- [ ] 修改 port value 后，节点显示更新
+- [ ] 导出 XML 包含正确的 port values
+- [ ] RetryUntilSuccessful 的 num_attempts 可编辑
+- [ ] SubTree 节点可选择目标树
+
+### 5.4 整体验收
 - [ ] Sample XML 导入后图形正确显示
 - [ ] 导出 XML 可被 GRoot2 正常读取
 - [ ] 多树 SubTree 引用正常工作
