@@ -25,26 +25,28 @@ interface ContextMenuProps {
 const ContextMenu: React.FC<ContextMenuProps> = ({ position, targetType, menuConfig, onClose }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Close on left click outside
   useEffect(() => {
-    const handleMouseDown = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        e.preventDefault();
         onClose();
       }
     };
 
+    // Use mousedown event which fires before React's onClick
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  // Close on Escape
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
       }
     };
-
-    document.addEventListener('mousedown', handleMouseDown);
     document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
   // Get menu items for the current target type
