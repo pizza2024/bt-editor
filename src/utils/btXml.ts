@@ -219,18 +219,12 @@ function escapeXml(s: string): string {
 // ─── Default empty project ──────────────────────────────────────────────────
 
 export function defaultProject(): BTProject {
-  // GRoot2 editor always starts with a visual ROOT node containing a Sequence
+  // GRoot2 editor starts with an empty ROOT node — user adds the first child
   const root: BTTreeNode = {
     id: 'n_root',
     type: EDITOR_ROOT_TYPE,
     ports: {},
-    children: [{
-      id: 'n_seq0',
-      type: 'Sequence',
-      name: 'Root',
-      ports: {},
-      children: [],
-    }],
+    children: [],
   };
   return {
     trees: [{ id: 'MainTree', root }],

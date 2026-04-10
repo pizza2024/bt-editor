@@ -116,13 +116,7 @@ export const useBTStore = create<BTStore>()(
         id: `n_${Math.random().toString(36).slice(2, 9)}`,
         type: 'ROOT',
         ports: {},
-        children: [{
-          id: `n_${Math.random().toString(36).slice(2, 9)}`,
-          type: 'Sequence',
-          name: 'Root',
-          ports: {},
-          children: [],
-        }],
+        children: [],
       },
     };
     set({
