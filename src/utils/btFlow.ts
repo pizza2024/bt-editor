@@ -1,6 +1,6 @@
 import type { BTTree, BTTreeNode, BTNodeDefinition } from '../types/bt';
 import type { Node, Edge } from '@xyflow/react';
-import { BUILTIN_NODES } from '../types/bt-constants';
+import { BUILTIN_NODES, EDITOR_ROOT_TYPE } from '../types/bt-constants';
 import { CATEGORY_COLORS } from '../types/bt-constants';
 
 let _edgeCounter = 0;
@@ -44,11 +44,12 @@ export function treeToFlow(
       data: {
         label: btNode.name ?? btNode.type,
         nodeType: btNode.type,
-        category,
-        colors,
+        category: btNode.type === EDITOR_ROOT_TYPE ? 'ROOT' : category,
+        colors: btNode.type === EDITOR_ROOT_TYPE ? CATEGORY_COLORS['ROOT'] : colors,
         ports: btNode.ports,
         childIndex,
         childrenCount,
+        isRoot: btNode.type === EDITOR_ROOT_TYPE,
       } as BTFlowNodeData,
     });
 

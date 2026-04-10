@@ -112,7 +112,18 @@ export const useBTStore = create<BTStore>()(
     }
     const newTree = {
       id,
-      root: { id: `n_${Math.random().toString(36).slice(2, 9)}`, type: 'Sequence', ports: {}, children: [] },
+      root: {
+        id: `n_${Math.random().toString(36).slice(2, 9)}`,
+        type: 'ROOT',
+        ports: {},
+        children: [{
+          id: `n_${Math.random().toString(36).slice(2, 9)}`,
+          type: 'Sequence',
+          name: 'Root',
+          ports: {},
+          children: [],
+        }],
+      },
     };
     set({
       project: { ...project, trees: [...project.trees, newTree] },

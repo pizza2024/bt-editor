@@ -11,12 +11,13 @@ interface BTNodeData {
   ports: Record<string, string>;
   status?: string;
   childrenCount: number;
+  isRoot?: boolean;
   [key: string]: unknown;
 }
 
 const BTFlowNode: React.FC<NodeProps> = ({ data, selected, id: nodeId }) => {
   const d = data as BTNodeData;
-  const { label, category, colors, ports, status, childrenCount } = d;
+  const { label, category, colors, ports, status, childrenCount, isRoot } = d;
 
   const statusColor = status ? STATUS_COLORS[status] : undefined;
   const borderColor = statusColor ?? (selected ? '#ffffff' : colors.border);
@@ -25,12 +26,14 @@ const BTFlowNode: React.FC<NodeProps> = ({ data, selected, id: nodeId }) => {
   const isDecorator = category === 'Decorator';
   const isSubTree = category === 'SubTree';
   const isLeaf = category === 'Leaf';
+  const isRootNode = isRoot === true;
 
   // Port values display
   const portEntries = ports ? Object.entries(ports).filter(([, v]) => v !== '') : [];
 
-  // Double click opens edit modal
+  // Double click opens edit modal (disabled for ROOT)
   const handleDoubleClick = (e: React.MouseEvent) => {
+    if (isRootNode) return;
     e.stopPropagation();
     window.dispatchEvent(new CustomEvent('bt-node-edit', {
       detail: { nodeId }
@@ -80,6 +83,33 @@ const BTFlowNode: React.FC<NodeProps> = ({ data, selected, id: nodeId }) => {
         position={Position.Bottom}
         style={{ background: '#6888aa', border: 'none', width: 8, height: 8 }}
       />
+    );
+  }
+
+  // ROOT node: render as a thin visual container bar
+  if (isRootNode) {
+    return (
+      <div
+        onDoubleClick={handleDoubleClick}
+        style={{
+          background: colors.bg,
+          border: `${borderWidth}px solid ${borderColor}`,
+          borderRadius: 6,
+          padding: '4px 20px',
+          minWidth: 120,
+          color: colors.text,
+          fontFamily: 'monospace',
+          fontSize: 11,
+          textAlign: 'center',
+          boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.3)' : '0 2px 8px rgba(0,0,0,0.5)',
+          userSelect: 'none',
+          position: 'relative',
+          cursor: 'pointer',
+        }}
+      >
+        {handles}
+        <span style={{ fontWeight: 700, letterSpacing: '0.1em', opacity: 0.9 }}>ROOT</span>
+      </div>
     );
   }
 

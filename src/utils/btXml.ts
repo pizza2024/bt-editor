@@ -1,5 +1,5 @@
 import type { BTProject, BTTree, BTTreeNode, BTNodeDefinition } from '../types/bt';
-import { BUILTIN_NODES } from '../types/bt-constants';
+import { BUILTIN_NODES, EDITOR_ROOT_TYPE } from '../types/bt-constants';
 
 // ─── XML → Project ─────────────────────────────────────────────────────────
 
@@ -128,6 +128,11 @@ function serializeNode(
   indent: number,
   nodeModels: BTNodeDefinition[]
 ): string {
+  // ROOT is a visual-only editor node — skip it and serialize its children directly
+  if (node.type === EDITOR_ROOT_TYPE) {
+    return node.children.map((c) => serializeNode(c, indent, nodeModels)).join('\n');
+  }
+
   const pad = '  '.repeat(indent);
   const attrs: string[] = [];
 
@@ -214,11 +219,18 @@ function escapeXml(s: string): string {
 // ─── Default empty project ──────────────────────────────────────────────────
 
 export function defaultProject(): BTProject {
+  // GRoot2 editor always starts with a visual ROOT node containing a Sequence
   const root: BTTreeNode = {
     id: 'n_root',
-    type: 'Sequence',
+    type: EDITOR_ROOT_TYPE,
     ports: {},
-    children: [],
+    children: [{
+      id: 'n_seq0',
+      type: 'Sequence',
+      name: 'Root',
+      ports: {},
+      children: [],
+    }],
   };
   return {
     trees: [{ id: 'MainTree', root }],

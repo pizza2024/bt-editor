@@ -1,5 +1,8 @@
 import type { BTNodeDefinition } from './bt';
 
+// GRoot2 编辑器专用虚拟根节点（不导出到 XML）
+export const EDITOR_ROOT_TYPE = 'ROOT' as const;
+
 // BT.CPP 内置节点清单 (参考 GRoot2 / BT.NODES_XML_REFERENCE_CN.md)
 export const BUILTIN_NODES: BTNodeDefinition[] = [
   // ─── Control 节点 ─────────────────────────────────────────────────────────
@@ -393,6 +396,7 @@ export const CATEGORY_COLORS: Record<string, { bg: string; border: string; text:
   Action:    { bg: '#2d6e3e', border: '#4ab86b', text: '#c8f0d8' },
   Condition: { bg: '#6e4a2d', border: '#d09a40', text: '#fff0c8' },
   SubTree:   { bg: '#5a2d7a', border: '#9a40d0', text: '#f0c8ff' },
+  ROOT:      { bg: '#1a2a3a', border: '#4a6a8a', text: '#aaccee' },
 };
 
 // 状态颜色

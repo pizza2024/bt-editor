@@ -359,8 +359,11 @@ const BTCanvas: React.FC = () => {
         action: () => deleteEdge(menuState.targetId!),
       },
     ] : [],
-    node: menuState.targetType === 'node' && menuState.targetId ? [
-      {
+    node: menuState.targetType === 'node' && menuState.targetId ? (() => {
+      const nodeData = nodes.find((n) => n.id === menuState.targetId)?.data as { isRoot?: boolean } | undefined;
+      const isRoot = nodeData?.isRoot === true;
+      if (isRoot) return []; // ROOT node: no context menu
+      return [{
         id: 'delete',
         label: 'Delete Node',
         icon: '🗑️',
@@ -370,8 +373,8 @@ const BTCanvas: React.FC = () => {
           setNodes((prev) => prev.filter((n) => n.id !== menuState.targetId));
           setEdges((prev) => prev.filter((e) => e.source !== menuState.targetId && e.target !== menuState.targetId));
         },
-      },
-    ] : [],
+      }];
+    })() : [],
     pane: menuState.targetType === 'pane' ? [
       {
         id: 'fitview',
