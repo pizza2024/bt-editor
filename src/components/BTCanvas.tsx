@@ -141,22 +141,25 @@ const BTCanvas: React.FC = () => {
     (_: React.MouseEvent, node: Node) => {
       setSelectedEdgeId(null);
       selectNode(node.id);
+      if (menuState.show) hideMenu();
     },
-    [selectNode]
+    [selectNode, menuState.show, hideMenu]
   );
 
   const onPaneClick = useCallback(() => {
     setSelectedEdgeId(null);
     selectNode(null);
-  }, [selectNode]);
+    if (menuState.show) hideMenu();
+  }, [selectNode, menuState.show, hideMenu]);
 
   const onEdgeClick = useCallback(
     (event: React.MouseEvent, edge: Edge) => {
       event.stopPropagation();
       selectNode(null);
       setSelectedEdgeId(edge.id);
+      if (menuState.show) hideMenu();
     },
-    [selectNode]
+    [selectNode, menuState.show, hideMenu]
   );
 
   // Context menu handlers
@@ -342,9 +345,7 @@ const BTCanvas: React.FC = () => {
     <div
       style={{ width: '100%', height: '100%' }}
       onMouseDown={() => {
-        if (menuState.show) {
-          hideMenu();
-        }
+        hideMenu();
       }}
     >
       <ReactFlow
