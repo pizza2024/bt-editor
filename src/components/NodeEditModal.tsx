@@ -181,9 +181,9 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
                 ) : (
                   <input
                     type="text"
-                    value={instanceName}
-                    onChange={(e) => setInstanceName(e.target.value)}
-                    placeholder="optional"
+                    value={nodeType}
+                    disabled
+                    className="input-disabled"
                   />
                 )}
               </div>
