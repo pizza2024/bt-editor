@@ -4,7 +4,7 @@ import { CATEGORY_COLORS } from '../types/bt-constants';
 import type { BTNodeCategory, BTNodeDefinition } from '../types/bt';
 import NodeModelModal from './NodeModelModal';
 
-const CATEGORIES: BTNodeCategory[] = ['Control', 'Decorator', 'Action', 'Condition', 'SubTree'];
+const CATEGORIES: BTNodeCategory[] = ['Action', 'Condition', 'Control', 'Decorator', 'SubTree'].sort((a, b) => a.localeCompare(b)) as BTNodeCategory[];
 
 const NodePalette: React.FC = () => {
   const { project, addNodeModel, updateNodeModel, deleteNodeModel } = useBTStore();
