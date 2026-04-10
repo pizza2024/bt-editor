@@ -1,24 +1,22 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import { STATUS_COLORS } from '../../types/bt-constants';
-import type { NodeStatus } from '../../types/bt';
 
-export interface BTNodeData {
+interface BTNodeData {
   label: string;
   nodeType: string;
   category: string;
   colors: { bg: string; border: string; text: string };
-  ports?: Record<string, string>;
-  childIndex?: number;
-  status?: NodeStatus;
-  selected?: boolean;
+  ports: Record<string, string>;
+  status?: string;
+  childrenCount: number;
   [key: string]: unknown;
 }
 
-const BTFlowNode: React.FC<NodeProps> = ({ data, selected }) => {
+const BTFlowNode: React.FC<NodeProps> = ({ data, selected, id: nodeId }) => {
   const d = data as BTNodeData;
-  const { label, category, colors, ports, status } = d;
+  const { label, category, colors, ports, status, childrenCount } = d;
 
   const statusColor = status ? STATUS_COLORS[status] : undefined;
   const borderColor = statusColor ?? (selected ? '#ffffff' : colors.border);
@@ -26,12 +24,100 @@ const BTFlowNode: React.FC<NodeProps> = ({ data, selected }) => {
 
   const isDecorator = category === 'Decorator';
   const isSubTree = category === 'SubTree';
+  const isLeaf = category === 'Leaf';
 
-  // Show port values if any
+  // Port values display
   const portEntries = ports ? Object.entries(ports).filter(([, v]) => v !== '') : [];
+
+  // Inline editing state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(label);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Start editing on double click (only for non-leaf nodes)
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if (isLeaf) return; // Leaf nodes: type is not editable
+    e.stopPropagation();
+    setIsEditing(true);
+    setEditValue(label);
+  };
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleBlur = () => {
+    setIsEditing(false);
+    // Notify parent via custom event
+    if (editValue !== label) {
+      window.dispatchEvent(new CustomEvent('bt-node-label-change', {
+        detail: { nodeId, newLabel: editValue }
+      }));
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      (e.target as HTMLInputElement).blur();
+    } else if (e.key === 'Escape') {
+      setEditValue(label);
+      setIsEditing(false);
+    }
+    e.stopPropagation();
+  };
+
+  // Calculate handle positions for multi-children nodes
+  const handles: React.ReactNode[] = [];
+
+  // Target handle (for incoming edge) - always at top
+  handles.push(
+    <Handle
+      key="target"
+      type="target"
+      position={Position.Top}
+      style={{ background: '#6888aa', border: 'none', width: 8, height: 8 }}
+    />
+  );
+
+  // Source handles - one per child, or one default
+  const actualChildrenCount = typeof childrenCount === 'number' ? childrenCount : 0;
+  if (actualChildrenCount > 1) {
+    // Multiple children: distribute handles evenly along bottom
+    for (let i = 0; i < actualChildrenCount; i++) {
+      const leftPercent = ((i + 1) / (actualChildrenCount + 1)) * 100;
+      handles.push(
+        <Handle
+          key={`source-${i}`}
+          type="source"
+          position={Position.Bottom}
+          style={{
+            left: `${leftPercent}%`,
+            background: '#6888aa',
+            border: 'none',
+            width: 8,
+            height: 8,
+          }}
+        />
+      );
+    }
+  } else {
+    // Single or no child: single handle at bottom center
+    handles.push(
+      <Handle
+        key="source"
+        type="source"
+        position={Position.Bottom}
+        style={{ background: '#6888aa', border: 'none', width: 8, height: 8 }}
+      />
+    );
+  }
 
   return (
     <div
+      onDoubleClick={handleDoubleClick}
       style={{
         background: colors.bg,
         border: `${borderWidth}px solid ${borderColor}`,
@@ -46,23 +132,44 @@ const BTFlowNode: React.FC<NodeProps> = ({ data, selected }) => {
         boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.3)' : '0 2px 8px rgba(0,0,0,0.5)',
         transition: 'border-color 0.2s, box-shadow 0.2s',
         userSelect: 'none',
+        position: 'relative',
       }}
     >
-      <Handle
-        type="target"
-        position={Position.Top}
-        style={{ background: '#6888aa', border: 'none', width: 8, height: 8 }}
-      />
+      {handles}
 
-      {/* Node type badge — show category for all except leaf (where type IS the name) */}
+      {/* Category badge */}
       <div style={{ fontSize: 9, opacity: 0.7, marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        {category === 'Leaf' ? 'Action' : category}
+        {isLeaf ? 'Action' : category}
       </div>
 
-      {/* Label */}
-      <div style={{ fontWeight: 600, fontSize: 13, wordBreak: 'break-word' }}>
-        {label}
-      </div>
+      {/* Label (editable for non-leaf) */}
+      {isEditing ? (
+        <input
+          ref={inputRef}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          style={{
+            background: '#1a1a2e',
+            border: '1px solid #4a80d0',
+            color: colors.text,
+            borderRadius: 3,
+            padding: '2px 4px',
+            fontSize: 13,
+            fontWeight: 600,
+            fontFamily: 'monospace',
+            textAlign: 'center',
+            width: '100%',
+            boxSizing: 'border-box',
+            outline: 'none',
+          }}
+        />
+      ) : (
+        <div style={{ fontWeight: 600, fontSize: 13, wordBreak: 'break-word' }}>
+          {label}
+        </div>
+      )}
 
       {/* Ports summary */}
       {portEntries.length > 0 && (
@@ -91,12 +198,6 @@ const BTFlowNode: React.FC<NodeProps> = ({ data, selected }) => {
           }}
         />
       )}
-
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        style={{ background: '#6888aa', border: 'none', width: 8, height: 8 }}
-      />
     </div>
   );
 };
