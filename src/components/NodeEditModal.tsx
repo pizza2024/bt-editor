@@ -57,10 +57,9 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
 
   const isSubTree = nodeType === 'SubTree';
   const isLeaf = nodeCategory === 'Action' || nodeCategory === 'Condition';
-  const isControl = nodeCategory === 'Control';
 
   // ─── Instance state ───────────────────────────────────────────────────
-  const [instanceName, setInstanceName] = useState(isLeaf ? nodeType : (nodeName ?? ''));
+  const [instanceName, setInstanceName] = useState(nodeName ?? '');
   const [subTreeTarget, setSubTreeTarget] = useState(isSubTree ? (nodeName ?? '') : '');
   const [autoRemap, setAutoRemap] = useState(ports['__autoremap'] === 'true' || ports['__autoremap'] === '1');
 
@@ -123,10 +122,16 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
     const cleanPost: Record<string, string> = {};
     POST_KEYS.forEach(k => { if (postCond[k].trim()) cleanPost[k] = postCond[k].trim(); });
 
-    const name = isSubTree ? subTreeTarget : (isControl && !isLeaf ? instanceName : undefined);
+    // Compute name: SubTree uses subTreeTarget, others use instanceName if different from nodeType
+    let name: string | undefined;
+    if (isSubTree) {
+      name = subTreeTarget || undefined;
+    } else if (instanceName && instanceName !== nodeType) {
+      name = instanceName;
+    }
 
     onSave({
-      name: name || undefined,
+      name,
       ports: finalPorts,
       preconditions: Object.keys(cleanPre).length > 0 ? cleanPre : undefined,
       postconditions: Object.keys(cleanPost).length > 0 ? cleanPost : undefined,
