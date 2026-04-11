@@ -72,7 +72,7 @@ const BTCanvas: React.FC = () => {
     position: { x: number; y: number };
   } | null>(null);
 
-  const [nodePickerPosition, setNodePickerPosition] = React.useState<{ x: number; y: number } | null>(null);
+  const [nodePickerPosition, setNodePickerPosition] = React.useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null);
 
   // Track if we should force layout (tree switch or initial load)
   const forceLayoutRef = useRef(true);
@@ -176,7 +176,7 @@ const BTCanvas: React.FC = () => {
       const newNode: Node = {
         id: newNodeId,
         type: 'btNode',
-        position: nodePickerPosition,
+        position: { x: nodePickerPosition.flowX, y: nodePickerPosition.flowY },
         data: {
           label: nodeType,
           nodeType,
@@ -236,14 +236,15 @@ const BTCanvas: React.FC = () => {
         return;
       }
 
-      // Get client coordinates from the event
+      // Get client coordinates from the event (use these directly for fixed positioning)
       const clientX = 'clientX' in event ? event.clientX : 0;
       const clientY = 'clientY' in event ? event.clientY : 0;
 
-      // Convert client coordinates to flow coordinates
-      const position = rfInstance.screenToFlowPosition({ x: clientX, y: clientY });
+      // Also convert to flow coordinates for node placement
+      const flowPosition = rfInstance.screenToFlowPosition({ x: clientX, y: clientY });
 
-      setNodePickerPosition({ x: position.x, y: position.y });
+      // Store both: client position for picker UI, flow position for node placement
+      setNodePickerPosition({ x: clientX, y: clientY, flowX: flowPosition.x, flowY: flowPosition.y });
     },
     []
   );
