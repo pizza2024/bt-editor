@@ -313,7 +313,10 @@ const BTCanvas: React.FC = () => {
     setSelectedEdgeId(null);
     selectNode(null);
     if (menuState.show) hideMenu();
-    setNodePickerPosition(null);
+    // Note: don't close nodePickerPosition here - it will be closed by:
+    // - NodePicker's click outside handler
+    // - NodePicker's Escape key handler
+    // - onNodeClick / onEdgeClick when clicking on nodes/edges
   }, [selectNode, menuState.show, hideMenu]);
 
   const onEdgeClick = useCallback(
