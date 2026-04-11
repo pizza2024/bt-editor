@@ -187,6 +187,15 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
                   />
                 )}
               </div>
+              <div className="form-group">
+                <label>InstanceName</label>
+                <input
+                  type="text"
+                  value={instanceName}
+                  onChange={(e) => setInstanceName(e.target.value)}
+                  placeholder={isLeaf ? nodeType : 'optional'}
+                />
+              </div>
             </div>
             {isSubTree && (
               <div className="form-group" style={{ marginTop: 8 }}>
