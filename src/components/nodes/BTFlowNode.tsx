@@ -26,9 +26,7 @@ const BTFlowNode: React.FC<NodeProps> = ({ data, selected, id: nodeId }) => {
   const borderColor = statusColor ?? (selected ? '#ffffff' : colors.border);
   const borderWidth = selected ? 2 : 1.5;
 
-  const isDecorator = category === 'Decorator';
-  const isSubTree = category === 'SubTree';
-  const isLeaf = category === 'Leaf';
+  const isLeaf = category === 'Action' || category === 'Condition';
   const isRootNode = isRoot === true;
 
   // Look up port definitions for this node type
@@ -123,9 +121,9 @@ const BTFlowNode: React.FC<NodeProps> = ({ data, selected, id: nodeId }) => {
       style={{
         background: colors.bg,
         border: `${borderWidth}px solid ${borderColor}`,
-        borderRadius: isDecorator ? '50%' : isSubTree ? '10px' : '6px',
-        padding: isDecorator ? '10px 14px' : '6px 10px',
-        minWidth: isDecorator ? 90 : 140,
+        borderRadius: 6,
+        padding: '6px 10px',
+        minWidth: 140,
         maxWidth: 200,
         color: colors.text,
         fontFamily: 'monospace',

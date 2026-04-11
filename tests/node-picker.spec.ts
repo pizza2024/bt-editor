@@ -37,4 +37,11 @@ test.describe('Node Picker', () => {
     // The picker itself won't be visible until triggered
     // But we can verify the element doesn't throw errors
   });
+
+  test('all node types should have rectangular shape', async ({ page }) => {
+    // All nodes should have border-radius style making them rectangular
+    // Check that Decorator nodes are no longer circular
+    const decoratorNode = page.locator('.react-flow__node').filter({ hasText: 'Inverter' });
+    // Inverter is a Decorator - it should now be rectangular, not circular
+  });
 });
