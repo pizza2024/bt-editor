@@ -173,7 +173,7 @@ const BTCanvas: React.FC = () => {
 
       const newNode: Node = {
         id: newNodeId,
-        type: 'btFlow',
+        type: 'btNode',
         position: nodePickerPosition,
         data: {
           label: nodeType,
