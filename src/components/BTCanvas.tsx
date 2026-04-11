@@ -526,6 +526,19 @@ const BTCanvas: React.FC = () => {
     [project.nodeModels, addNodeModel, setNodes]
   );
 
+  // Check for unconnected nodes (no incoming AND no outgoing edges)
+  const unconnectedNodes = useMemo(() => {
+    if (nodes.length === 0) return [];
+    return nodes.filter((n) => {
+      // Skip ROOT - it doesn't need connections
+      const data = n.data as { isRoot?: boolean };
+      if (data?.isRoot) return false;
+      const hasIncoming = edges.some((e) => e.target === n.id);
+      const hasOutgoing = edges.some((e) => e.source === n.id);
+      return !hasIncoming && !hasOutgoing;
+    });
+  }, [nodes, edges]);
+
   // Build dynamic menu config based on current context
   const dynamicMenuConfig: MenuConfig = useMemo(() => ({
     edge: menuState.targetType === 'edge' && menuState.targetId ? [
@@ -598,6 +611,32 @@ const BTCanvas: React.FC = () => {
           style={{ background: '#1a1a2e', border: '1px solid #334' }}
         />
       </ReactFlow>
+
+      {/* Unconnected nodes warning */}
+      {unconnectedNodes.length > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            background: '#1a1a2e',
+            border: '1px solid #556',
+            borderRadius: 6,
+            padding: '6px 10px',
+            fontSize: 11,
+            color: '#99aacc',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+          }}
+          title={`Unconnected nodes: ${unconnectedNodes.map((n) => (n.data as { label?: string }).label || n.id).join(', ')}`}
+        >
+          <span style={{ fontSize: 14 }}>⚠️</span>
+          <span style={{ fontWeight: 500 }}>{unconnectedNodes.length} unconnected node{unconnectedNodes.length > 1 ? 's' : ''}</span>
+        </div>
+      )}
 
       {/* Context Menu */}
       {menuState.show && (
