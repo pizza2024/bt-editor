@@ -246,8 +246,8 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
 
         {/* Footer */}
         <div className="modal-footer">
-          <button className="btn-cancel" onClick={onClose}>Cancel</button>
-          <button className="btn-save" onClick={handleSave}>Save</button>
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={handleSave}>Save</button>
         </div>
       </div>
     </div>
