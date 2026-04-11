@@ -456,6 +456,7 @@ const BTCanvas: React.FC = () => {
           ports?: Record<string, string>;
           preconditions?: Record<string, string>;
           postconditions?: Record<string, string>;
+          description?: string;
         };
         return (
           <NodeEditModal
@@ -466,6 +467,7 @@ const BTCanvas: React.FC = () => {
             ports={data.ports ?? {}}
             preconditions={data.preconditions}
             postconditions={data.postconditions}
+            description={data.description}
             availableTrees={project.trees.map((t) => t.id)}
             onSave={handleEditSave}
             onClose={() => setEditingNodeId(null)}

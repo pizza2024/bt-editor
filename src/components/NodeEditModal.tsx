@@ -10,6 +10,7 @@ interface NodeEditModalProps {
   ports: Record<string, string>;
   preconditions?: Record<string, string>;
   postconditions?: Record<string, string>;
+  description?: string;
   availableTrees?: string[];
   onSave: (data: {
     name?: string;
@@ -51,6 +52,7 @@ const POST_LABELS: Record<string, string> = {
 
 const NodeEditModal: React.FC<NodeEditModalProps> = ({
   nodeId, nodeType, nodeCategory, nodeName, ports, preconditions = {}, postconditions = {},
+  description: initialDescription = '',
   availableTrees = [], onSave, onClose
 }) => {
   const nodeDef = useMemo(() => getNodeDef(nodeType), [nodeType]);
@@ -93,7 +95,7 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
     setPostCond(initPost);
 
     // Description
-    setDescription('');
+    setDescription(initialDescription ?? '');
   }, [nodeId]);
 
   // ─── Handlers ───────────────────────────────────────────────────────────
