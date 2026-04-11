@@ -241,6 +241,7 @@ const BTCanvas: React.FC = () => {
     ports: Record<string, string>;
     preconditions?: Record<string, string>;
     postconditions?: Record<string, string>;
+    description?: string;
   }) => {
     if (!editingNodeId) return;
 
@@ -253,6 +254,7 @@ const BTCanvas: React.FC = () => {
         ports?: Record<string, string>;
         preconditions?: Record<string, string>;
         postconditions?: Record<string, string>;
+        description?: string;
       };
       if (!node || !nodeData) return prev;
 
@@ -266,6 +268,7 @@ const BTCanvas: React.FC = () => {
               ports: data.ports ?? nodeData.ports,
               preconditions: data.preconditions ?? nodeData.preconditions,
               postconditions: data.postconditions ?? nodeData.postconditions,
+              description: data.description,
             },
           };
         }

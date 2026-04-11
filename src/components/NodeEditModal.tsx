@@ -16,6 +16,7 @@ interface NodeEditModalProps {
     ports: Record<string, string>;
     preconditions?: Record<string, string>;
     postconditions?: Record<string, string>;
+    description?: string;
   }) => void;
   onClose: () => void;
 }
@@ -93,7 +94,7 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
     setPostCond(initPost);
 
     // Description
-    setDescription(nodeDef?.description ?? '');
+    setDescription('');
   }, [nodeId]);
 
   // ─── Handlers ───────────────────────────────────────────────────────────
@@ -129,6 +130,7 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
       ports: finalPorts,
       preconditions: Object.keys(cleanPre).length > 0 ? cleanPre : undefined,
       postconditions: Object.keys(cleanPost).length > 0 ? cleanPost : undefined,
+      description: description.trim() || undefined,
     });
     onClose();
   };

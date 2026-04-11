@@ -11,6 +11,7 @@ interface BTNodeData {
   ports: Record<string, string>;
   preconditions?: Record<string, string>;
   postconditions?: Record<string, string>;
+  description?: string;
   status?: string;
   childrenCount: number;
   isRoot?: boolean;
@@ -19,7 +20,7 @@ interface BTNodeData {
 
 const BTFlowNode: React.FC<NodeProps> = ({ data, selected, id: nodeId }) => {
   const d = data as BTNodeData;
-  const { label, category, colors, ports, preconditions, postconditions, status, childrenCount, isRoot } = d;
+  const { label, category, colors, ports, preconditions, postconditions, description, status, childrenCount, isRoot } = d;
 
   const statusColor = status ? STATUS_COLORS[status] : undefined;
   const borderColor = statusColor ?? (selected ? '#ffffff' : colors.border);
@@ -210,10 +211,11 @@ const BTFlowNode: React.FC<NodeProps> = ({ data, selected, id: nodeId }) => {
       )}
 
       {/* Pre/Post condition indicators */}
-      {(hasPre || hasPost) && (
+      {(hasPre || hasPost || description) && (
         <div style={{ marginTop: 3, fontSize: 8, opacity: 0.6 }}>
           {hasPre && <span title="Has pre-conditions">⏱</span>}
           {hasPost && <span title="Has post-conditions">↩</span>}
+          {description && <span title={description}>📝</span>}
         </div>
       )}
 

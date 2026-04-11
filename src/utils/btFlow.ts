@@ -14,6 +14,7 @@ export interface BTFlowNodeData {
   ports: Record<string, string>;
   preconditions?: Record<string, string>;
   postconditions?: Record<string, string>;
+  description?: string;
   childIndex?: number;
   childrenCount: number;
   [key: string]: unknown;
@@ -102,6 +103,7 @@ export function flowToTree(treeId: string, nodes: Node[], edges: Edge[]): BTTree
       ports?: Record<string, string>;
       preconditions?: Record<string, string>;
       postconditions?: Record<string, string>;
+      description?: string;
     };
     const childIds = children.get(nodeId) ?? [];
     return {
@@ -111,6 +113,7 @@ export function flowToTree(treeId: string, nodes: Node[], edges: Edge[]): BTTree
       ports: (data.ports as Record<string, string>) ?? {},
       preconditions: data.preconditions,
       postconditions: data.postconditions,
+      description: data.description,
       children: childIds.map(buildNode),
     };
   }

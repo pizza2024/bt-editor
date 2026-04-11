@@ -29,6 +29,8 @@ export interface BTTreeNode {
   // Pre/Post conditions (instance-level overrides)
   preconditions?: Record<string, string>;   // _successIf, _failureIf, _skipIf, _while
   postconditions?: Record<string, string>;  // _onSuccess, _onFailure, _onHalted, _post
+  // Instance-level description note
+  description?: string;
 }
 
 export interface BTTree {
