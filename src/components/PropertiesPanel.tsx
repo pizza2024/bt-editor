@@ -38,8 +38,8 @@ const PropertiesPanel: React.FC = () => {
     : undefined;
 
   const builtinDef = btNode ? BUILTIN_NODES.find((n) => n.type === btNode.type) : undefined;
-  const nodeCategory = nodeDef?.category ?? builtinDef?.category ?? 'Leaf';
-  const colors = CATEGORY_COLORS[nodeCategory];
+  const nodeCategory = nodeDef?.category ?? builtinDef?.category ?? 'Control';
+  const colors = CATEGORY_COLORS[nodeCategory] ?? CATEGORY_COLORS.Control;
 
   // Force re-render when node selection changes
   const nodeKey = selectedNodeId ?? 'none';
@@ -63,7 +63,7 @@ const PropertiesPanel: React.FC = () => {
   }, [nodeKey, btNode?.name]);
 
   const allPorts = builtinDef?.ports ?? nodeDef?.ports ?? [];
-  const isLeaf = nodeCategory === 'Leaf' || (btNode && !builtinDef);
+  const isLeaf = nodeCategory === 'Action' || nodeCategory === 'Condition';
   const isSubTree = btNode?.type === 'SubTree';
 
   // Save handler for port values
