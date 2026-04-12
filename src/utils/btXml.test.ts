@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultProject, parseXML, SAMPLE_XML, serializeXML, isBlackboardRef, extractBlackboardKey, parseBlackboardExpression, isValidBlackboardKey, validatePortConnection, getPortDirectionLabel, validateNode, validateProject } from './btXml';
+import { defaultProject, parseXML, SAMPLE_XML, serializeXML, isBlackboardRef, extractBlackboardKey, parseBlackboardExpression, isValidBlackboardKey, validatePortConnection, getPortDirectionLabel, validateNode, validateProject, validateNodeModel, validateAllNodeModels } from './btXml';
 
 describe('parseXML', () => {
   it('parses sample XML and extracts trees and main tree id', () => {
@@ -243,6 +243,135 @@ describe('Blackboard Expression Utilities', () => {
       const project = parseXML(SAMPLE_XML);
       const issues = validateProject(project);
       expect(issues.filter(i => i.severity === 'error')).toHaveLength(0);
+    });
+  });
+
+  describe('validateNodeModel', () => {
+    it('returns no issues for a valid node model', () => {
+      const def = { type: 'MoveToGoal', category: 'Action' as const };
+      const issues = validateNodeModel(def);
+      expect(issues).toHaveLength(0);
+    });
+
+    it('detects empty node type name', () => {
+      const def = { type: '   ', category: 'Action' as const };
+      const issues = validateNodeModel(def);
+      expect(issues.some(i => i.message.includes('cannot be empty'))).toBe(true);
+    });
+
+    it('detects invalid identifier for node type name', () => {
+      const def = { type: 'Move-To-Goal', category: 'Action' as const };
+      const issues = validateNodeModel(def);
+      expect(issues.some(i => i.message.includes('not a valid identifier'))).toBe(true);
+    });
+
+    it('detects duplicate node type name', () => {
+      const def = { type: 'MoveToGoal', category: 'Action' as const };
+      const existing = [{ type: 'MoveToGoal', category: 'Action' as const }];
+      const issues = validateNodeModel(def, existing);
+      expect(issues.some(i => i.message.includes('already exists'))).toBe(true);
+    });
+
+    it('detects conflict with built-in node type', () => {
+      const def = { type: 'Sequence', category: 'Control' as const };
+      const issues = validateNodeModel(def);
+      expect(issues.some(i => i.message.includes('built-in'))).toBe(true);
+    });
+
+    it('detects invalid category', () => {
+      const def = { type: 'MyNode', category: 'InvalidCategory' as any };
+      const issues = validateNodeModel(def);
+      expect(issues.some(i => i.message.includes('Invalid category'))).toBe(true);
+    });
+
+    it('detects duplicate port names', () => {
+      const def = {
+        type: 'TestNode',
+        category: 'Action' as const,
+        ports: [
+          { name: 'goal', direction: 'input' as const },
+          { name: 'goal', direction: 'input' as const },
+        ],
+      };
+      const issues = validateNodeModel(def);
+      expect(issues.some(i => i.message.includes('Duplicate port name'))).toBe(true);
+    });
+
+    it('detects invalid port name identifier', () => {
+      const def = {
+        type: 'TestNode',
+        category: 'Action' as const,
+        ports: [{ name: 'goal-pose', direction: 'input' as const }],
+      };
+      const issues = validateNodeModel(def);
+      expect(issues.some(i => i.message.includes('not a valid identifier'))).toBe(true);
+    });
+
+    it('detects invalid port type value', () => {
+      const def = {
+        type: 'TestNode',
+        category: 'Action' as const,
+        ports: [{ name: 'port1', direction: 'input' as const, portType: 'InvalidType' }],
+      };
+      const issues = validateNodeModel(def);
+      expect(issues.some(i => i.message.includes('invalid type'))).toBe(true);
+    });
+
+    it('allows valid port type values', () => {
+      const def = {
+        type: 'TestNode',
+        category: 'Action' as const,
+        ports: [
+          { name: 'port1', direction: 'input' as const, portType: 'int' },
+          { name: 'port2', direction: 'output' as const, portType: 'double' },
+          { name: 'port3', direction: 'inout' as const, portType: 'bool' },
+          { name: 'port4', direction: 'input' as const, portType: 'string' },
+        ],
+      };
+      const issues = validateNodeModel(def);
+      const typeErrors = issues.filter(i => i.message.includes('invalid type'));
+      expect(typeErrors).toHaveLength(0);
+    });
+
+    it('warns about empty port name', () => {
+      const def = {
+        type: 'TestNode',
+        category: 'Action' as const,
+        ports: [{ name: '', direction: 'input' as const }],
+      };
+      const issues = validateNodeModel(def);
+      expect(issues.some(i => i.message.includes('empty name'))).toBe(true);
+    });
+
+    it('detects invalid port direction', () => {
+      const def = {
+        type: 'TestNode',
+        category: 'Action' as const,
+        ports: [{ name: 'port1', direction: 'invalid' as any }],
+      };
+      const issues = validateNodeModel(def);
+      expect(issues.some(i => i.message.includes('invalid direction'))).toBe(true);
+    });
+  });
+
+  describe('validateAllNodeModels', () => {
+    it('returns no issues for project with valid models', () => {
+      const project = parseXML(SAMPLE_XML);
+      const issues = validateAllNodeModels(project);
+      expect(issues.filter(i => i.severity === 'error')).toHaveLength(0);
+    });
+
+    it('returns combined issues from all models', () => {
+      const project: import('../types/bt').BTProject = {
+        trees: [],
+        mainTreeId: 'MainTree',
+        nodeModels: [
+          { type: 'NodeA', category: 'Action' },
+          { type: 'NodeA', category: 'Action' },
+        ],
+      };
+      const issues = validateAllNodeModels(project);
+      expect(issues.filter(i => i.severity === 'error').length).toBeGreaterThan(0);
     });
   });
 });
