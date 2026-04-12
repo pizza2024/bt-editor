@@ -41,6 +41,10 @@ const Toolbar: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportPNG = () => {
+    window.dispatchEvent(new CustomEvent('bt-export-png'));
+  };
+
   const handleLoadSample = () => {
     loadXML(SAMPLE_XML);
   };
@@ -63,6 +67,9 @@ const Toolbar: React.FC = () => {
       </button>
       <button className="toolbar-btn" onClick={handleExport} title="Export BT.CPP XML">
         ⬇ Export XML
+      </button>
+      <button className="toolbar-btn" onClick={handleExportPNG} title="Export canvas as PNG image">
+        🖼 Export PNG
       </button>
       <input ref={fileInputRef} type="file" accept=".xml" style={{ display: 'none' }} onChange={handleImport} />
 

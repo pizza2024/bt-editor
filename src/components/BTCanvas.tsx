@@ -11,6 +11,7 @@ import {
 } from '@xyflow/react';
 import type { Connection, Node, Edge, ReactFlowInstance } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import html2canvas from 'html2canvas';
 
 import { useBTStore } from '../store/btStore';
 import { treeToFlow, flowToTree, isSameTreeStructure } from '../utils/btFlow';
@@ -440,6 +441,34 @@ const BTCanvas: React.FC = () => {
 
     window.addEventListener('bt-node-edit', handleNodeEdit);
     return () => window.removeEventListener('bt-node-edit', handleNodeEdit);
+  }, []);
+
+  // Handle PNG export
+  React.useEffect(() => {
+    const handleExportPNG = async () => {
+      const flowElement = document.querySelector('.react-flow') as HTMLElement;
+      if (!flowElement) return;
+
+      try {
+        const canvas = await html2canvas(flowElement, {
+          backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-primary').trim() || '#0f0f1e',
+          scale: 2,
+          logging: false,
+          useCORS: true,
+        });
+
+        const dataUrl = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.download = `${useBTStore.getState().activeTreeId || 'behavior-tree'}.png`;
+        link.href = dataUrl;
+        link.click();
+      } catch (err) {
+        console.error('Failed to export PNG:', err);
+      }
+    };
+
+    window.addEventListener('bt-export-png', handleExportPNG);
+    return () => window.removeEventListener('bt-export-png', handleExportPNG);
   }, []);
 
   // Handle edit modal save (for editing node instances on canvas)
