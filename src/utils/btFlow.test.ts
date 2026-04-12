@@ -47,7 +47,7 @@ describe('treeToFlow', () => {
     expect(edges[0]).toMatchObject({
       source: 'root',
       target: 'leaf-1',
-      type: 'smoothstep',
+      type: 'btEdge',
     });
   });
 });

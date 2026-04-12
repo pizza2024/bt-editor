@@ -59,6 +59,13 @@ interface BTStore {
   // Selection
   selectNode: (id: string | null) => void;
 
+  // Undo/Redo actions
+  pushHistory: () => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+
   // Debug actions
   loadDebugLog: (text: string) => void;
   debugStep: (direction: 'forward' | 'back') => void;
@@ -83,6 +90,55 @@ export const useBTStore = create<BTStore>()(
   debugState: defaultDebug,
   localNodes: [],
   localEdges: [],
+  // Undo/Redo history
+  _undoStack: [] as BTProject[],
+  _redoStack: [] as BTProject[],
+
+  pushHistory() {
+    const { project, _undoStack } = get();
+    // Deep clone the project to save as history
+    const snapshot = JSON.parse(JSON.stringify(project));
+    const newStack = _undoStack.slice(-49); // Keep max 50 items
+    set({ _undoStack: [...newStack, snapshot], _redoStack: [] });
+  },
+
+  undo() {
+    const { _undoStack, project } = get();
+    if (_undoStack.length === 0) return;
+    const previous = _undoStack[_undoStack.length - 1];
+    const newStack = _undoStack.slice(0, -1);
+    // Save current to redo stack
+    const currentSnapshot = JSON.parse(JSON.stringify(project));
+    set({
+      project: previous,
+      _undoStack: newStack,
+      _redoStack: [...get()._redoStack, currentSnapshot],
+      selectedNodeId: null,
+    });
+  },
+
+  redo() {
+    const { _redoStack, project } = get();
+    if (_redoStack.length === 0) return;
+    const next = _redoStack[_redoStack.length - 1];
+    const newStack = _redoStack.slice(0, -1);
+    // Save current to undo stack
+    const currentSnapshot = JSON.parse(JSON.stringify(project));
+    set({
+      project: next,
+      _undoStack: [...get()._undoStack, currentSnapshot],
+      _redoStack: newStack,
+      selectedNodeId: null,
+    });
+  },
+
+  canUndo() {
+    return get()._undoStack.length > 0;
+  },
+
+  canRedo() {
+    return get()._redoStack.length > 0;
+  },
 
   setLocalCanvas(nodes, edges) {
     set({ localNodes: nodes, localEdges: edges });

@@ -1,10 +1,22 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useBTStore } from '../store/btStore';
 import { SAMPLE_XML } from '../utils/btXml';
 
 const Toolbar: React.FC = () => {
   const { loadXML, exportXML, project, activeTreeId } = useBTStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Ctrl+S: Export XML
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleExport();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [project.mainTreeId]);
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

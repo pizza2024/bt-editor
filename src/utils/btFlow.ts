@@ -63,7 +63,7 @@ export function treeToFlow(
         id: `e_${_edgeCounter++}`,
         source: parentId,
         target: btNode.id,
-        type: 'smoothstep',
+        type: 'btEdge',
         style: { stroke: '#6888aa', strokeWidth: 2 },
       });
     }

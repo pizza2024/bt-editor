@@ -96,9 +96,8 @@ const BTCanvas: React.FC = () => {
   // Sync: responds to tree switch and external project changes (like XML load)
   // NOT triggered by our own saveToStore (we use forceLayoutRef for that)
   React.useEffect(() => {
-    // Force layout when switching trees or first load
+    // Force layout when switching trees or first load OR when project changed (e.g., loaded new XML)
     const shouldForceLayout = forceLayoutRef.current || lastSyncedTreeRef.current !== activeTreeId;
-
     if (shouldForceLayout) {
       // Full rebuild with autoLayout for tree switch or initial load
       const { nodes: n, edges: e } = buildFlowNodes(activeTreeId, project, debugState.nodeStatuses);
@@ -110,12 +109,15 @@ const BTCanvas: React.FC = () => {
       // Incremental update: only sync structure from project, preserve existing positions
       const tree = project.trees.find((t) => t.id === activeTreeId);
       if (!tree) return;
-      const { nodes: newNodes } = treeToFlow(tree, project.nodeModels);
+      const { nodes: newNodes, edges: newEdges } = treeToFlow(tree, project.nodeModels);
 
-      // Merge: keep existing positions from local nodes state
+      // Apply autoLayout to properly position all nodes
+      const laidOutNodes = autoLayout(newNodes, newEdges);
+
+      // Merge: keep existing positions from local nodes state, but use layout positions for new nodes
       setNodes((prevNodes) => {
         const existingPositions = new Map(prevNodes.map((n) => [n.id, n.position]));
-        const merged = newNodes.map((n) => ({
+        const merged = laidOutNodes.map((n) => ({
           ...n,
           position: existingPositions.get(n.id) ?? n.position,
           selected: n.id === selectedNodeId,
@@ -123,9 +125,9 @@ const BTCanvas: React.FC = () => {
         }));
         return merged;
       });
-      setEdges((prevEdges) => withSelectedEdge(prevEdges, selectedEdgeId, deleteEdge));
+      setEdges(withSelectedEdge(newEdges, selectedEdgeId, deleteEdge));
     }
-  }, [activeTreeId, debugState.nodeStatuses, selectedEdgeId, deleteEdge]);
+  }, [activeTreeId, project, debugState.nodeStatuses, selectedEdgeId, deleteEdge]);
 
   // Highlight selected node
   React.useEffect(() => {
@@ -252,6 +254,7 @@ const BTCanvas: React.FC = () => {
         return; // Connection not allowed by BT rules
       }
 
+      useBTStore.getState().pushHistory();
       setSelectedEdgeId(null);
       setEdges((eds) => withSelectedEdge(
         addEdge({ ...params, type: 'btEdge', style: { stroke: '#6888aa', strokeWidth: 2 } }, eds),
@@ -487,22 +490,60 @@ const BTCanvas: React.FC = () => {
     setSelectedEdgeId(null);
   }, [edges, selectedEdgeId]);
 
+  // Keyboard shortcuts handler
   React.useEffect(() => {
-    if (!selectedEdgeId) return;
-
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
-
+      // Ignore if user is typing in an input
       const activeTag = document.activeElement?.tagName;
       if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
 
-      event.preventDefault();
-      deleteEdge(selectedEdgeId);
+      // Delete/Backspace to delete selected node or edge
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        if (selectedNodeId) {
+          useBTStore.getState().pushHistory();
+          setNodes((prev) => prev.filter((n) => n.id !== selectedNodeId));
+          setEdges((prev) => prev.filter((e) => e.source !== selectedNodeId && e.target !== selectedNodeId));
+          selectNode(null);
+        } else if (selectedEdgeId) {
+          useBTStore.getState().pushHistory();
+          deleteEdge(selectedEdgeId);
+        }
+        return;
+      }
+
+      // Ctrl+Z: Undo
+      if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        useBTStore.getState().undo();
+        return;
+      }
+
+      // Ctrl+Y or Ctrl+Shift+Z: Redo
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || (event.key === 'z' && event.shiftKey))) {
+        event.preventDefault();
+        useBTStore.getState().redo();
+        return;
+      }
+
+      // F: Fit view
+      if (event.key === 'f' || event.key === 'F') {
+        event.preventDefault();
+        rfInstanceRef.current?.fitView();
+        return;
+      }
+
+      // Escape: Deselect
+      if (event.key === 'Escape') {
+        selectNode(null);
+        setSelectedEdgeId(null);
+        return;
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [deleteEdge, selectedEdgeId]);
+  }, [deleteEdge, selectNode, selectedEdgeId, selectedNodeId]);
 
   // Drag-over handler for dropping from palette
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -542,7 +583,10 @@ const BTCanvas: React.FC = () => {
 
       // If it's a custom leaf node not yet in node models, auto-add
       if (!project.nodeModels.find((m) => m.type === nodeType)) {
+        useBTStore.getState().pushHistory();
         addNodeModel({ type: nodeType, category });
+      } else {
+        useBTStore.getState().pushHistory();
       }
 
       setNodes((nds) => [...nds, newNode]);
@@ -572,7 +616,10 @@ const BTCanvas: React.FC = () => {
         label: 'Delete Edge',
         icon: '🗑️',
         danger: true,
-        action: () => deleteEdge(menuState.targetId!),
+        action: () => {
+          useBTStore.getState().pushHistory();
+          deleteEdge(menuState.targetId!);
+        },
       },
     ] : [],
     node: menuState.targetType === 'node' && menuState.targetId ? (() => {
@@ -585,6 +632,7 @@ const BTCanvas: React.FC = () => {
         icon: '🗑️',
         danger: true,
         action: () => {
+          useBTStore.getState().pushHistory();
           // Delete node and its edges
           setNodes((prev) => prev.filter((n) => n.id !== menuState.targetId));
           setEdges((prev) => prev.filter((e) => e.source !== menuState.targetId && e.target !== menuState.targetId));
