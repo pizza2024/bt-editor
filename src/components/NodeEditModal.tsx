@@ -268,7 +268,6 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
               ))}
             </div>
           )}
-          </div>
 
           {/* ─── Description Section ─────────────────────────────────────── */}
           <div className="edit-section">
