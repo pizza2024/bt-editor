@@ -1,10 +1,22 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useBTStore } from '../store/btStore';
 import { SAMPLE_XML } from '../utils/btXml';
 
 const Toolbar: React.FC = () => {
-  const { loadXML, exportXML, project, activeTreeId } = useBTStore();
+  const { loadXML, exportXML, project, activeTreeId, theme, toggleTheme } = useBTStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Ctrl+S: Export XML
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleExport();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [project.mainTreeId]);
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -27,6 +39,10 @@ const Toolbar: React.FC = () => {
     a.download = `${project.mainTreeId}.xml`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleExportPNG = () => {
+    window.dispatchEvent(new CustomEvent('bt-export-png'));
   };
 
   const handleLoadSample = () => {
@@ -52,6 +68,9 @@ const Toolbar: React.FC = () => {
       <button className="toolbar-btn" onClick={handleExport} title="Export BT.CPP XML">
         ⬇ Export XML
       </button>
+      <button className="toolbar-btn" onClick={handleExportPNG} title="Export Behavior Tree as PNG image">
+        🖼️ Export PNG
+      </button>
       <input ref={fileInputRef} type="file" accept=".xml" style={{ display: 'none' }} onChange={handleImport} />
 
       <div className="toolbar-divider" />
@@ -65,6 +84,16 @@ const Toolbar: React.FC = () => {
       </div>
 
       <div style={{ flex: 1 }} />
+
+      {/* Theme toggle */}
+      <button
+        className="toolbar-btn"
+        onClick={toggleTheme}
+        title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        style={{ minWidth: 70 }}
+      >
+        {theme === 'dark' ? '🌙 Dark' : '☀️ Light'}
+      </button>
 
       {/* Help */}
       <div style={{ fontSize: 11, color: '#445', textAlign: 'right' }}>
