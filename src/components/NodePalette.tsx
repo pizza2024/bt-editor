@@ -225,7 +225,6 @@ const PaletteItem: React.FC<PaletteItemProps> = ({ def, colors, onDragStart, onE
         )}
       </div>
     )}
-    </div>
   </div>
 );
 
