@@ -21,9 +21,10 @@ import BTFlowNode from './nodes/BTFlowNode';
 import BTFlowEdge from './edges/BTFlowEdge';
 import { BUILTIN_NODES, CATEGORY_COLORS } from '../types/bt-constants';
 import type { BTNodeDefinition, BTProject, BTNodeCategory, BTPort } from '../types/bt';
-import { useContextMenu, type MenuConfig } from './ContextMenu';
+import { useContextMenu, type MenuConfig, type MenuItem } from './ContextMenu';
 import NodePicker from './NodePicker';
 import NodeEditModal from './NodeEditModal';
+import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
 
 const nodeTypes = { btNode: BTFlowNode };
 const edgeTypes = { btEdge: BTFlowEdge };
@@ -116,16 +117,24 @@ const BTCanvas: React.FC = () => {
     copyNode,
     pasteNode,
     pushHistory,
+    collapsedNodeIds,
+    toggleNodeCollapse,
   } = useBTStore();
 
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
+  const [zoomLevel, setZoomLevel] = React.useState(1);
   const [selectedEdgeId, setSelectedEdgeId] = React.useState<string | null>(null);
+  // Track last pane click for double-click detection
+  const lastPaneClickRef = React.useRef<number>(0);
 
   // Context menu
   const { menuState, showMenu, hideMenu, ContextMenuComponent } = useContextMenu();
 
   // Node edit modal
   const [editingNodeId, setEditingNodeId] = React.useState<string | null>(null);
+
+  // Keyboard shortcuts help modal
+  const [showHelp, setShowHelp] = React.useState(false);
 
   // Incomplete connection picker (drag from handle to empty space)
   const [pendingConnection, setPendingConnection] = React.useState<{
@@ -296,7 +305,22 @@ const BTCanvas: React.FC = () => {
     if (shouldForceLayout) {
       // Full rebuild with autoLayout for tree switch or initial load
       const { nodes: n, edges: e } = buildFlowNodes(activeTreeId, project, debugState.nodeStatuses);
-      setNodes(n);
+      // Apply collapsed filter
+      const collapsed = useBTStore.getState().collapsedNodeIds;
+      const collapsedDescendants = new Set<string>();
+      e.forEach((edge) => {
+        if (collapsed.has(edge.source)) {
+          // source is collapsed, mark all its descendants
+          const desc = getDescendantIds(edge.source, e);
+          desc.forEach(d => collapsedDescendants.add(d));
+        }
+      });
+      const visibleNodes = n.map((node) => ({
+        ...node,
+        hidden: collapsedDescendants.has(node.id),
+        data: { ...node.data, isCollapsed: collapsed.has(node.id) },
+      }));
+      setNodes(visibleNodes);
       setEdges(withSelectedEdge(e, selectedEdgeId, deleteEdge));
       lastSyncedTreeRef.current = activeTreeId;
       forceLayoutRef.current = false;
@@ -309,20 +333,35 @@ const BTCanvas: React.FC = () => {
       // Apply autoLayout to properly position all nodes
       const laidOutNodes = autoLayout(newNodes, newEdges);
 
+      // Apply collapsed filter
+      const collapsed = useBTStore.getState().collapsedNodeIds;
+      const collapsedDescendants = new Set<string>();
+      newEdges.forEach((edge) => {
+        if (collapsed.has(edge.source)) {
+          const desc = getDescendantIds(edge.source, newEdges);
+          desc.forEach(d => collapsedDescendants.add(d));
+        }
+      });
+
       // Merge: keep existing positions from local nodes state, but use layout positions for new nodes
       setNodes((prevNodes) => {
         const existingPositions = new Map(prevNodes.map((n) => [n.id, n.position]));
         const merged = laidOutNodes.map((n) => ({
           ...n,
+          hidden: collapsedDescendants.has(n.id),
           position: existingPositions.get(n.id) ?? n.position,
           selected: selectedNodeIds.has(n.id),
-          data: { ...n.data, status: debugState.nodeStatuses.get(n.id) ?? 'IDLE' },
+          data: {
+            ...n.data,
+            isCollapsed: collapsed.has(n.id),
+            status: debugState.nodeStatuses.get(n.id) ?? 'IDLE',
+          },
         }));
         return merged;
       });
       setEdges(withSelectedEdge(newEdges, selectedEdgeId, deleteEdge));
     }
-  }, [activeTreeId, project, debugState.nodeStatuses, selectedEdgeId, deleteEdge]);
+  }, [activeTreeId, project, debugState.nodeStatuses, selectedEdgeId, deleteEdge, collapsedNodeIds]);
 
   // Highlight selected nodes
   React.useEffect(() => {
@@ -568,6 +607,20 @@ const BTCanvas: React.FC = () => {
   );
 
   const onPaneClick = useCallback(() => {
+    // Update zoom level display
+    const zoom = rfInstanceRef.current?.getZoom();
+    if (zoom) setZoomLevel(zoom);
+
+    // Detect double-click on pane to reset zoom
+    const now = Date.now();
+    if (now - lastPaneClickRef.current < 300) {
+      // Double-click detected - reset zoom to fit view
+      rfInstanceRef.current?.fitView({ duration: 300 });
+      setZoomLevel(1);
+    }
+    lastPaneClickRef.current = now;
+
+    if (showHelp) setShowHelp(false);
     setSelectedEdgeId(null);
     clearSelection();
     if (menuState.show) hideMenu();
@@ -575,7 +628,7 @@ const BTCanvas: React.FC = () => {
     // - NodePicker's click outside handler
     // - NodePicker's Escape key handler
     // - onNodeClick / onEdgeClick when clicking on nodes/edges
-  }, [clearSelection, menuState.show, hideMenu]);
+  }, [clearSelection, menuState.show, hideMenu, showHelp]);
 
   const onEdgeClick = useCallback(
     (event: React.MouseEvent, edge: Edge) => {
@@ -824,10 +877,51 @@ const BTCanvas: React.FC = () => {
         return;
       }
 
-      // Escape: Deselect
+      // Escape: Deselect or close help
       if (event.key === 'Escape') {
+        if (showHelp) {
+          setShowHelp(false);
+          return;
+        }
         selectNode(null);
         setSelectedEdgeId(null);
+        return;
+      }
+
+      // ?: Show keyboard shortcuts help
+      if (event.key === '?' || event.key === 'F1') {
+        event.preventDefault();
+        setShowHelp((prev) => !prev);
+        return;
+      }
+
+      // Ctrl+A: Select all nodes
+      if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
+        event.preventDefault();
+        const allIds = new Set(nodes.map((n) => n.id));
+        useBTStore.getState().clearSelection();
+        allIds.forEach((id) => useBTStore.getState().addToSelection(id));
+        return;
+      }
+
+      // Arrow keys: nudge selected nodes
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) && selectedNodeIds.size > 0) {
+        // Only nudge when not in an input field and no modifier keys (except shift for larger nudge)
+        if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+        event.preventDefault();
+        const step = event.shiftKey ? 20 : 5;
+        let dx = 0, dy = 0;
+        if (event.key === 'ArrowUp') dy = -step;
+        if (event.key === 'ArrowDown') dy = step;
+        if (event.key === 'ArrowLeft') dx = -step;
+        if (event.key === 'ArrowRight') dx = step;
+        useBTStore.getState().pushHistory();
+        setNodes((prev) =>
+          prev.map((n) => {
+            if (!selectedNodeIds.has(n.id)) return n;
+            return { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } };
+          })
+        );
         return;
       }
 
@@ -857,7 +951,14 @@ const BTCanvas: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [deleteEdge, selectNode, clearSelection, selectedEdgeId, selectedNodeIds, nodes, copyNode, pasteNode, pushHistory]);
+  }, [deleteEdge, selectNode, clearSelection, selectedEdgeId, selectedNodeIds, nodes, copyNode, pasteNode, pushHistory, showHelp, setShowHelp]);
+
+  // Handle toolbar help button
+  React.useEffect(() => {
+    const handleToggleHelp = () => setShowHelp((prev) => !prev);
+    window.addEventListener('bt-toggle-shortcuts-help', handleToggleHelp);
+    return () => window.removeEventListener('bt-toggle-shortcuts-help', handleToggleHelp);
+  }, []);
 
   // Drag-over handler for dropping from palette
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -868,6 +969,44 @@ const BTCanvas: React.FC = () => {
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
+
+      // Check for favorite template drop first
+      const templateData = event.dataTransfer.getData('application/bt-template');
+      if (templateData && rfInstanceRef.current) {
+        const template = JSON.parse(templateData);
+        const position = rfInstanceRef.current.screenToFlowPosition({
+          x: event.clientX,
+          y: event.clientY,
+        });
+
+        const def: BTNodeDefinition | undefined = project.nodeModels.find((m) => m.type === template.type)
+          ?? BUILTIN_NODES.find((m) => m.type === template.type);
+        const category = def?.category ?? template.category ?? 'Action';
+        const colors = CATEGORY_COLORS[category] ?? CATEGORY_COLORS['Action'];
+
+        const newNode: Node = {
+          id: `n_${Math.random().toString(36).slice(2, 9)}`,
+          type: 'btNode',
+          position,
+          data: {
+            label: template.name || template.type,
+            nodeType: template.type,
+            category,
+            colors,
+            ports: template.ports || {},
+            preconditions: template.preconditions,
+            postconditions: template.postconditions,
+            childrenCount: 0,
+          },
+        };
+
+        useBTStore.getState().pushHistory();
+        setNodes((nds) => [...nds, newNode]);
+        setSelectedEdgeId(null);
+        return;
+      }
+
+      // Handle regular node type drop
       const nodeType = event.dataTransfer.getData('application/btnode-type');
       if (!nodeType || !rfInstanceRef.current) return;
 
@@ -923,45 +1062,143 @@ const BTCanvas: React.FC = () => {
   }, [nodes, edges]);
 
   // Build dynamic menu config based on current context
-  const dynamicMenuConfig: MenuConfig = useMemo(() => ({
-    edge: menuState.targetType === 'edge' && menuState.targetId ? [
-      {
-        id: 'delete',
-        label: 'Delete Edge',
-        icon: '🗑️',
-        danger: true,
-        action: () => {
-          useBTStore.getState().pushHistory();
-          deleteEdge(menuState.targetId!);
+  const dynamicMenuConfig: MenuConfig = useMemo(() => {
+    const targetNodeId = menuState.targetId;
+    const targetNode = targetNodeId ? nodes.find((n) => n.id === targetNodeId) : null;
+    const targetData = targetNode?.data as { isRoot?: boolean; type?: string; ports?: Record<string, string>; category?: string; name?: string; description?: string; childrenCount?: number; isCollapsed?: boolean } | undefined;
+    const isRoot = targetData?.isRoot === true;
+    const hasChildren = (targetData?.childrenCount ?? 0) > 0;
+    // Read collapsed state from store (authoritative)
+    const collapsedSet = useBTStore.getState().collapsedNodeIds;
+    const isCollapsed = targetNodeId ? collapsedSet.has(targetNodeId) : false;
+
+    return {
+      edge: menuState.targetType === 'edge' && menuState.targetId ? [
+        {
+          id: 'delete',
+          label: 'Delete Edge',
+          icon: '🗑️',
+          danger: true,
+          action: () => {
+            useBTStore.getState().pushHistory();
+            deleteEdge(menuState.targetId!);
+          },
         },
-      },
-    ] : [],
-    node: menuState.targetType === 'node' && menuState.targetId ? (() => {
-      const nodeData = nodes.find((n) => n.id === menuState.targetId)?.data as { isRoot?: boolean } | undefined;
-      const isRoot = nodeData?.isRoot === true;
-      if (isRoot) return []; // ROOT node: no context menu
-      return [{
-        id: 'delete',
-        label: 'Delete Node',
-        icon: '🗑️',
-        danger: true,
-        action: () => {
-          useBTStore.getState().pushHistory();
-          // Delete node and its edges
-          setNodes((prev) => prev.filter((n) => n.id !== menuState.targetId));
-          setEdges((prev) => prev.filter((e) => e.source !== menuState.targetId && e.target !== menuState.targetId));
+      ] : [],
+      node: menuState.targetType === 'node' && menuState.targetId && !isRoot ? [
+        {
+          id: 'copy',
+          label: '📋 Copy Node',
+          icon: '📋',
+          action: () => {
+            // Look up node directly from store at action time to avoid stale closure
+            const nodeToCopy = menuState.targetId
+              ? (useBTStore.getState().localNodes.find((n) => n.id === menuState.targetId) ?? null)
+              : null;
+            if (nodeToCopy) copyNode(nodeToCopy);
+          },
         },
-      }];
-    })() : [],
-    pane: menuState.targetType === 'pane' ? [
-      {
-        id: 'fitview',
-        label: 'Fit View',
-        icon: '🔍',
-        action: () => rfInstanceRef.current?.fitView(),
-      },
-    ] : [],
-  }), [menuState, deleteEdge]);
+        {
+          id: 'delete',
+          label: '🗑️ Delete Node',
+          icon: '🗑️',
+          danger: true,
+          action: () => {
+            useBTStore.getState().pushHistory();
+            setNodes((prev) => prev.filter((n) => n.id !== menuState.targetId));
+            setEdges((prev) => prev.filter((e) => e.source !== menuState.targetId && e.target !== menuState.targetId));
+          },
+        },
+        ...(hasChildren ? [{
+          id: 'collapse',
+          label: isCollapsed ? '▶ Expand Subtree' : '▼ Collapse Subtree',
+          icon: isCollapsed ? '▶' : '▼',
+          action: () => {
+            if (menuState.targetId) {
+              toggleNodeCollapse(menuState.targetId);
+            }
+          },
+        }] : []),
+        {
+          id: 'info',
+          label: 'ℹ️ Node Info',
+          icon: 'ℹ️',
+          action: () => {
+            if (!targetData) return;
+            const info = [
+              `Type: ${targetData.type}`,
+              `Category: ${targetData.category}`,
+              targetData.name ? `Name: ${targetData.name}` : null,
+              targetData.description ? `Description: ${targetData.description}` : null,
+              `Children: ${targetData.childrenCount ?? 0}`,
+            ].filter(Boolean).join('\n');
+            alert(`Node Info\n${'─'.repeat(20)}\n${info}`);
+          },
+        },
+        { id: 'sep-save', label: '', separator: true } as MenuItem,
+        {
+          id: 'save-template',
+          label: '⭐ Save as Template',
+          icon: '⭐',
+          action: () => {
+            if (targetData?.type) {
+              useBTStore.getState().addFavorite({
+                name: targetData.name || targetData.type,
+                type: targetData.type,
+                ports: targetData.ports,
+                category: targetData.category || 'Action',
+              });
+            }
+          },
+        },
+      ] : [],
+      pane: menuState.targetType === 'pane' ? [
+        ...(useBTStore.getState().clipboard ? [{
+          id: 'paste',
+          label: '📋 Paste Node',
+          icon: '📋',
+          action: () => {
+            const newNode = pasteNode();
+            if (newNode) {
+              pushHistory();
+              setNodes((prev) => [...prev, newNode]);
+              selectNode(newNode.id);
+            }
+          },
+        }] : []),
+        {
+          id: 'add',
+          label: '➕ Add Node',
+          icon: '➕',
+          action: () => {
+            // Open node picker at center of viewport
+            const rf = rfInstanceRef.current;
+            if (rf) {
+              const center = rf.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+              setNodePickerPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2, flowX: center.x, flowY: center.y });
+            }
+          },
+        },
+        { id: 'sep-select', label: '', separator: true } as MenuItem,
+        {
+          id: 'selectall',
+          label: '☑️ Select All',
+          icon: '☑️',
+          action: () => {
+            const allIds = new Set(nodes.map((n) => n.id));
+            clearSelection();
+            allIds.forEach((id) => useBTStore.getState().addToSelection(id));
+          },
+        },
+        {
+          id: 'fitview',
+          label: '🔍 Fit View',
+          icon: '🔍',
+          action: () => rfInstanceRef.current?.fitView(),
+        },
+      ] : [],
+    };
+  }, [menuState, nodes, deleteEdge, copyNode, pasteNode, pushHistory, selectNode, clearSelection, toggleNodeCollapse]);
 
   return (
     <div style={{ width: '100%', height: '100%' }}>
@@ -987,12 +1224,32 @@ const BTCanvas: React.FC = () => {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onInit={(instance) => { rfInstanceRef.current = instance; }}
+        nodeExtent={[[-5000, -5000], [5000, 5000]]}
         fitView
         colorMode="dark"
         defaultEdgeOptions={{ type: 'btEdge', style: { stroke: '#6888aa', strokeWidth: 2 } }}
       >
         <Background variant={BackgroundVariant.Dots} color="#334" gap={20} size={1} />
         <Controls style={{ background: '#1e2235', border: '1px solid #334' }} />
+        {/* Zoom level indicator */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 16,
+            left: 16,
+            zIndex: 5,
+            background: '#1e2235',
+            border: '1px solid #334',
+            borderRadius: 4,
+            padding: '4px 10px',
+            fontSize: 12,
+            color: '#8899bb',
+            fontFamily: 'monospace',
+            pointerEvents: 'none',
+          }}
+        >
+          {Math.round(zoomLevel * 100)}%
+        </div>
         <MiniMap
           nodeColor={(n) => {
             const d = n.data as { colors?: { bg: string } };
@@ -1077,6 +1334,9 @@ const BTCanvas: React.FC = () => {
           onClose={() => setNodePickerPosition(null)}
         />
       )}
+
+      {/* Keyboard shortcuts help modal */}
+      {showHelp && <KeyboardShortcutsHelp onClose={() => setShowHelp(false)} />}
     </div>
   );
 };

@@ -20,6 +20,17 @@ export interface DebugState {
   }>;
 }
 
+export interface FavoriteTemplate {
+  id: string;
+  name: string;
+  type: string;
+  ports?: Record<string, string>;
+  preconditions?: Record<string, string>;
+  postconditions?: Record<string, string>;
+  category: string;
+  createdAt: number;
+}
+
 interface BTStore {
   project: BTProject;
   activeTreeId: string;
@@ -28,6 +39,8 @@ interface BTStore {
   // Local canvas nodes/edges for lookup before they're saved to project tree
   localNodes: Node[];
   localEdges: Edge[];
+  // Collapsed nodes (hidden in canvas)
+  collapsedNodeIds: Set<string>;
 
   // Project actions
   loadXML: (xml: string) => void;
@@ -88,6 +101,12 @@ interface BTStore {
   debugStep: (direction: 'forward' | 'back') => void;
   debugPlay: () => void;
   debugReset: () => void;
+
+  // Favorites/Templates
+  favorites: FavoriteTemplate[];
+  addFavorite: (template: Omit<FavoriteTemplate, 'id' | 'createdAt'>) => void;
+  removeFavorite: (id: string) => void;
+  updateFavorite: (id: string, name: string) => void;
 }
 
 const defaultDebug: DebugState = {
@@ -107,9 +126,34 @@ export const useBTStore = create<BTStore>()(
   debugState: defaultDebug,
   localNodes: [],
   localEdges: [],
+  collapsedNodeIds: new Set<string>(),
   // Undo/Redo history
   _undoStack: [] as BTProject[],
   _redoStack: [] as BTProject[],
+  // Favorites/Templates
+  favorites: [] as FavoriteTemplate[],
+
+  addFavorite(template) {
+    const { favorites } = get();
+    const newFavorite: FavoriteTemplate = {
+      ...template,
+      id: `fav_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: Date.now(),
+    };
+    set({ favorites: [...favorites, newFavorite] });
+  },
+
+  removeFavorite(id) {
+    const { favorites } = get();
+    set({ favorites: favorites.filter((f) => f.id !== id) });
+  },
+
+  updateFavorite(id, name) {
+    const { favorites } = get();
+    set({
+      favorites: favorites.map((f) => (f.id === id ? { ...f, name } : f)),
+    });
+  },
 
   pushHistory() {
     const { project, _undoStack } = get();
@@ -293,10 +337,27 @@ export const useBTStore = create<BTStore>()(
     const idsToDelete = new Set(selectedNodeIds);
     const project = get().project;
     const activeTreeId = get().activeTreeId;
-    
+
     // For now, just clear selection - actual deletion is handled in component
     set({ selectedNodeIds: new Set(), selectedNodeId: null });
     return idsToDelete;
+  },
+
+  // Toggle node collapse (hide/show descendants)
+  toggleNodeCollapse(nodeId: string) {
+    const { collapsedNodeIds } = get();
+    const newSet = new Set(collapsedNodeIds);
+    if (newSet.has(nodeId)) {
+      newSet.delete(nodeId);
+    } else {
+      newSet.add(nodeId);
+    }
+    set({ collapsedNodeIds: newSet });
+  },
+
+  // Check if node is collapsed
+  isNodeCollapsed(nodeId: string): boolean {
+    return get().collapsedNodeIds.has(nodeId);
   },
 
   clipboard: null,

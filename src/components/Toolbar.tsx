@@ -1,10 +1,18 @@
 import React, { useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useBTStore } from '../store/btStore';
 import { SAMPLE_XML } from '../utils/btXml';
 
 const Toolbar: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const { loadXML, exportXML, project, activeTreeId, theme, toggleTheme } = useBTStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleLanguage = () => {
+    const newLang = i18n.language === 'en' ? 'zh' : 'en';
+    i18n.changeLanguage(newLang);
+    localStorage.setItem('bt-language', newLang);
+  };
 
   // Ctrl+S: Export XML
   useEffect(() => {
@@ -33,12 +41,12 @@ const Toolbar: React.FC = () => {
   const handleExport = () => {
     const xml = exportXML();
     const blob = new Blob([xml], { type: 'application/xml' });
-    const url = URL.createObjectURL(blob);
+    const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
+    a.href = blobUrl;
     a.download = `${project.mainTreeId}.xml`;
     a.click();
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(blobUrl);
   };
 
   const handleExportPNG = () => {
@@ -59,17 +67,25 @@ const Toolbar: React.FC = () => {
       <div className="toolbar-divider" />
 
       {/* File operations */}
-      <button className="toolbar-btn" onClick={handleLoadSample} title="Load sample BT">
-        📂 Sample
+      <button className="toolbar-btn" onClick={handleLoadSample} title={t('toolbar.sample')}>
+        📂 {t('toolbar.sample')}
       </button>
-      <button className="toolbar-btn" onClick={() => fileInputRef.current?.click()} title="Import BT.CPP XML">
-        ⬆ Import XML
+      <button className="toolbar-btn" onClick={() => fileInputRef.current?.click()} title={t('toolbar.importXml')}>
+        ⬆ {t('toolbar.importXml')}
       </button>
-      <button className="toolbar-btn" onClick={handleExport} title="Export BT.CPP XML">
-        ⬇ Export XML
+      <button className="toolbar-btn" onClick={handleExport} title={t('toolbar.exportXml')}>
+        ⬇ {t('toolbar.exportXml')}
       </button>
-      <button className="toolbar-btn" onClick={handleExportPNG} title="Export Behavior Tree as PNG image">
-        🖼️ Export PNG
+      <button className="toolbar-btn" onClick={handleExportPNG} title={t('toolbar.exportPng')}>
+        🖼️ {t('toolbar.exportPng')}
+      </button>
+      {/* Keyboard shortcuts help */}
+      <button
+        className="toolbar-btn"
+        onClick={() => window.dispatchEvent(new CustomEvent('bt-toggle-shortcuts-help'))}
+        title={t('toolbar.help')}
+      >
+        ?
       </button>
       <input ref={fileInputRef} type="file" accept=".xml" style={{ display: 'none' }} onChange={handleImport} />
 
@@ -77,27 +93,37 @@ const Toolbar: React.FC = () => {
 
       {/* Active tree info */}
       <div style={{ fontSize: 12, color: '#8899bb' }}>
-        Tree: <span style={{ color: '#c8e0ff', fontWeight: 600 }}>{activeTreeId}</span>
+        {t('canvas.treeLabel')}: <span style={{ color: '#c8e0ff', fontWeight: 600 }}>{activeTreeId}</span>
         {activeTreeId === project.mainTreeId && (
-          <span style={{ color: '#f0a020', marginLeft: 6 }}>★ main</span>
+          <span style={{ color: '#f0a020', marginLeft: 6 }}>★ {t('canvas.mainTree')}</span>
         )}
       </div>
 
       <div style={{ flex: 1 }} />
 
+      {/* Language toggle */}
+      <button
+        className="toolbar-btn"
+        onClick={toggleLanguage}
+        title={t('language.switch')}
+        style={{ minWidth: 60 }}
+      >
+        {i18n.language === 'en' ? '🇺🇸 EN' : '🇨🇳 中文'}
+      </button>
+
       {/* Theme toggle */}
       <button
         className="toolbar-btn"
         onClick={toggleTheme}
-        title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        title={t('toolbar.theme')}
         style={{ minWidth: 70 }}
       >
-        {theme === 'dark' ? '🌙 Dark' : '☀️ Light'}
+        {theme === 'dark' ? '🌙 ' + t('toolbar.dark') : '☀️ ' + t('toolbar.light')}
       </button>
 
       {/* Help */}
       <div style={{ fontSize: 11, color: '#445', textAlign: 'right' }}>
-        Drag nodes from palette → canvas · Connect nodes · Double-click to rename
+        {t('canvas.dragHint')}
       </div>
     </div>
   );
