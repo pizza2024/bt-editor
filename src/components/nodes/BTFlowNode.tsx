@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import { STATUS_COLORS, BUILTIN_NODES } from '../../types/bt-constants';
+import { useBTStore } from '../../store/btStore';
 
 interface BTNodeData {
   label: string;
@@ -28,6 +29,12 @@ const BTFlowNode: React.FC<NodeProps> = ({ data, selected, id: nodeId }) => {
 
   const isLeaf = category === 'Action' || category === 'Condition';
   const isRootNode = isRoot === true;
+  const isSubTree = category === 'SubTree';
+
+  // SubTree preview state
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewPos, setPreviewPos] = useState({ x: 0, y: 0 });
+  const { project } = useBTStore();
 
   // Look up port definitions for this node type
   const nodeDef = BUILTIN_NODES.find(n => n.type === d.nodeType);
@@ -133,11 +140,81 @@ const BTFlowNode: React.FC<NodeProps> = ({ data, selected, id: nodeId }) => {
     );
   }
 
+  // SubTree preview popup
+  const renderSubTreePreview = () => {
+    if (!isSubTree || !showPreview) return null;
+
+    // Find the referenced tree
+    const targetTree = project.trees.find(t => t.id === label);
+    if (!targetTree) return null;
+
+    // Count nodes in subtree
+    const countNodes = (node: BTTreeNode): number => {
+      return 1 + (node.children?.reduce((sum, c) => sum + countNodes(c), 0) ?? 0);
+    };
+    const totalNodes = countNodes(targetTree.root);
+
+    // Render mini tree structure
+    const renderMiniTree = (node: BTTreeNode, depth: number = 0): React.ReactNode => {
+      const indent = depth * 12;
+      return (
+        <div key={node.id} style={{ paddingLeft: indent, fontSize: 10, color: 'var(--text-secondary)' }}>
+          <span style={{ color: 'var(--text-muted)' }}>{node.type}</span>
+          {node.name && node.name !== node.type && <span style={{ color: 'var(--text-primary)' }}> ({node.name})</span>}
+          {node.children?.map(child => renderMiniTree(child, depth + 1))}
+        </div>
+      );
+    };
+
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          left: previewPos.x,
+          top: previewPos.y,
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 6,
+          padding: 8,
+          minWidth: 150,
+          maxWidth: 250,
+          maxHeight: 200,
+          overflow: 'auto',
+          zIndex: 1000,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+          fontSize: 11,
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: 4 }}>
+          🌳 {label} ({totalNodes} nodes)
+        </div>
+        <div style={{ maxHeight: 150, overflow: 'auto' }}>
+          {renderMiniTree(targetTree.root)}
+        </div>
+      </div>
+    );
+  };
+
+  // Handle mouse events for SubTree preview
+  const handleMouseEnter = (e: React.MouseEvent) => {
+    if (isSubTree) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setPreviewPos({ x: rect.width + 8, y: -20 });
+      setShowPreview(true);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setShowPreview(false);
+  };
+
   // ROOT node: render as a thin visual container bar
   if (isRootNode) {
     return (
       <div
         onDoubleClick={handleDoubleClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         style={{
           background: colors.bg,
           border: `${borderWidth}px solid ${borderColor}`,
@@ -163,6 +240,8 @@ const BTFlowNode: React.FC<NodeProps> = ({ data, selected, id: nodeId }) => {
   return (
     <div
       onDoubleClick={handleDoubleClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       style={{
         background: colors.bg,
         border: `${borderWidth}px solid ${borderColor}`,
@@ -343,6 +422,9 @@ const BTFlowNode: React.FC<NodeProps> = ({ data, selected, id: nodeId }) => {
           }}
         />
       )}
+
+      {/* SubTree preview popup */}
+      {renderSubTreePreview()}
     </div>
   );
 };
