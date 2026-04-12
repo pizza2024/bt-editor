@@ -59,6 +59,12 @@ interface BTStore {
 
   // Selection
   selectNode: (id: string | null) => void;
+  selectedNodeIds: Set<string>;
+  addToSelection: (id: string) => void;
+  removeFromSelection: (id: string) => void;
+  clearSelection: () => void;
+  toggleSelection: (id: string) => void;
+  deleteSelectedNodes: (nodes: Node[]) => void;
 
   // Clipboard (copy/paste)
   clipboard: { node: Node; offsetX: number; offsetY: number } | null;
@@ -250,7 +256,47 @@ export const useBTStore = create<BTStore>()(
   },
 
   selectNode(id) {
-    set({ selectedNodeId: id });
+    set({ selectedNodeId: id, selectedNodeIds: id ? new Set([id]) : new Set() });
+  },
+
+  selectedNodeIds: new Set<string>(),
+
+  addToSelection(id) {
+    const { selectedNodeIds } = get();
+    const newSet = new Set(selectedNodeIds);
+    newSet.add(id);
+    set({ selectedNodeIds: newSet, selectedNodeId: id });
+  },
+
+  removeFromSelection(id) {
+    const { selectedNodeIds } = get();
+    const newSet = new Set(selectedNodeIds);
+    newSet.delete(id);
+    set({ selectedNodeIds: newSet });
+  },
+
+  clearSelection() {
+    set({ selectedNodeIds: new Set(), selectedNodeId: null });
+  },
+
+  toggleSelection(id) {
+    const { selectedNodeIds } = get();
+    if (selectedNodeIds.has(id)) {
+      get().removeFromSelection(id);
+    } else {
+      get().addToSelection(id);
+    }
+  },
+
+  deleteSelectedNodes(nodes: Node[]) {
+    const { selectedNodeIds } = get();
+    const idsToDelete = new Set(selectedNodeIds);
+    const project = get().project;
+    const activeTreeId = get().activeTreeId;
+    
+    // For now, just clear selection - actual deletion is handled in component
+    set({ selectedNodeIds: new Set(), selectedNodeId: null });
+    return idsToDelete;
   },
 
   clipboard: null,

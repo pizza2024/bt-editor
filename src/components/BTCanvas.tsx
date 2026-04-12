@@ -49,10 +49,19 @@ const BTCanvas: React.FC = () => {
     activeTreeId,
     selectedNodeId,
     selectNode,
+    selectedNodeIds,
+    addToSelection,
+    removeFromSelection,
+    clearSelection,
+    toggleSelection,
     debugState,
     addNodeModel,
     updateNodeName,
     setLocalCanvas,
+    clipboard,
+    copyNode,
+    pasteNode,
+    pushHistory,
   } = useBTStore();
 
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
@@ -120,7 +129,7 @@ const BTCanvas: React.FC = () => {
         const merged = laidOutNodes.map((n) => ({
           ...n,
           position: existingPositions.get(n.id) ?? n.position,
-          selected: n.id === selectedNodeId,
+          selected: selectedNodeIds.has(n.id),
           data: { ...n.data, status: debugState.nodeStatuses.get(n.id) ?? 'IDLE' },
         }));
         return merged;
@@ -129,15 +138,15 @@ const BTCanvas: React.FC = () => {
     }
   }, [activeTreeId, project, debugState.nodeStatuses, selectedEdgeId, deleteEdge]);
 
-  // Highlight selected node
+  // Highlight selected nodes
   React.useEffect(() => {
     setNodes((prev) =>
       prev.map((n) => ({
         ...n,
-        selected: n.id === selectedNodeId,
+        selected: selectedNodeIds.has(n.id),
       }))
     );
-  }, [selectedNodeId, setNodes]);
+  }, [selectedNodeIds, setNodes]);
 
   // Track source node when connection starts
   const onConnectStart = useCallback(
@@ -303,24 +312,32 @@ const BTCanvas: React.FC = () => {
   );
 
   const onNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => {
+    (event: React.MouseEvent, node: Node) => {
       setSelectedEdgeId(null);
-      selectNode(node.id);
+      
+      // Ctrl+click: toggle multi-selection
+      if (event.ctrlKey || event.metaKey) {
+        toggleSelection(node.id);
+      } else {
+        // Regular click: single select
+        selectNode(node.id);
+      }
+      
       if (menuState.show) hideMenu();
       setNodePickerPosition(null);
     },
-    [selectNode, menuState.show, hideMenu]
+    [selectNode, toggleSelection, menuState.show, hideMenu]
   );
 
   const onPaneClick = useCallback(() => {
     setSelectedEdgeId(null);
-    selectNode(null);
+    clearSelection();
     if (menuState.show) hideMenu();
     // Note: don't close nodePickerPosition here - it will be closed by:
     // - NodePicker's click outside handler
     // - NodePicker's Escape key handler
     // - onNodeClick / onEdgeClick when clicking on nodes/edges
-  }, [selectNode, menuState.show, hideMenu]);
+  }, [clearSelection, menuState.show, hideMenu]);
 
   const onEdgeClick = useCallback(
     (event: React.MouseEvent, edge: Edge) => {
@@ -504,14 +521,15 @@ const BTCanvas: React.FC = () => {
       const activeTag = document.activeElement?.tagName;
       if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
 
-      // Delete/Backspace to delete selected node or edge
+      // Delete/Backspace to delete selected node(s) or edge
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
-        if (selectedNodeId) {
+        if (selectedNodeIds.size > 0) {
           useBTStore.getState().pushHistory();
-          setNodes((prev) => prev.filter((n) => n.id !== selectedNodeId));
-          setEdges((prev) => prev.filter((e) => e.source !== selectedNodeId && e.target !== selectedNodeId));
-          selectNode(null);
+          const idsToDelete = new Set(selectedNodeIds);
+          setNodes((prev) => prev.filter((n) => !idsToDelete.has(n.id)));
+          setEdges((prev) => prev.filter((e) => !idsToDelete.has(e.source) && !idsToDelete.has(e.target)));
+          clearSelection();
         } else if (selectedEdgeId) {
           useBTStore.getState().pushHistory();
           deleteEdge(selectedEdgeId);
@@ -547,12 +565,13 @@ const BTCanvas: React.FC = () => {
         return;
       }
 
-      // Ctrl+C: Copy selected node
-      if ((event.ctrlKey || event.metaKey) && event.key === 'c' && selectedNodeId) {
+      // Ctrl+C: Copy selected node(s)
+      if ((event.ctrlKey || event.metaKey) && event.key === 'c' && selectedNodeIds.size > 0) {
         event.preventDefault();
-        const nodeToCopy = nodes.find((n) => n.id === selectedNodeId);
+        // Copy the first selected node (for simple copy/paste)
+        const nodeToCopy = nodes.find((n) => n.id === Array.from(selectedNodeIds)[0]);
         if (nodeToCopy) {
-          useBTStore.getState().copyNode(nodeToCopy);
+          copyNode(nodeToCopy);
         }
         return;
       }
@@ -560,9 +579,9 @@ const BTCanvas: React.FC = () => {
       // Ctrl+V: Paste copied node
       if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
         event.preventDefault();
-        const newNode = useBTStore.getState().pasteNode();
+        const newNode = pasteNode();
         if (newNode) {
-          useBTStore.getState().pushHistory();
+          pushHistory();
           setNodes((prev) => [...prev, newNode]);
           selectNode(newNode.id);
         }
@@ -572,7 +591,7 @@ const BTCanvas: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [deleteEdge, selectNode, selectedEdgeId, selectedNodeId, nodes]);
+  }, [deleteEdge, selectNode, clearSelection, selectedEdgeId, selectedNodeIds, nodes, copyNode, pasteNode, pushHistory]);
 
   // Drag-over handler for dropping from palette
   const onDragOver = useCallback((event: React.DragEvent) => {
