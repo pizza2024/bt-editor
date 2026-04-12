@@ -514,3 +514,115 @@ export function parseBlackboardExpression(value: string): Array<{ type: 'literal
 
   return segments;
 }
+
+// ─── Node Model Definition Validation ───────────────────────────────────────
+
+const VALID_PORT_TYPES = new Set(['', 'string', 'int', 'unsigned', 'bool', 'double', 'NodeStatus', 'Any']);
+
+/**
+ * Validate a node model definition (BTNodeDefinition).
+ * Checks port type values, port name validity, and duplicate port names.
+ * Returns array of validation issues (empty = valid).
+ */
+export function validateNodeModel(
+  def: BTNodeDefinition,
+  existingModels: BTNodeDefinition[] = []
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  // Validate node type name
+  const trimmedType = def.type.trim();
+  if (!trimmedType) {
+    issues.push({ severity: 'error', nodeType: def.type, message: 'Node type name cannot be empty' });
+  } else if (!isValidBlackboardKey(trimmedType)) {
+    issues.push({ severity: 'error', nodeType: def.type, message: `Node type "${trimmedType}" is not a valid identifier` });
+  } else {
+    // Check for duplicate node type (case-sensitive)
+    const duplicate = existingModels.find(m => m.type === trimmedType && m !== def);
+    if (duplicate) {
+      issues.push({ severity: 'error', nodeType: def.type, message: `Node type "${trimmedType}" already exists` });
+    }
+
+    // Check for built-in node type collision
+    const builtin = BUILTIN_NODES.find(n => n.type === trimmedType);
+    if (builtin && !def.builtin) {
+      issues.push({ severity: 'error', nodeType: def.type, message: `Node type "${trimmedType}" conflicts with a built-in node` });
+    }
+  }
+
+  // Validate category
+  const validCategories = ['Control', 'Decorator', 'Action', 'Condition', 'SubTree'];
+  if (!validCategories.includes(def.category)) {
+    issues.push({ severity: 'error', nodeType: def.type, message: `Invalid category "${def.category}"` });
+  }
+
+  // Validate ports
+  const ports = def.ports ?? [];
+  const seenPortNames = new Set<string>();
+
+  ports.forEach((port, idx) => {
+    const portName = port.name.trim();
+
+    // Check for empty port name
+    if (!portName) {
+      issues.push({
+        severity: 'warning',
+        nodeType: def.type,
+        message: `Port #${idx + 1} has an empty name and will be skipped`,
+      });
+      return;
+    }
+
+    // Check for duplicate port name
+    if (seenPortNames.has(portName)) {
+      issues.push({
+        severity: 'error',
+        nodeType: def.type,
+        message: `Duplicate port name "${portName}"`,
+      });
+    }
+    seenPortNames.add(portName);
+
+    // Validate port name is a valid identifier
+    if (!isValidBlackboardKey(portName)) {
+      issues.push({
+        severity: 'error',
+        nodeType: def.type,
+        message: `Port name "${portName}" is not a valid identifier`,
+      });
+    }
+
+    // Validate port type value
+    if (port.portType && !VALID_PORT_TYPES.has(port.portType)) {
+      issues.push({
+        severity: 'error',
+        nodeType: def.type,
+        message: `Port "${portName}" has invalid type "${port.portType}". Must be one of: ${[...VALID_PORT_TYPES].filter(t => t).join(', ')}`,
+      });
+    }
+
+    // Validate port direction
+    const validDirections = ['input', 'output', 'inout'];
+    if (!validDirections.includes(port.direction)) {
+      issues.push({
+        severity: 'error',
+        nodeType: def.type,
+        message: `Port "${portName}" has invalid direction "${port.direction}"`,
+      });
+    }
+  });
+
+  return issues;
+}
+
+/**
+ * Validate all node models in a project.
+ * Returns combined validation issues from all models.
+ */
+export function validateAllNodeModels(project: BTProject): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  project.nodeModels.forEach(def => {
+    issues.push(...validateNodeModel(def, project.nodeModels));
+  });
+  return issues;
+}

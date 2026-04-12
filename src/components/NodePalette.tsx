@@ -165,6 +165,7 @@ const NodePalette: React.FC = () => {
         <NodeModelModal
           mode="create"
           defaultCategory={modelModal.defaultCategory}
+          existingModels={project.nodeModels}
           onSave={handleCreate}
           onClose={() => setModelModal(null)}
         />
