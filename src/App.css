@@ -102,6 +102,28 @@
   margin-bottom: 8px;
   padding-bottom: 4px;
   border-bottom: 1px solid #1a1a2e;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+}
+
+.panel-header:hover {
+  color: #7788cc;
+}
+
+.panel-header .collapse-icon {
+  font-size: 10px;
+  transition: transform 0.2s;
+}
+
+.panel.collapsed .panel-header {
+  margin-bottom: 0;
+}
+
+.panel.collapsed .panel-body {
+  display: none;
 }
 
 /* ─── Palette ───────────────────────────────────────────────────── */

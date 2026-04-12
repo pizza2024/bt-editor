@@ -10,6 +10,7 @@ const NodePalette: React.FC = () => {
   const { project, addNodeModel, updateNodeModel, deleteNodeModel } = useBTStore();
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(CATEGORIES));
   const [searchQuery, setSearchQuery] = useState('');
+  const [collapsed, setCollapsed] = useState(false);
 
   // Model modal state: null = closed, 'create' = create new, BTNodeDefinition = edit existing
   const [modelModal, setModelModal] = useState<{ mode: 'create'; defaultCategory: BTNodeCategory } | { mode: 'edit'; def: BTNodeDefinition } | null>(null);
@@ -54,9 +55,15 @@ const NodePalette: React.FC = () => {
     }
   };
 
+  const toggleCollapse = () => setCollapsed((c) => !c);
+
   return (
-    <div className="panel node-palette">
-      <div className="panel-header">Models Palette</div>
+    <div className={`panel node-palette${collapsed ? ' collapsed' : ''}`}>
+      <div className="panel-header" onClick={toggleCollapse}>
+        <span>Models Palette</span>
+        <span className="collapse-icon">{collapsed ? '▶' : '▼'}</span>
+      </div>
+      <div className="panel-body">
 
       {/* Search box */}
       <div style={{ padding: '8px 8px 4px 8px' }}>
@@ -218,6 +225,7 @@ const PaletteItem: React.FC<PaletteItemProps> = ({ def, colors, onDragStart, onE
         )}
       </div>
     )}
+    </div>
   </div>
 );
 

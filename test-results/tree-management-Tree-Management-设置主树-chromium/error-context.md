@@ -6,8 +6,8 @@
 
 # Test info
 
-- Name: xml-import.spec.ts >> XML Import >> 循环导入导出保持数据一致
-- Location: tests/xml-import.spec.ts:67:3
+- Name: tree-management.spec.ts >> Tree Management >> 设置主树
+- Location: tests/tree-management.spec.ts:75:3
 
 # Error details
 
@@ -26,8 +26,8 @@ Call log:
 
 ```yaml
 - generic [ref=e3]:
-  - generic [ref=e4]: "[plugin:vite:oxc] Transform failed with 1 error: [PARSE_ERROR] Error: Unterminated regular expression ╭─[ src/components/NodeEditModal.tsx:332:6 ] │ 332 │ </div> │ ───┬── │ ╰──── ─────╯"
-  - generic [ref=e5]: /Users/pizza/workspace/btcpp-web-groot-demo/src/components/NodeEditModal.tsx
+  - generic [ref=e4]: "[plugin:vite:oxc] Transform failed with 1 error: [PARSE_ERROR] Error: Unexpected token. Did you mean `{'}'}` or `&rbrace;`? ╭─[ src/components/NodePalette.tsx:183:1 ] │ 183 │ }; │ │ │ ╰─ ─────╯"
+  - generic [ref=e5]: /Users/pizza/workspace/btcpp-web-groot-demo/src/components/NodePalette.tsx
   - generic [ref=e6]: at transformWithOxc (file:///Users/pizza/workspace/btcpp-web-groot-demo/node_modules/vite/dist/node/chunks/node.js:3745:19) at TransformPluginContext.transform (file:///Users/pizza/workspace/btcpp-web-groot-demo/node_modules/vite/dist/node/chunks/node.js:3813:26) at EnvironmentPluginContainer.transform (file:///Users/pizza/workspace/btcpp-web-groot-demo/node_modules/vite/dist/node/chunks/node.js:30143:51) at async loadAndTransform (file:///Users/pizza/workspace/btcpp-web-groot-demo/node_modules/vite/dist/node/chunks/node.js:24468:26) at async viteTransformMiddleware (file:///Users/pizza/workspace/btcpp-web-groot-demo/node_modules/vite/dist/node/chunks/node.js:24262:20)
   - generic [ref=e7]:
     - text: Click outside, press Esc key, or fix the code to dismiss.
