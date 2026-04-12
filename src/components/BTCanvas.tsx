@@ -15,6 +15,11 @@ import html2canvas from 'html2canvas';
 
 import { useBTStore } from '../store/btStore';
 import { treeToFlow, flowToTree, isSameTreeStructure, getDescendantIds } from '../utils/btFlow';
+
+// Count total edges (non-root nodes = one parent edge each)
+function countEdges(node: { children: Array<{ id: string }> }): number {
+  return node.children.length + node.children.reduce((sum, child) => sum + countEdges(child), 0);
+}
 import { autoLayout } from '../utils/btLayout';
 import { validatePortConnection } from '../utils/btXml';
 import BTFlowNode from './nodes/BTFlowNode';
@@ -679,7 +684,10 @@ const BTCanvas: React.FC = () => {
         const { localNodes: freshNodes, localEdges: freshEdges, project: p, activeTreeId: treeId } = useBTStore.getState();
         const tree = flowToTree(treeId, freshNodes, freshEdges);
         const currentTree = p.trees.find((t) => t.id === treeId);
-        if (currentTree && isSameTreeStructure(currentTree, tree)) return;
+        // Only skip save if node structure unchanged AND edge count unchanged.
+        // isSameTreeStructure checks nodes only, so we must also compare edges
+        // to catch edge-only changes (e.g., delete edge without node changes).
+        if (currentTree && isSameTreeStructure(currentTree, tree) && countEdges(currentTree.root) === countEdges(tree.root)) return;
         const trees = p.trees.map((t) => (t.id === treeId ? tree : t));
         useBTStore.setState({ project: { ...p, trees } });
       } catch {
