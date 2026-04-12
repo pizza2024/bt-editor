@@ -24,6 +24,7 @@ import type { BTNodeDefinition, BTProject, BTNodeCategory, BTPort } from '../typ
 import { useContextMenu, type MenuConfig } from './ContextMenu';
 import NodePicker from './NodePicker';
 import NodeEditModal from './NodeEditModal';
+import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
 
 const nodeTypes = { btNode: BTFlowNode };
 const edgeTypes = { btEdge: BTFlowEdge };
@@ -119,13 +120,19 @@ const BTCanvas: React.FC = () => {
   } = useBTStore();
 
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
+  const [zoomLevel, setZoomLevel] = React.useState(1);
   const [selectedEdgeId, setSelectedEdgeId] = React.useState<string | null>(null);
+  // Track last pane click for double-click detection
+  const lastPaneClickRef = React.useRef<number>(0);
 
   // Context menu
   const { menuState, showMenu, hideMenu, ContextMenuComponent } = useContextMenu();
 
   // Node edit modal
   const [editingNodeId, setEditingNodeId] = React.useState<string | null>(null);
+
+  // Keyboard shortcuts help modal
+  const [showHelp, setShowHelp] = React.useState(false);
 
   // Incomplete connection picker (drag from handle to empty space)
   const [pendingConnection, setPendingConnection] = React.useState<{
@@ -568,6 +575,20 @@ const BTCanvas: React.FC = () => {
   );
 
   const onPaneClick = useCallback(() => {
+    // Update zoom level display
+    const zoom = rfInstanceRef.current?.getZoom();
+    if (zoom) setZoomLevel(zoom);
+
+    // Detect double-click on pane to reset zoom
+    const now = Date.now();
+    if (now - lastPaneClickRef.current < 300) {
+      // Double-click detected - reset zoom to fit view
+      rfInstanceRef.current?.fitView({ duration: 300 });
+      setZoomLevel(1);
+    }
+    lastPaneClickRef.current = now;
+
+    if (showHelp) setShowHelp(false);
     setSelectedEdgeId(null);
     clearSelection();
     if (menuState.show) hideMenu();
@@ -575,7 +596,7 @@ const BTCanvas: React.FC = () => {
     // - NodePicker's click outside handler
     // - NodePicker's Escape key handler
     // - onNodeClick / onEdgeClick when clicking on nodes/edges
-  }, [clearSelection, menuState.show, hideMenu]);
+  }, [clearSelection, menuState.show, hideMenu, showHelp]);
 
   const onEdgeClick = useCallback(
     (event: React.MouseEvent, edge: Edge) => {
@@ -824,10 +845,51 @@ const BTCanvas: React.FC = () => {
         return;
       }
 
-      // Escape: Deselect
+      // Escape: Deselect or close help
       if (event.key === 'Escape') {
+        if (showHelp) {
+          setShowHelp(false);
+          return;
+        }
         selectNode(null);
         setSelectedEdgeId(null);
+        return;
+      }
+
+      // ?: Show keyboard shortcuts help
+      if (event.key === '?' || event.key === 'F1') {
+        event.preventDefault();
+        setShowHelp((prev) => !prev);
+        return;
+      }
+
+      // Ctrl+A: Select all nodes
+      if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
+        event.preventDefault();
+        const allIds = new Set(nodes.map((n) => n.id));
+        useBTStore.getState().clearSelection();
+        allIds.forEach((id) => useBTStore.getState().addToSelection(id));
+        return;
+      }
+
+      // Arrow keys: nudge selected nodes
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) && selectedNodeIds.size > 0) {
+        // Only nudge when not in an input field and no modifier keys (except shift for larger nudge)
+        if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+        event.preventDefault();
+        const step = event.shiftKey ? 20 : 5;
+        let dx = 0, dy = 0;
+        if (event.key === 'ArrowUp') dy = -step;
+        if (event.key === 'ArrowDown') dy = step;
+        if (event.key === 'ArrowLeft') dx = -step;
+        if (event.key === 'ArrowRight') dx = step;
+        useBTStore.getState().pushHistory();
+        setNodes((prev) =>
+          prev.map((n) => {
+            if (!selectedNodeIds.has(n.id)) return n;
+            return { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } };
+          })
+        );
         return;
       }
 
@@ -857,7 +919,14 @@ const BTCanvas: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [deleteEdge, selectNode, clearSelection, selectedEdgeId, selectedNodeIds, nodes, copyNode, pasteNode, pushHistory]);
+  }, [deleteEdge, selectNode, clearSelection, selectedEdgeId, selectedNodeIds, nodes, copyNode, pasteNode, pushHistory, showHelp, setShowHelp]);
+
+  // Handle toolbar help button
+  React.useEffect(() => {
+    const handleToggleHelp = () => setShowHelp((prev) => !prev);
+    window.addEventListener('bt-toggle-shortcuts-help', handleToggleHelp);
+    return () => window.removeEventListener('bt-toggle-shortcuts-help', handleToggleHelp);
+  }, []);
 
   // Drag-over handler for dropping from palette
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -993,6 +1062,25 @@ const BTCanvas: React.FC = () => {
       >
         <Background variant={BackgroundVariant.Dots} color="#334" gap={20} size={1} />
         <Controls style={{ background: '#1e2235', border: '1px solid #334' }} />
+        {/* Zoom level indicator */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 16,
+            left: 16,
+            zIndex: 5,
+            background: '#1e2235',
+            border: '1px solid #334',
+            borderRadius: 4,
+            padding: '4px 10px',
+            fontSize: 12,
+            color: '#8899bb',
+            fontFamily: 'monospace',
+            pointerEvents: 'none',
+          }}
+        >
+          {Math.round(zoomLevel * 100)}%
+        </div>
         <MiniMap
           nodeColor={(n) => {
             const d = n.data as { colors?: { bg: string } };
@@ -1077,6 +1165,9 @@ const BTCanvas: React.FC = () => {
           onClose={() => setNodePickerPosition(null)}
         />
       )}
+
+      {/* Keyboard shortcuts help modal */}
+      {showHelp && <KeyboardShortcutsHelp onClose={() => setShowHelp(false)} />}
     </div>
   );
 };
