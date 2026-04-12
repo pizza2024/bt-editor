@@ -315,3 +315,75 @@ export const SAMPLE_XML = `<?xml version="1.0" encoding="UTF-8"?>
     <Condition ID="IsAtGoal"/>
   </TreeNodesModel>
 </root>`;
+
+// ─── Blackboard Expression Utilities ─────────────────────────────────────────
+
+/**
+ * Validate a blackboard key (must be valid identifier)
+ */
+export function isValidBlackboardKey(key: string): boolean {
+  return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key);
+}
+
+/**
+ * Check if a string is a blackboard reference (e.g., "{goal}")
+ */
+export function isBlackboardRef(value: string): boolean {
+  if (!value.startsWith('{') || !value.endsWith('}') || value.length <= 2) return false;
+  const key = value.slice(1, -1);
+  return isValidBlackboardKey(key);
+}
+
+/**
+ * Extract the key from a blackboard reference (e.g., "{goal}" -> "goal")
+ */
+export function extractBlackboardKey(value: string): string | null {
+  if (!value.startsWith('{') || !value.endsWith('}') || value.length <= 2) return null;
+  const key = value.slice(1, -1);
+  return isValidBlackboardKey(key) ? key : null;
+}
+
+/**
+ * Parse a value that may contain blackboard references.
+ * Returns an array of segments: { type: 'literal' | 'blackboard', value: string }
+ */
+export function parseBlackboardExpression(value: string): Array<{ type: 'literal' | 'blackboard'; value: string }> {
+  if (!value.includes('{')) {
+    return [{ type: 'literal', value }];
+  }
+
+  const segments: Array<{ type: 'literal' | 'blackboard'; value: string }> = [];
+  let current = '';
+  let inBraces = false;
+
+  for (let i = 0; i < value.length; i++) {
+    const char = value[i];
+
+    if (char === '{') {
+      if (current) {
+        segments.push({ type: 'literal', value: current });
+        current = '';
+      }
+      inBraces = true;
+      current = '{';
+    } else if (char === '}') {
+      current += '}';
+      inBraces = false;
+      const key = extractBlackboardKey(current);
+      if (key) {
+        segments.push({ type: 'blackboard', value: key });
+      } else {
+        segments.push({ type: 'literal', value: current });
+      }
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+
+  if (current) {
+    segments.push({ type: inBraces ? 'blackboard' : 'literal', value: current });
+  }
+
+  return segments;
+}

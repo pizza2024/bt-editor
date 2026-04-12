@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultProject, parseXML, SAMPLE_XML, serializeXML } from './btXml';
+import { defaultProject, parseXML, SAMPLE_XML, serializeXML, isBlackboardRef, extractBlackboardKey, parseBlackboardExpression, isValidBlackboardKey } from './btXml';
 
 describe('parseXML', () => {
   it('parses sample XML and extracts trees and main tree id', () => {
@@ -48,5 +48,73 @@ describe('serializeXML', () => {
     expect(reparsed.mainTreeId).toBe(parsed.mainTreeId);
     expect(reparsed.trees).toHaveLength(parsed.trees.length);
     expect(reparsed.trees[0].root.type).toBe(parsed.trees[0].root.type);
+  });
+});
+
+describe('Blackboard Expression Utilities', () => {
+  describe('isBlackboardRef', () => {
+    it('returns true for valid blackboard references', () => {
+      expect(isBlackboardRef('{goal}')).toBe(true);
+      expect(isBlackboardRef('{target_pose}')).toBe(true);
+      expect(isBlackboardRef('{_private_var}')).toBe(true);
+    });
+
+    it('returns false for non-blackboard values', () => {
+      expect(isBlackboardRef('hello')).toBe(false);
+      expect(isBlackboardRef('{ }')).toBe(false);
+      expect(isBlackboardRef('{}')).toBe(false);
+      expect(isBlackboardRef('{')).toBe(false);
+    });
+  });
+
+  describe('extractBlackboardKey', () => {
+    it('extracts key from valid blackboard reference', () => {
+      expect(extractBlackboardKey('{goal}')).toBe('goal');
+      expect(extractBlackboardKey('{target_pose}')).toBe('target_pose');
+      expect(extractBlackboardKey('{_private}')).toBe('_private');
+    });
+
+    it('returns null for invalid references', () => {
+      expect(extractBlackboardKey('hello')).toBeNull();
+      expect(extractBlackboardKey('{}')).toBeNull();
+    });
+  });
+
+  describe('parseBlackboardExpression', () => {
+    it('parses plain literal value', () => {
+      expect(parseBlackboardExpression('hello world')).toEqual([
+        { type: 'literal', value: 'hello world' }
+      ]);
+    });
+
+    it('parses simple blackboard reference', () => {
+      expect(parseBlackboardExpression('{goal}')).toEqual([
+        { type: 'blackboard', value: 'goal' }
+      ]);
+    });
+
+    it('parses mixed literal and blackboard', () => {
+      expect(parseBlackboardExpression('Hello {name}, your score is {score}')).toEqual([
+        { type: 'literal', value: 'Hello ' },
+        { type: 'blackboard', value: 'name' },
+        { type: 'literal', value: ', your score is ' },
+        { type: 'blackboard', value: 'score' }
+      ]);
+    });
+  });
+
+  describe('isValidBlackboardKey', () => {
+    it('validates correct identifiers', () => {
+      expect(isValidBlackboardKey('goal')).toBe(true);
+      expect(isValidBlackboardKey('target_pose')).toBe(true);
+      expect(isValidBlackboardKey('_private')).toBe(true);
+      expect(isValidBlackboardKey('var123')).toBe(true);
+    });
+
+    it('rejects invalid identifiers', () => {
+      expect(isValidBlackboardKey('123var')).toBe(false);
+      expect(isValidBlackboardKey('my-var')).toBe(false);
+      expect(isValidBlackboardKey('')).toBe(false);
+    });
   });
 });
