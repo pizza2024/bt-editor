@@ -388,20 +388,46 @@ export const useBTStore = create<BTStore>()(
   },
 
   loadDebugLog(text) {
-    // Expected format (one per line):
-    // timestamp nodeUid nodeType nodeName status [treeId]
-    // e.g.: 100 1 Sequence Root RUNNING MainTree
-    const entries = text.trim().split('\n').map((line) => {
-      const parts = line.trim().split(/\s+/);
-      return {
-        timestamp: parseInt(parts[0] ?? '0', 10),
-        nodeUid: parseInt(parts[1] ?? '0', 10),
-        nodeType: parts[2] ?? 'Unknown',
-        nodeName: parts[3] ?? 'Unknown',
-        status: (parts[4] ?? 'IDLE') as NodeStatus,
-        treeId: parts[5] ?? get().activeTreeId,
-      };
-    }).filter((e) => e.nodeType !== '');
+    // Support both text format and JSON format
+    // Text format (one per line):
+    //   timestamp nodeUid nodeType nodeName status [treeId]
+    //   e.g.: 100 1 Sequence Root RUNNING MainTree
+    // JSON format:
+    //   [{ "timestamp": 100, "nodeUid": 1, "nodeType": "Sequence", "nodeName": "Root", "status": "RUNNING", "treeId": "MainTree" }, ...]
+    
+    let entries: DebugState['entries'] = [];
+    const trimmed = text.trim();
+    
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      // JSON format
+      try {
+        const json = JSON.parse(trimmed);
+        const arr = Array.isArray(json) ? json : [json];
+        entries = arr.map((item: { timestamp?: number; nodeUid?: number; nodeType?: string; nodeName?: string; status?: string; treeId?: string }) => ({
+          timestamp: item.timestamp ?? 0,
+          nodeUid: item.nodeUid ?? 0,
+          nodeType: item.nodeType ?? 'Unknown',
+          nodeName: item.nodeName ?? 'Unknown',
+          status: (item.status ?? 'IDLE') as NodeStatus,
+          treeId: item.treeId ?? get().activeTreeId,
+        })).filter((e) => e.nodeType !== '');
+      } catch (e) {
+        console.error('Failed to parse JSON log:', e);
+      }
+    } else {
+      // Text format
+      entries = trimmed.split('\n').map((line) => {
+        const parts = line.trim().split(/\s+/);
+        return {
+          timestamp: parseInt(parts[0] ?? '0', 10),
+          nodeUid: parseInt(parts[1] ?? '0', 10),
+          nodeType: parts[2] ?? 'Unknown',
+          nodeName: parts[3] ?? 'Unknown',
+          status: (parts[4] ?? 'IDLE') as NodeStatus,
+          treeId: parts[5] ?? get().activeTreeId,
+        };
+      }).filter((e) => e.nodeType !== '');
+    }
 
     set({
       debugState: {

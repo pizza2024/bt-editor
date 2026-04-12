@@ -68,8 +68,8 @@ const Toolbar: React.FC = () => {
       <button className="toolbar-btn" onClick={handleExport} title="Export BT.CPP XML">
         ⬇ Export XML
       </button>
-      <button className="toolbar-btn" onClick={handleExportPNG} title="Export canvas as PNG image">
-        🖼 Export PNG
+      <button className="toolbar-btn" onClick={handleExportPNG} title="Export Behavior Tree as PNG image">
+        🖼️ Export PNG
       </button>
       <input ref={fileInputRef} type="file" accept=".xml" style={{ display: 'none' }} onChange={handleImport} />
 

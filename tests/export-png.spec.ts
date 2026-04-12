@@ -7,7 +7,8 @@ test.describe('Export PNG', () => {
   });
 
   test('Export PNG button exists', async ({ page }) => {
-    const exportPngBtn = page.getByRole('button', { name: /Export PNG/ });
+    // Use first() since there might be multiple buttons with similar names
+    const exportPngBtn = page.getByRole('button', { name: /Export PNG/ }).first();
     await expect(exportPngBtn).toBeVisible();
   });
 
@@ -16,7 +17,7 @@ test.describe('Export PNG', () => {
     await page.getByRole('button', { name: '📂 Sample' }).click();
     await page.waitForTimeout(500);
 
-    const exportPngBtn = page.getByRole('button', { name: /Export PNG/ });
+    const exportPngBtn = page.getByRole('button', { name: /Export PNG/ }).first();
     
     // Set up download listener
     const downloadPromise = page.waitForEvent('download', { timeout: 5000 }).catch(() => null);
