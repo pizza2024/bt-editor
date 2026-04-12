@@ -65,6 +65,11 @@ interface BTStore {
   copyNode: (node: Node) => void;
   pasteNode: () => Node | null;
 
+  // Theme
+  theme: 'dark' | 'light';
+  toggleTheme: () => void;
+  initTheme: () => void;
+
   // Undo/Redo actions
   pushHistory: () => void;
   undo: () => void;
@@ -277,6 +282,27 @@ export const useBTStore = create<BTStore>()(
     });
 
     return newNode;
+  },
+
+  theme: (localStorage.getItem('bt-theme') as 'dark' | 'light') || 'dark',
+
+  toggleTheme() {
+    const newTheme = get().theme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('bt-theme', newTheme);
+    if (newTheme === 'light') {
+      document.documentElement.classList.add('theme-light');
+    } else {
+      document.documentElement.classList.remove('theme-light');
+    }
+    set({ theme: newTheme });
+  },
+
+  initTheme() {
+    const saved = localStorage.getItem('bt-theme') as 'dark' | 'light' | null;
+    if (saved === 'light') {
+      document.documentElement.classList.add('theme-light');
+    }
+    set({ theme: saved || 'dark' });
   },
 
   updateNodePorts(nodeId, ports) {

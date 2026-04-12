@@ -3,7 +3,7 @@ import { useBTStore } from '../store/btStore';
 import { SAMPLE_XML } from '../utils/btXml';
 
 const Toolbar: React.FC = () => {
-  const { loadXML, exportXML, project, activeTreeId } = useBTStore();
+  const { loadXML, exportXML, project, activeTreeId, theme, toggleTheme } = useBTStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Ctrl+S: Export XML
@@ -77,6 +77,16 @@ const Toolbar: React.FC = () => {
       </div>
 
       <div style={{ flex: 1 }} />
+
+      {/* Theme toggle */}
+      <button
+        className="toolbar-btn"
+        onClick={toggleTheme}
+        title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        style={{ minWidth: 70 }}
+      >
+        {theme === 'dark' ? '🌙 Dark' : '☀️ Light'}
+      </button>
 
       {/* Help */}
       <div style={{ fontSize: 11, color: '#445', textAlign: 'right' }}>

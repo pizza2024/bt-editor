@@ -1,13 +1,18 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import Toolbar from './components/Toolbar';
 import NodePalette from './components/NodePalette';
 import BTCanvas from './components/BTCanvas';
 import TreeManager from './components/TreeManager';
 import PropertiesPanel from './components/PropertiesPanel';
 import DebugPanel from './components/DebugPanel';
+import { useBTStore } from './store/btStore';
 import './App.css';
 
 const App: React.FC = () => {
+  useEffect(() => {
+    useBTStore.getState().initTheme();
+  }, []);
+
   return (
     <div className="app-layout">
       <Toolbar />
