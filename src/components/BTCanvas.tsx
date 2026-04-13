@@ -21,6 +21,15 @@ import { treeToFlow, flowToTree, isSameTreeStructure, getDescendantIds } from '.
 function countEdges(node: BTTreeNode): number {
   return node.children.length + node.children.reduce((sum, child) => sum + countEdges(child), 0);
 }
+
+// Collect all edge IDs from a tree (root -> children recursively)
+function collectEdgeIds(node: { id: string; children: Array<{ id: string }> }): string[] {
+  const ids: string[] = node.children.map((c) => c.id);
+  node.children.forEach((child) => {
+    ids.push(...collectEdgeIds(child));
+  });
+  return ids;
+}
 import { autoLayout } from '../utils/btLayout';
 import { validatePortConnection } from '../utils/btXml';
 import BTFlowNode from './nodes/BTFlowNode';
@@ -697,10 +706,14 @@ const BTCanvas: React.FC = () => {
         const { localNodes: freshNodes, localEdges: freshEdges, project: p, activeTreeId: treeId } = useBTStore.getState();
         const tree = flowToTree(treeId, freshNodes, freshEdges);
         const currentTree = p.trees.find((t) => t.id === treeId);
-        // Only skip save if node structure unchanged AND edge count unchanged.
-        // isSameTreeStructure checks nodes only, so we must also compare edges
-        // to catch edge-only changes (e.g., delete edge without node changes).
-        if (currentTree && isSameTreeStructure(currentTree, tree) && countEdges(currentTree.root) === countEdges(tree.root)) return;
+        // Only skip save if node structure unchanged AND edges unchanged.
+        // isSameTreeStructure checks node IDs/types/ports/children, but not edge identity.
+        // Edge identity = which specific child IDs each parent has (i.e., which connections exist).
+        // If edge IDs differ, the tree must be re-saved even if child count is same.
+        const currentEdgeIds = currentTree ? collectEdgeIds(currentTree.root) : [];
+        const newEdgeIds = collectEdgeIds(tree.root);
+        const edgesUnchanged = currentTree && isSameTreeStructure(currentTree, tree) && JSON.stringify(currentEdgeIds) === JSON.stringify(newEdgeIds);
+        if (edgesUnchanged) return;
         const trees = p.trees.map((t) => (t.id === treeId ? tree : t));
         useBTStore.setState({ project: { ...p, trees } });
       } catch {
