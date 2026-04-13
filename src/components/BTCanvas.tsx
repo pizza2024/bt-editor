@@ -18,11 +18,15 @@ import { useBTStore } from '../store/btStore';
 import { treeToFlow, flowToTree, isSameTreeStructure, getDescendantIds } from '../utils/btFlow';
 
 // Collect all child node IDs (edges) from a tree recursively
-function collectEdgeIds(node: { id: string; children: Array<{ id: string }> }): string[] {
-  const ids: string[] = node.children.map((c) => c.id);
-  node.children.forEach((child) => {
-    ids.push(...collectEdgeIds(child));
-  });
+function collectEdgeIds(node: { id: string; children?: { id: string; children?: unknown[] }[] }): string[] {
+  if (!node.children) return [];
+  const ids: string[] = [];
+  for (const child of node.children) {
+    ids.push(child.id);
+    if (child.children) {
+      ids.push(...collectEdgeIds(child as { id: string; children?: { id: string; children?: unknown[] }[] }));
+    }
+  }
   return ids;
 }
 import { autoLayout } from '../utils/btLayout';
@@ -30,7 +34,7 @@ import { validatePortConnection } from '../utils/btXml';
 import BTFlowNode from './nodes/BTFlowNode';
 import BTFlowEdge from './edges/BTFlowEdge';
 import { BUILTIN_NODES, CATEGORY_COLORS } from '../types/bt-constants';
-import type { BTNodeDefinition, BTProject, BTNodeCategory, BTPort, BTTreeNode } from '../types/bt';
+import type { BTNodeDefinition, BTProject, BTNodeCategory, BTPort } from '../types/bt';
 import { useContextMenu, type MenuConfig, type MenuItem } from './ContextMenu';
 import NodePicker from './NodePicker';
 import NodeEditModal from './NodeEditModal';
