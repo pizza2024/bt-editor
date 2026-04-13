@@ -699,27 +699,7 @@ const BTCanvas: React.FC = () => {
         // Always read fresh localNodes/localEdges from store at execution time,
         // so edits via PropertiesPanel (which update localNodes directly) are saved correctly.
         const { localNodes: freshNodes, localEdges: freshEdges, project: p, activeTreeId: treeId } = useBTStore.getState();
-
-        // Handle orphan nodes: when an edge is deleted, its target may become disconnected.
-        // flowToTree throws on disconnected nodes, so we must remove orphans FIRST.
-        // An orphan = node with no incoming edges AND is not the root.
-        const hasParent = new Set(freshEdges.map((e) => e.target));
-        const rootCandidate = freshNodes.find((n) => !hasParent.has(n.id));
-        if (!rootCandidate) {
-          return; // No root found, can't build valid tree
-        }
-        // Find all reachable nodes from root via edges
-        const reachable = new Set<string>();
-        const queue = [rootCandidate.id];
-        while (queue.length > 0) {
-          const current = queue.shift()!;
-          if (reachable.has(current)) continue;
-          reachable.add(current);
-          freshEdges.filter((e) => e.source === current).forEach((e) => queue.push(e.target));
-        }
-        // Remove orphan nodes (not reachable from root) from nodes before building tree
-        const validNodes = freshNodes.filter((n) => reachable.has(n.id));
-        const tree = flowToTree(treeId, validNodes, freshEdges);
+        const tree = flowToTree(treeId, freshNodes, freshEdges);
         const currentTree = p.trees.find((t) => t.id === treeId);
 
         // Only skip save if node structure unchanged AND edges unchanged.
