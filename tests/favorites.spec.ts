@@ -7,7 +7,9 @@ test.describe('Favorites / Templates', () => {
   });
 
   test('favorites panel is present in DOM', async ({ page }) => {
-    // The FavoritesPanel should be present in the DOM
+    // The FavoritesPanel should be present in the DOM after page loads
+    await page.waitForSelector('.react-flow');
+    await page.waitForTimeout(500);
     const pageContent = await page.content();
     expect(pageContent).toContain('Favorites');
   });

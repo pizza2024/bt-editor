@@ -17,12 +17,7 @@ import html2canvas from 'html2canvas';
 import { useBTStore } from '../store/btStore';
 import { treeToFlow, flowToTree, isSameTreeStructure, getDescendantIds } from '../utils/btFlow';
 
-// Count total edges (non-root nodes = one parent edge each)
-function countEdges(node: BTTreeNode): number {
-  return node.children.length + node.children.reduce((sum, child) => sum + countEdges(child), 0);
-}
-
-// Collect all edge IDs from a tree (root -> children recursively)
+// Collect all child node IDs (edges) from a tree recursively
 function collectEdgeIds(node: { id: string; children: Array<{ id: string }> }): string[] {
   const ids: string[] = node.children.map((c) => c.id);
   node.children.forEach((child) => {
@@ -704,16 +699,38 @@ const BTCanvas: React.FC = () => {
         // Always read fresh localNodes/localEdges from store at execution time,
         // so edits via PropertiesPanel (which update localNodes directly) are saved correctly.
         const { localNodes: freshNodes, localEdges: freshEdges, project: p, activeTreeId: treeId } = useBTStore.getState();
-        const tree = flowToTree(treeId, freshNodes, freshEdges);
+
+        // Handle orphan nodes: when an edge is deleted, its target may become disconnected.
+        // flowToTree throws on disconnected nodes, so we must remove orphans FIRST.
+        // An orphan = node with no incoming edges AND is not the root.
+        const hasParent = new Set(freshEdges.map((e) => e.target));
+        const rootCandidate = freshNodes.find((n) => !hasParent.has(n.id));
+        if (!rootCandidate) {
+          return; // No root found, can't build valid tree
+        }
+        // Find all reachable nodes from root via edges
+        const reachable = new Set<string>();
+        const queue = [rootCandidate.id];
+        while (queue.length > 0) {
+          const current = queue.shift()!;
+          if (reachable.has(current)) continue;
+          reachable.add(current);
+          freshEdges.filter((e) => e.source === current).forEach((e) => queue.push(e.target));
+        }
+        // Remove orphan nodes (not reachable from root) from nodes before building tree
+        const validNodes = freshNodes.filter((n) => reachable.has(n.id));
+        const tree = flowToTree(treeId, validNodes, freshEdges);
         const currentTree = p.trees.find((t) => t.id === treeId);
+
         // Only skip save if node structure unchanged AND edges unchanged.
         // isSameTreeStructure checks node IDs/types/ports/children, but not edge identity.
-        // Edge identity = which specific child IDs each parent has (i.e., which connections exist).
+        // Edge identity = which specific child IDs each parent has.
         // If edge IDs differ, the tree must be re-saved even if child count is same.
         const currentEdgeIds = currentTree ? collectEdgeIds(currentTree.root) : [];
         const newEdgeIds = collectEdgeIds(tree.root);
         const edgesUnchanged = currentTree && isSameTreeStructure(currentTree, tree) && JSON.stringify(currentEdgeIds) === JSON.stringify(newEdgeIds);
         if (edgesUnchanged) return;
+
         const trees = p.trees.map((t) => (t.id === treeId ? tree : t));
         useBTStore.setState({ project: { ...p, trees } });
       } catch {
