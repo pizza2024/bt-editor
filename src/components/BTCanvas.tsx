@@ -35,6 +35,7 @@ import { useContextMenu, type MenuConfig, type MenuItem } from './ContextMenu';
 import NodePicker from './NodePicker';
 import NodeEditModal from './NodeEditModal';
 import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
+import NodeSearchModal from './NodeSearchModal';
 
 const nodeTypes = { btNode: BTFlowNode };
 const edgeTypes = { btEdge: BTFlowEdge };
@@ -138,6 +139,10 @@ const BTCanvas: React.FC = () => {
 
   // Node edit modal
   const [editingNodeId, setEditingNodeId] = React.useState<string | null>(null);
+
+  // Keyboard shortcuts help modal
+  // Node search modal
+  const [showNodeSearch, setShowNodeSearch] = React.useState(false);
 
   // Keyboard shortcuts help modal
   const [showHelp, setShowHelp] = React.useState(false);
@@ -875,6 +880,26 @@ const BTCanvas: React.FC = () => {
     }
   }, [editingNodeId, setNodes, updateNodeName]);
 
+  // Navigate to and select a node from search
+  const handleNodeSearchSelect = useCallback(
+    (nodeId: string) => {
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node || !rfInstanceRef.current) return;
+
+      // Center the view on the node and zoom in
+      rfInstanceRef.current.setCenter(node.position.x + 80, node.position.y + 40, {
+        zoom: 1.5,
+        duration: 400,
+      });
+
+      // Select the node and clear edge selection
+      selectNode(nodeId);
+      setSelectedEdgeId(null);
+      setShowNodeSearch(false);
+    },
+    [nodes, selectNode, setSelectedEdgeId, setShowNodeSearch]
+  );
+
   React.useEffect(() => {
     setEdges((prev) => withSelectedEdge(prev, selectedEdgeId, deleteEdge));
   }, [selectedEdgeId, deleteEdge, setEdges]);
@@ -933,14 +958,25 @@ const BTCanvas: React.FC = () => {
         return;
       }
 
-      // Escape: Deselect or close help
+      // Escape: Deselect or close modals
       if (event.key === 'Escape') {
+        if (showNodeSearch) {
+          setShowNodeSearch(false);
+          return;
+        }
         if (showHelp) {
           setShowHelp(false);
           return;
         }
         selectNode(null);
         setSelectedEdgeId(null);
+        return;
+      }
+
+      // /: Open node search (only when not in an input field)
+      if (event.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName ?? '')) {
+        event.preventDefault();
+        setShowNodeSearch(true);
         return;
       }
 
@@ -1007,7 +1043,7 @@ const BTCanvas: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [deleteEdge, selectNode, clearSelection, selectedEdgeId, selectedNodeIds, nodes, copyNode, pasteNode, pushHistory, showHelp, setShowHelp]);
+  }, [deleteEdge, selectNode, clearSelection, selectedEdgeId, selectedNodeIds, nodes, copyNode, pasteNode, pushHistory, showHelp, setShowHelp, showNodeSearch, setShowNodeSearch]);
 
   // Handle toolbar help button
   React.useEffect(() => {
@@ -1398,6 +1434,15 @@ const BTCanvas: React.FC = () => {
 
       {/* Keyboard shortcuts help modal */}
       {showHelp && <KeyboardShortcutsHelp onClose={() => setShowHelp(false)} />}
+
+      {/* Node search modal — press / to open */}
+      {showNodeSearch && (
+        <NodeSearchModal
+          nodes={nodes}
+          onSelect={handleNodeSearchSelect}
+          onClose={() => setShowNodeSearch(false)}
+        />
+      )}
     </div>
   );
 };

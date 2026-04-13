@@ -34,6 +34,7 @@ const SHORTCUTS = [
   {
     category: 'Canvas',
     items: [
+      { keys: ['/'], description: 'Search nodes' },
       { keys: ['F'], description: 'Fit view' },
       { keys: ['↑', '↓', '←', '→'], description: 'Nudge selected node(s)' },
       { keys: ['Ctrl', 'Drag'], description: 'Drag entire subtree' },
