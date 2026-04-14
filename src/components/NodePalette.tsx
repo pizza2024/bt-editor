@@ -15,7 +15,12 @@ const NodePalette: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
 
   // Model modal state: null = closed, 'create' = create new, BTNodeDefinition = edit existing
-  const [modelModal, setModelModal] = useState<{ mode: 'create'; defaultCategory: BTNodeCategory } | { mode: 'edit'; def: BTNodeDefinition } | null>(null);
+  const [modelModal, setModelModal] = useState<
+    { mode: 'create'; defaultCategory: BTNodeCategory }
+    | { mode: 'edit'; def: BTNodeDefinition }
+    | { mode: 'view'; def: BTNodeDefinition }
+    | null
+  >(null);
 
   // Filter nodes by search query
   const filteredNodes = searchQuery.trim()
@@ -100,6 +105,7 @@ const NodePalette: React.FC = () => {
                   colors={colors}
                   onDragStart={onDragStart}
                   customModelLabel={t('palette.customModel')}
+                  onOpen={() => setModelModal({ mode: 'view', def: node })}
                   onEdit={!node.builtin ? () => setModelModal({ mode: 'edit', def: node }) : undefined}
                   onDelete={!node.builtin ? deleteNodeModel : undefined}
                 />
@@ -137,6 +143,7 @@ const NodePalette: React.FC = () => {
                       colors={colors}
                       onDragStart={onDragStart}
                       customModelLabel={t('palette.customModel')}
+                      onOpen={() => setModelModal({ mode: 'view', def: node })}
                       onEdit={!node.builtin ? () => setModelModal({ mode: 'edit', def: node }) : undefined}
                       onDelete={!node.builtin ? deleteNodeModel : undefined}
                     />
@@ -183,6 +190,13 @@ const NodePalette: React.FC = () => {
           onClose={() => setModelModal(null)}
         />
       )}
+      {modelModal?.mode === 'view' && (
+        <NodeModelModal
+          mode="view"
+          nodeDef={modelModal.def}
+          onClose={() => setModelModal(null)}
+        />
+      )}
       </>
       )}
     </div>
@@ -194,15 +208,17 @@ interface PaletteItemProps {
   colors: { bg: string; border: string; text: string };
   onDragStart: (e: React.DragEvent, type: string) => void;
   customModelLabel: string;
+  onOpen?: (def: BTNodeDefinition) => void;
   onEdit?: (def: BTNodeDefinition) => void;
   onDelete?: (type: string) => void;
 }
 
-const PaletteItem: React.FC<PaletteItemProps> = ({ def, colors, onDragStart, customModelLabel, onEdit, onDelete }) => (
+const PaletteItem: React.FC<PaletteItemProps> = ({ def, colors, onDragStart, customModelLabel, onOpen, onEdit, onDelete }) => (
   <div className="palette-item-wrapper">
     <div
       draggable
       onDragStart={(e) => onDragStart(e, def.type)}
+      onDoubleClick={() => onOpen?.(def)}
       className="palette-item"
       style={{ background: colors.bg, borderColor: colors.border, color: colors.text }}
       title={def.description || def.type}

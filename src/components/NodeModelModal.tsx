@@ -37,11 +37,20 @@ interface NodeModelEditProps {
   onClose: () => void;
 }
 
-type Props = NodeModelModalProps | NodeModelEditProps;
+interface NodeModelViewProps {
+  /** View existing model definition in read-only mode */
+  mode: 'view';
+  nodeDef: BTNodeDefinition;
+  onClose: () => void;
+}
+
+type Props = NodeModelModalProps | NodeModelEditProps | NodeModelViewProps;
 
 const NodeModelModal: React.FC<Props> = (props) => {
   const isCreate = props.mode === 'create';
   const isEdit = props.mode === 'edit';
+  const isView = props.mode === 'view';
+  const isReadonly = isView;
 
   // Form state
   const [nodeType, setNodeType] = useState('');
@@ -57,7 +66,7 @@ const NodeModelModal: React.FC<Props> = (props) => {
       setCategory(props.defaultCategory ?? 'Action');
       setDescription('');
       setPorts([]);
-    } else if (isEdit) {
+    } else {
       const def = props.nodeDef;
       setNodeType(def.type);
       setCategory(def.category);
@@ -84,6 +93,8 @@ const NodeModelModal: React.FC<Props> = (props) => {
   };
 
   const handleSave = () => {
+    if (isView) return;
+
     const trimmed = nodeType.trim();
 
     const validPorts: BTPort[] = ports
@@ -131,7 +142,11 @@ const NodeModelModal: React.FC<Props> = (props) => {
 
   const colors = CATEGORY_COLORS[category];
 
-  const getTitle = () => isCreate ? 'Create Model' : `Edit Model: ${nodeType}`;
+  const getTitle = () => {
+    if (isCreate) return 'Create Model';
+    if (isView) return `Model Definition: ${nodeType}`;
+    return `Edit Model: ${nodeType}`;
+  };
 
   return (
     <div className="modal-backdrop" onClick={handleBackdropClick}>
@@ -146,6 +161,11 @@ const NodeModelModal: React.FC<Props> = (props) => {
 
         {/* Body */}
         <div className="modal-body">
+          {isReadonly && (
+            <div className="info-text" style={{ marginBottom: 12 }}>
+              This model definition is read-only when opened from the Models Palette.
+            </div>
+          )}
 
           {/* Node Type + Category Row */}
           <div className="form-row">
@@ -156,8 +176,8 @@ const NodeModelModal: React.FC<Props> = (props) => {
                 value={nodeType}
                 onChange={(e) => setNodeType(e.target.value)}
                 placeholder="e.g. MoveToGoal"
-                disabled={!isCreate}
-                className={!isCreate ? 'input-disabled' : ''}
+                disabled={!isCreate || isReadonly}
+                className={!isCreate || isReadonly ? 'input-disabled' : ''}
                 autoFocus={isCreate}
               />
             </div>
@@ -166,8 +186,8 @@ const NodeModelModal: React.FC<Props> = (props) => {
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as BTNodeCategory)}
-                disabled={!isCreate}
-                className={!isCreate ? 'input-disabled' : ''}
+                disabled={!isCreate || isReadonly}
+                className={!isCreate || isReadonly ? 'input-disabled' : ''}
               >
                 <option value="Action">Action</option>
                 <option value="Condition">Condition</option>
@@ -186,6 +206,8 @@ const NodeModelModal: React.FC<Props> = (props) => {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional description of this node type"
+              disabled={isReadonly}
+              className={isReadonly ? 'input-disabled' : ''}
             />
           </div>
 
@@ -196,9 +218,11 @@ const NodeModelModal: React.FC<Props> = (props) => {
                 Port Definitions
                 {ports.length > 0 && <span className="ports-count">({ports.length})</span>}
               </label>
-              <button type="button" className="btn-add-port" onClick={handleAddPort}>
-                + Add Port
-              </button>
+              {!isReadonly && (
+                <button type="button" className="btn-add-port" onClick={handleAddPort}>
+                  + Add Port
+                </button>
+              )}
             </div>
 
             {ports.length > 0 && (
@@ -207,13 +231,15 @@ const NodeModelModal: React.FC<Props> = (props) => {
                   <div key={index} className="port-item">
                     <div className="port-item-header">
                       <span className="port-index">#{index + 1}</span>
-                      <button
-                        type="button"
-                        className="btn-remove-port"
-                        onClick={() => handleRemovePort(index)}
-                      >
-                        ✕
-                      </button>
+                      {!isReadonly && (
+                        <button
+                          type="button"
+                          className="btn-remove-port"
+                          onClick={() => handleRemovePort(index)}
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                     <div className="port-item-body">
                       <div className="port-field port-field-name">
@@ -223,6 +249,8 @@ const NodeModelModal: React.FC<Props> = (props) => {
                           value={port.name}
                           onChange={(e) => handlePortChange(index, 'name', e.target.value)}
                           placeholder="e.g. msec"
+                          disabled={isReadonly}
+                          className={isReadonly ? 'input-disabled' : ''}
                         />
                       </div>
                       <div className="port-field port-field-dir">
@@ -230,6 +258,8 @@ const NodeModelModal: React.FC<Props> = (props) => {
                         <select
                           value={port.direction}
                           onChange={(e) => handlePortChange(index, 'direction', e.target.value)}
+                          disabled={isReadonly}
+                          className={isReadonly ? 'input-disabled' : ''}
                         >
                           {PORT_DIRECTIONS.map(d => (
                             <option key={d.value} value={d.value}>{d.label}</option>
@@ -241,6 +271,8 @@ const NodeModelModal: React.FC<Props> = (props) => {
                         <select
                           value={port.portType}
                           onChange={(e) => handlePortChange(index, 'portType', e.target.value)}
+                          disabled={isReadonly}
+                          className={isReadonly ? 'input-disabled' : ''}
                         >
                           {PORT_TYPES.map(t => (
                             <option key={t.value} value={t.value}>{t.label}</option>
@@ -254,6 +286,8 @@ const NodeModelModal: React.FC<Props> = (props) => {
                           value={port.defaultValue}
                           onChange={(e) => handlePortChange(index, 'defaultValue', e.target.value)}
                           placeholder="-1, true, ..."
+                          disabled={isReadonly}
+                          className={isReadonly ? 'input-disabled' : ''}
                         />
                       </div>
                     </div>
@@ -264,6 +298,8 @@ const NodeModelModal: React.FC<Props> = (props) => {
                         value={port.description}
                         onChange={(e) => handlePortChange(index, 'description', e.target.value)}
                         placeholder="Optional description"
+                        disabled={isReadonly}
+                        className={isReadonly ? 'input-disabled' : ''}
                       />
                     </div>
                   </div>
@@ -323,10 +359,12 @@ const NodeModelModal: React.FC<Props> = (props) => {
               Delete
             </button>
           )}
-          <button className="btn-secondary" onClick={props.onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handleSave}>
-            {isCreate ? 'Create' : 'Update'}
-          </button>
+          <button className="btn-secondary" onClick={props.onClose}>{isView ? 'Close' : 'Cancel'}</button>
+          {!isView && (
+            <button className="btn-primary" onClick={handleSave}>
+              {isCreate ? 'Create' : 'Update'}
+            </button>
+          )}
         </div>
       </div>
     </div>
