@@ -15,9 +15,9 @@ export interface MissingNodeModelCandidate {
   ports: BTPort[];
 }
 
-function parseTreeNode(el: Element, depth = 0): BTTreeNode {
+function parseTreeNode(el: Element, createNodeId: () => string, depth = 0): BTTreeNode {
   const xmlTag = el.tagName;
-  const id = `n_${Math.random().toString(36).slice(2, 9)}`;
+  const id = createNodeId();
   const idAttr = el.getAttribute('ID');
 
   // For Action/Condition elements, the actual node type is the ID attribute
@@ -59,7 +59,7 @@ function parseTreeNode(el: Element, depth = 0): BTTreeNode {
 
   const children: BTTreeNode[] = [];
   Array.from(el.children).forEach((child) => {
-    children.push(parseTreeNode(child as Element, depth + 1));
+    children.push(parseTreeNode(child as Element, createNodeId, depth + 1));
   });
 
   return {
@@ -71,6 +71,14 @@ function parseTreeNode(el: Element, depth = 0): BTTreeNode {
     ...(Object.keys(preconditions).length > 0 && { preconditions }),
     ...(Object.keys(postconditions).length > 0 && { postconditions }),
     ...(portRemap && Object.keys(portRemap).length > 0 && { portRemap }),
+  };
+}
+
+function createNodeIdFactory(): () => string {
+  let counter = 0;
+  return () => {
+    counter += 1;
+    return `n_${counter.toString(36)}`;
   };
 }
 
@@ -169,13 +177,14 @@ export function parseXML(xmlText: string): BTProject {
 
   // Parse trees
   const trees: BTTree[] = [];
+  const createNodeId = createNodeIdFactory();
   root.querySelectorAll(':scope > BehaviorTree').forEach((btEl) => {
     const treeId = btEl.getAttribute('ID') || `Tree_${trees.length + 1}`;
     const rootEl = btEl.firstElementChild;
     if (!rootEl) return;
-    const parsedRoot = parseTreeNode(rootEl);
+    const parsedRoot = parseTreeNode(rootEl, createNodeId);
     const editorRoot: BTTreeNode = {
-      id: `n_root_${Math.random().toString(36).slice(2, 9)}`,
+      id: createNodeId(),
       type: EDITOR_ROOT_TYPE,
       ports: {},
       children: [parsedRoot],
@@ -271,13 +280,17 @@ function serializeNode(
   // Determine node category
   const builtinNode = BUILTIN_NODES.find((n) => n.type === node.type);
   const modelNode = nodeModels.find((n) => n.type === node.type);
-  const category = builtinNode?.category ?? modelNode?.category ?? 'Action';
+  const nodeDefinition = builtinNode ?? modelNode;
+  const category = nodeDefinition?.category ?? 'Action';
 
   let tagName: string;
   if (category === 'Action' || category === 'Condition') {
-    // Wrap in <Action ID="TypeName"> or <Condition ID="TypeName">
-    tagName = category;
-    attrs.push(`ID="${escapeXml(node.type)}"`);
+    // Groot2 instance XML uses concrete node tags for leaf nodes instead of
+    // generic <Action ID="..."> wrappers.
+    tagName = node.type;
+    if (node.name && node.name !== node.type) {
+      attrs.push(`name="${escapeXml(node.name)}"`);
+    }
   } else if (category === 'SubTree') {
     tagName = 'SubTree';
     // name holds the target tree ID for SubTree nodes
@@ -296,7 +309,7 @@ function serializeNode(
     }
   }
 
-  Object.entries(node.ports).forEach(([k, v]) => {
+  getSerializedPortEntries(node, nodeDefinition, category).forEach(([k, v]) => {
     attrs.push(`${k}="${escapeXml(v)}"`);
   });
 
@@ -318,6 +331,32 @@ function serializeNode(
 
   const childLines = node.children.map((c) => serializeNode(c, indent + 1, nodeModels)).join('\n');
   return `${pad}<${tagName}${attrStr}>\n${childLines}\n${pad}</${tagName}>`;
+}
+
+function getSerializedPortEntries(
+  node: BTTreeNode,
+  nodeDefinition: BTNodeDefinition | undefined,
+  category: BTNodeCategory
+): Array<[string, string]> {
+  const orderedEntries: Array<[string, string]> = [];
+  const seen = new Set<string>();
+  const includeEmptyDeclaredPorts = category === 'Action' || category === 'Condition';
+
+  (nodeDefinition?.ports ?? []).forEach((port) => {
+    if (port.name === '__autoremap') return;
+    const value = node.ports[port.name];
+    if (value !== undefined || includeEmptyDeclaredPorts) {
+      orderedEntries.push([port.name, value ?? '']);
+      seen.add(port.name);
+    }
+  });
+
+  Object.entries(node.ports).forEach(([name, value]) => {
+    if (seen.has(name)) return;
+    orderedEntries.push([name, value]);
+  });
+
+  return orderedEntries;
 }
 
 export function serializeXML(project: BTProject): string {

@@ -15,7 +15,7 @@ import type { Connection, Node, Edge, ReactFlowInstance } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import html2canvas from 'html2canvas';
 
-import { useBTStore } from '../store/btStore';
+import { useBTStore, useBTStoreApi } from '../store/BTStoreProvider';
 import type { BTNodeDefinition, BTProject, BTNodeCategory, BTPort, BTTreeNode } from '../types/bt';
 import { treeToFlow, flowToTree, isSameTreeStructure, getDescendantIds, getAttachedNodeIds, getDetachedNodeIds } from '../utils/btFlow';
 // Collect all child node IDs (edges) from a tree recursively
@@ -123,6 +123,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   onToggleSidePanels,
   toggleSidePanelsLabel,
 }) => {
+  const storeApi = useBTStoreApi();
   const {
     project,
     activeTreeId,
@@ -248,16 +249,17 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   }, []);
 
   const onNodeDragStart = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
-      if (!ctrlKeyRef.current) return;
+    (event: React.MouseEvent, node: Node) => {
+      const useSubtreeDrag = ctrlKeyRef.current || event.altKey;
+      if (!useSubtreeDrag) return;
       const descendantIds = getDescendantIds(node.id, edges);
       if (descendantIds.length === 0) return; // No subtree to drag
 
       // Push history before moving
-      useBTStore.getState().pushHistory();
+      storeApi.getState().pushHistory();
 
       // Get current node positions from store (most up-to-date)
-      const currentNodes = useBTStore.getState().localNodes;
+      const currentNodes = storeApi.getState().localNodes;
 
       // Record start positions of dragged node and all descendants
       const startPositions = new Map<string, { x: number; y: number }>();
@@ -358,12 +360,16 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     }
 
     // Force layout when switching trees or first load OR when project changed (e.g., loaded new XML)
-    const shouldForceLayout = forceLayoutRef.current || lastSyncedTreeRef.current !== activeTreeId;
+    const { localNodes: storeLocalNodes, localEdges: storeLocalEdges } = storeApi.getState();
+    const shouldForceLayout =
+      forceLayoutRef.current
+      || lastSyncedTreeRef.current !== activeTreeId
+      || (storeLocalNodes.length === 0 && storeLocalEdges.length === 0);
     if (shouldForceLayout) {
       // Full rebuild with autoLayout for tree switch or initial load
       const { nodes: n, edges: e } = buildFlowNodes(activeTreeId, project, debugState.nodeStatuses);
       // Apply collapsed filter
-      const collapsed = useBTStore.getState().collapsedNodeIds;
+      const collapsed = storeApi.getState().collapsedNodeIds;
       const collapsedDescendants = new Set<string>();
       e.forEach((edge) => {
         if (collapsed.has(edge.source)) {
@@ -394,7 +400,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       const laidOutNodes = autoLayout(newNodes, newEdges);
 
       // Apply collapsed filter
-      const collapsed = useBTStore.getState().collapsedNodeIds;
+      const collapsed = storeApi.getState().collapsedNodeIds;
       const collapsedDescendants = new Set<string>();
       newEdges.forEach((edge) => {
         if (collapsed.has(edge.source)) {
@@ -620,7 +626,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         }
       }
 
-      useBTStore.getState().pushHistory();
+      storeApi.getState().pushHistory();
       setSelectedEdgeId(null);
 
       // Build edge data with type warning info and target node status (for RUNNING animation)
@@ -737,6 +743,60 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     setZoomLevel((prev) => (Math.abs(prev - nextZoom) < 0.0001 ? prev : nextZoom));
   }, []);
 
+  const beautifyLayout = useCallback(() => {
+    storeApi.getState().pushHistory();
+    const currentNodes = nodesRef.current;
+    const attachedIds = getAttachedNodeIds(currentNodes, edges);
+    const attachedNodes = currentNodes.filter((node) => attachedIds.has(node.id));
+    const attachedEdges = edges.filter((edge) => attachedIds.has(edge.source) && attachedIds.has(edge.target));
+    const laidOutAttachedNodes = autoLayout(attachedNodes, attachedEdges);
+    const laidOutAttachedNodeMap = new Map(laidOutAttachedNodes.map((node) => [node.id, node]));
+
+    setNodes((prev) => prev.map((node) => laidOutAttachedNodeMap.get(node.id) ?? node));
+
+    if (laidOutAttachedNodes.length === 0) return;
+
+    const incomingCounts = new Map<string, number>();
+    laidOutAttachedNodes.forEach((node) => incomingCounts.set(node.id, 0));
+    attachedEdges.forEach((edge) => {
+      incomingCounts.set(edge.target, (incomingCounts.get(edge.target) ?? 0) + 1);
+    });
+
+    const layoutNodeById = new Map(laidOutAttachedNodes.map((node) => [node.id, node]));
+    const rootNode = laidOutAttachedNodes.find((node) => {
+      const data = node.data as { isRoot?: boolean } | undefined;
+      return data?.isRoot === true;
+    }) ?? laidOutAttachedNodes.find((node) => (incomingCounts.get(node.id) ?? 0) === 0);
+
+    let anchorNode = rootNode;
+    if (rootNode) {
+      const directChildren = attachedEdges
+        .filter((edge) => edge.source === rootNode.id)
+        .map((edge) => layoutNodeById.get(edge.target))
+        .filter((node): node is Node => Boolean(node));
+      if (directChildren.length === 1) {
+        anchorNode = directChildren[0];
+      }
+    }
+
+    requestAnimationFrame(() => {
+      const instance = rfInstanceRef.current;
+      const container = canvasContainerRef.current;
+      if (!instance || !container || !anchorNode) return;
+
+      const viewport = instance.getViewport();
+      const anchorWidth = typeof anchorNode.width === 'number' ? anchorNode.width : 200;
+      const anchorCenterX = anchorNode.position.x + anchorWidth / 2;
+      const nextViewportX = container.clientWidth / 2 - anchorCenterX * viewport.zoom;
+
+      instance.setViewport({
+        x: nextViewportX,
+        y: viewport.y,
+        zoom: viewport.zoom,
+      }, { duration: 250 });
+    });
+  }, [edges, setNodes, storeApi]);
+
   const onMove = useCallback((_: MouseEvent | TouchEvent | null, viewport: { zoom: number }) => {
     syncZoomLevel(viewport.zoom);
   }, [syncZoomLevel]);
@@ -812,7 +872,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           .map((n) => n.id)
       );
       // Replace the entire selection with the dragged selection
-      useBTStore.getState().setSelectedNodes(selectedIds);
+      storeApi.getState().setSelectedNodes(selectedIds);
     },
     []
   );
@@ -826,7 +886,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       try {
         // Always read fresh localNodes/localEdges from store at execution time,
         // so edits via PropertiesPanel (which update localNodes directly) are saved correctly.
-        const { localNodes: freshNodes, localEdges: freshEdges, project: p, activeTreeId: treeId } = useBTStore.getState();
+        const { localNodes: freshNodes, localEdges: freshEdges, project: p, activeTreeId: treeId } = storeApi.getState();
 
         // Keep only nodes reachable from ROOT when persisting tree structure.
         // Non-reachable nodes are tracked as detached and kept on canvas.
@@ -852,7 +912,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
         const trees = p.trees.map((t) => (t.id === treeId ? tree : t));
         skipNextProjectSyncRef.current = true;
-        useBTStore.setState({ project: { ...p, trees } });
+        storeApi.setState({ project: { ...p, trees } });
       } catch {
         // ignore intermediate invalid states
       }
@@ -873,7 +933,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   React.useEffect(() => {
     const handleNodesUpdated = () => {
       // Read fresh localNodes from store and update ReactFlow's nodes state
-      const { localNodes: freshNodes } = useBTStore.getState();
+      const { localNodes: freshNodes } = storeApi.getState();
       if (freshNodes.length > 0) {
         // Merge fresh node data into existing nodes (keep ReactFlow-specific props like position)
         setNodes((prev) =>
@@ -920,7 +980,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
         const dataUrl = canvas.toDataURL('image/png');
         const link = document.createElement('a');
-        link.download = `${useBTStore.getState().activeTreeId || 'behavior-tree'}.png`;
+        link.download = `${storeApi.getState().activeTreeId || 'behavior-tree'}.png`;
         link.href = dataUrl;
         link.click();
       } catch (err) {
@@ -961,7 +1021,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       editingNodeData?.nodeType === 'SubTree' &&
       data.ports['__autoremap'] === 'true'
     ) {
-      const { project } = useBTStore.getState();
+      const { project } = storeApi.getState();
       const referencedTreeId = data.name;
       const referencedTree = project.trees.find((t) => t.id === referencedTreeId);
       if (referencedTree) {
@@ -1013,15 +1073,15 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       updateNodeName(editingNodeId, data.name);
     }
     if (data.ports !== undefined) {
-      const { updateNodePorts } = useBTStore.getState();
+      const { updateNodePorts } = storeApi.getState();
       updateNodePorts(editingNodeId, data.ports);
     }
     if (data.preconditions !== undefined || data.postconditions !== undefined) {
-      const { updateNodeConditions } = useBTStore.getState();
+      const { updateNodeConditions } = storeApi.getState();
       updateNodeConditions(editingNodeId, data.preconditions, data.postconditions);
     }
     if (computedPortRemap !== undefined) {
-      const { updateNodePortRemap } = useBTStore.getState();
+      const { updateNodePortRemap } = storeApi.getState();
       updateNodePortRemap(editingNodeId, computedPortRemap);
     }
   }, [editingNodeId, setNodes, updateNodeName, nodes]);
@@ -1068,11 +1128,11 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         event.preventDefault();
         if (selectedNodeIds.size > 0) {
           // Protect ROOT: never allow ROOT to be deleted via keyboard
-          const { localNodes } = useBTStore.getState();
+          const { localNodes } = storeApi.getState();
           const rootIds = new Set(localNodes.filter((n) => (n.data as { isRoot?: boolean }).isRoot).map((n) => n.id));
           const idsToDelete = new Set([...selectedNodeIds].filter((id) => !rootIds.has(id)));
           if (idsToDelete.size === 0) return; // Only ROOT was selected, do nothing
-          useBTStore.getState().pushHistory();
+          storeApi.getState().pushHistory();
           setNodes((prev) => prev.filter((n) => !idsToDelete.has(n.id)));
           setEdges((prev) => prev.filter((e) => !idsToDelete.has(e.source) && !idsToDelete.has(e.target)));
           const nextDetached = new Set(detachedNodeIdsRef.current);
@@ -1080,7 +1140,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           detachedNodeIdsRef.current = nextDetached;
           clearSelection();
         } else if (selectedEdgeId) {
-          useBTStore.getState().pushHistory();
+          storeApi.getState().pushHistory();
           deleteEdge(selectedEdgeId);
         }
         return;
@@ -1089,14 +1149,14 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       // Ctrl+Z: Undo
       if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
         event.preventDefault();
-        useBTStore.getState().undo();
+        storeApi.getState().undo();
         return;
       }
 
       // Ctrl+Y or Ctrl+Shift+Z: Redo
       if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || (event.key === 'z' && event.shiftKey))) {
         event.preventDefault();
-        useBTStore.getState().redo();
+        storeApi.getState().redo();
         return;
       }
 
@@ -1140,8 +1200,8 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
         event.preventDefault();
         const allIds = new Set(nodes.map((n) => n.id));
-        useBTStore.getState().clearSelection();
-        allIds.forEach((id) => useBTStore.getState().addToSelection(id));
+        storeApi.getState().clearSelection();
+        allIds.forEach((id) => storeApi.getState().addToSelection(id));
         return;
       }
 
@@ -1156,7 +1216,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         if (event.key === 'ArrowDown') dy = step;
         if (event.key === 'ArrowLeft') dx = -step;
         if (event.key === 'ArrowRight') dx = step;
-        useBTStore.getState().pushHistory();
+        storeApi.getState().pushHistory();
         setNodes((prev) =>
           prev.map((n) => {
             if (!selectedNodeIds.has(n.id)) return n;
@@ -1236,7 +1296,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           },
         };
 
-        useBTStore.getState().pushHistory();
+        storeApi.getState().pushHistory();
         setNodes((nds) => [...nds, newNode]);
         setSelectedEdgeId(null);
         return;
@@ -1272,10 +1332,10 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
       // If it's a custom leaf node not yet in node models, auto-add
       if (!project.nodeModels.find((m) => m.type === nodeType)) {
-        useBTStore.getState().pushHistory();
+        storeApi.getState().pushHistory();
         addNodeModel({ type: nodeType, category });
       } else {
-        useBTStore.getState().pushHistory();
+        storeApi.getState().pushHistory();
       }
 
       setNodes((nds) => [...nds, newNode]);
@@ -1284,16 +1344,17 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     [project.nodeModels, addNodeModel, setNodes]
   );
 
-  // Check for unconnected nodes (no incoming AND no outgoing edges)
-  const unconnectedNodes = useMemo(() => {
+  // Check for nodes not connected to the ROOT-attached graph.
+  const disconnectedNodes = useMemo(() => {
     if (nodes.length === 0) return [];
+
+    const attachedIds = getAttachedNodeIds(nodes, edges);
     return nodes.filter((n) => {
       // Skip ROOT - it doesn't need connections
       const data = n.data as { isRoot?: boolean };
       if (data?.isRoot) return false;
-      const hasIncoming = edges.some((e) => e.target === n.id);
-      const hasOutgoing = edges.some((e) => e.source === n.id);
-      return !hasIncoming && !hasOutgoing;
+
+      return !attachedIds.has(n.id);
     });
   }, [nodes, edges]);
 
@@ -1305,7 +1366,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     const isRoot = targetData?.isRoot === true;
     const hasChildren = (targetData?.childrenCount ?? 0) > 0;
     // Read collapsed state from store (authoritative)
-    const collapsedSet = useBTStore.getState().collapsedNodeIds;
+    const collapsedSet = storeApi.getState().collapsedNodeIds;
     const isCollapsed = targetNodeId ? collapsedSet.has(targetNodeId) : false;
 
     return {
@@ -1316,7 +1377,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           icon: '🗑️',
           danger: true,
           action: () => {
-            useBTStore.getState().pushHistory();
+            storeApi.getState().pushHistory();
             deleteEdge(menuState.targetId!);
           },
         },
@@ -1330,7 +1391,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
             // Prefer the current target node from this render; fallback to store lookup.
             const nodeToCopy = targetNode
               ?? (targetNodeId
-                ? (useBTStore.getState().localNodes.find((n) => n.id === targetNodeId) ?? null)
+                ? (storeApi.getState().localNodes.find((n) => n.id === targetNodeId) ?? null)
                 : null);
             if (nodeToCopy) {
               copyNode(nodeToCopy);
@@ -1344,7 +1405,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           danger: true,
           action: () => {
             if (!menuState.targetId) return;
-            useBTStore.getState().pushHistory();
+            storeApi.getState().pushHistory();
             const deletedId = menuState.targetId;
             setNodes((prev) => prev.filter((n) => n.id !== deletedId));
             setEdges((prev) => prev.filter((e) => e.source !== deletedId && e.target !== deletedId));
@@ -1361,7 +1422,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           danger: true,
           action: () => {
             if (!menuState.targetId) return;
-            useBTStore.getState().pushHistory();
+            storeApi.getState().pushHistory();
 
             // Get all descendant node IDs (subtree)
             const subtreeNodeIds = new Set<string>();
@@ -1396,7 +1457,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           icon: '⭐',
           action: () => {
             if (targetData?.type) {
-              useBTStore.getState().addFavorite({
+              storeApi.getState().addFavorite({
                 name: targetData.name || targetData.type,
                 type: targetData.type,
                 ports: targetData.ports,
@@ -1407,7 +1468,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         },
       ] : [],
       pane: menuState.targetType === 'pane' ? [
-        ...(useBTStore.getState().clipboard ? [{
+        ...(storeApi.getState().clipboard ? [{
           id: 'paste',
           label: 'Paste Node',
           icon: '📋',
@@ -1440,7 +1501,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
                 .map((n) => n.id)
             );
             clearSelection();
-            allIds.forEach((id) => useBTStore.getState().addToSelection(id));
+            allIds.forEach((id) => storeApi.getState().addToSelection(id));
           },
         },
         {
@@ -1449,9 +1510,15 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           icon: '🔍',
           action: () => rfInstanceRef.current?.fitView(),
         },
+        {
+          id: 'beautify-layout',
+          label: 'Beautify Layout',
+          icon: '✨',
+          action: () => beautifyLayout(),
+        },
       ] : [],
     };
-  }, [menuState, nodes, deleteEdge, copyNode, pasteClipboardNode, clearSelection, toggleNodeCollapse]);
+  }, [menuState, nodes, deleteEdge, copyNode, pasteClipboardNode, clearSelection, toggleNodeCollapse, beautifyLayout]);
 
   return (
     <div ref={canvasContainerRef} onMouseMove={handleCanvasMouseMove} style={{ width: '100%', height: '100%' }}>
@@ -1513,6 +1580,13 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
               }}
             />
           </ControlButton>
+          <ControlButton
+            onClick={beautifyLayout}
+            title="Beautify Layout"
+            aria-label="Beautify Layout"
+          >
+            ✨
+          </ControlButton>
         </Controls>
         <div
           style={{
@@ -1546,8 +1620,8 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         />
       </ReactFlow>
 
-      {/* Unconnected nodes warning */}
-      {unconnectedNodes.length > 0 && (
+      {/* Disconnected nodes warning */}
+      {disconnectedNodes.length > 0 && (
         <div
           style={{
             position: 'absolute',
@@ -1565,10 +1639,10 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
             color: '#99aacc',
             boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
           }}
-          title={`Unconnected nodes: ${unconnectedNodes.map((n) => (n.data as { label?: string }).label || n.id).join(', ')}`}
+          title={`Disconnected nodes: ${disconnectedNodes.map((n) => (n.data as { label?: string }).label || n.id).join(', ')}`}
         >
           <span style={{ fontSize: 14 }}>⚠️</span>
-          <span style={{ fontWeight: 500 }}>{unconnectedNodes.length} unconnected node{unconnectedNodes.length > 1 ? 's' : ''}</span>
+          <span style={{ fontWeight: 500 }}>One or more nodes are not connected</span>
         </div>
       )}
 

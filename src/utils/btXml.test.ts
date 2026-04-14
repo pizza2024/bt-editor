@@ -16,6 +16,30 @@ describe('parseXML', () => {
     expect(hasBuiltinSequence).toBe(true);
   });
 
+  it('generates unique node ids for large imported trees', () => {
+    const repeatedLeaves = Array.from({ length: 80 }, () => '<Script code=""/>').join('\n');
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4" main_tree_to_execute="Tree1">
+  <BehaviorTree ID="Tree1">
+    <Sequence>
+      ${repeatedLeaves}
+    </Sequence>
+  </BehaviorTree>
+</root>`;
+
+    const project = parseXML(xml);
+    const ids = new Set<string>();
+
+    const visit = (node: (typeof project.trees)[number]['root']) => {
+      expect(ids.has(node.id)).toBe(false);
+      ids.add(node.id);
+      node.children.forEach(visit);
+    };
+
+    visit(project.trees[0].root);
+    expect(ids.size).toBeGreaterThan(80);
+  });
+
   it('throws when XML has no BehaviorTree', () => {
     const xml = '<?xml version="1.0"?><root BTCPP_format="4"></root>';
     expect(() => parseXML(xml)).toThrow('No <BehaviorTree> elements found in XML');
@@ -23,7 +47,7 @@ describe('parseXML', () => {
 });
 
 describe('serializeXML', () => {
-  it('serializes with escaped attributes and keeps custom models', () => {
+  it('serializes leaf nodes using concrete tag names', () => {
     const project = defaultProject();
     project.mainTreeId = 'Main & Tree';
     project.trees[0].root.children.push({
@@ -32,13 +56,53 @@ describe('serializeXML', () => {
       ports: { message: 'hello <world> & "team"' },
       children: [],
     });
-    project.nodeModels.push({ type: 'Say', category: 'Action', ports: [] });
+    project.nodeModels.push({
+      type: 'Say',
+      category: 'Action',
+      ports: [{ name: 'message', direction: 'input' }],
+    });
 
     const xml = serializeXML(project);
 
     expect(xml).toContain('main_tree_to_execute="Main &amp; Tree"');
     expect(xml).toContain('message="hello &lt;world&gt; &amp; &quot;team&quot;"');
-    expect(xml).toContain('<Action ID="Say"/>');
+    expect(xml).toContain('<Say message="hello &lt;world&gt; &amp; &quot;team&quot;"/>');
+  });
+
+  it('serializes built-in Groot2 leaf nodes with empty declared ports', () => {
+    const project = defaultProject();
+    project.trees[0].root.children.push({
+      id: 'sequence',
+      type: 'Sequence',
+      ports: {},
+      children: [
+        {
+          id: 'script-1',
+          type: 'Script',
+          ports: {},
+          children: [],
+        },
+        {
+          id: 'script-2',
+          type: 'Script',
+          ports: { code: '' },
+          children: [],
+        },
+        {
+          id: 'set-blackboard',
+          type: 'SetBlackboard',
+          name: 'Hello',
+          ports: {},
+          children: [],
+        },
+      ],
+    });
+
+    const xml = serializeXML(project);
+
+    expect(xml).toContain('<Sequence>');
+    expect(xml).toContain('<Script code=""/>');
+    expect(xml).toContain('<SetBlackboard name="Hello" value="" output_key=""/>');
   });
 
   it('supports parse -> serialize -> parse roundtrip for core fields', () => {

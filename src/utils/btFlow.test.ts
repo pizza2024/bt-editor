@@ -49,6 +49,7 @@ describe('treeToFlow', () => {
       target: 'leaf-1',
       type: 'btEdge',
     });
+    expect(edges[0].sourceHandle).toBeUndefined();
   });
 });
 
@@ -83,6 +84,70 @@ describe('flowToTree', () => {
       ports: { speed: '1.0' },
       children: [],
     });
+  });
+
+  it('orders siblings by explicit source handle before serializing', () => {
+    const nodes: Node[] = [
+      {
+        id: 'root',
+        type: 'btNode',
+        position: { x: 0, y: 0 },
+        data: { nodeType: 'Sequence', label: 'Sequence', ports: {} },
+      },
+      {
+        id: 'left',
+        type: 'btNode',
+        position: { x: -100, y: 100 },
+        data: { nodeType: 'Script', label: 'Script', ports: { code: '' } },
+      },
+      {
+        id: 'right',
+        type: 'btNode',
+        position: { x: 100, y: 100 },
+        data: { nodeType: 'SetBlackboard', label: 'Hello', ports: { value: '', output_key: '' } },
+      },
+    ];
+
+    const edges: Edge[] = [
+      { id: 'e2', source: 'root', target: 'right', sourceHandle: 'out1' },
+      { id: 'e1', source: 'root', target: 'left', sourceHandle: 'out0' },
+    ];
+
+    const tree = flowToTree('TreeOrdered', nodes, edges);
+
+    expect(tree.root.children.map((child) => child.id)).toEqual(['left', 'right']);
+  });
+
+  it('falls back to canvas position when source handles are missing', () => {
+    const nodes: Node[] = [
+      {
+        id: 'root',
+        type: 'btNode',
+        position: { x: 0, y: 0 },
+        data: { nodeType: 'Sequence', label: 'Sequence', ports: {} },
+      },
+      {
+        id: 'right',
+        type: 'btNode',
+        position: { x: 120, y: 100 },
+        data: { nodeType: 'Script', label: 'Script', ports: { code: '' } },
+      },
+      {
+        id: 'left',
+        type: 'btNode',
+        position: { x: -120, y: 100 },
+        data: { nodeType: 'Script', label: 'Script', ports: { code: '' } },
+      },
+    ];
+
+    const edges: Edge[] = [
+      { id: 'e1', source: 'root', target: 'right' },
+      { id: 'e2', source: 'root', target: 'left' },
+    ];
+
+    const tree = flowToTree('TreeByPosition', nodes, edges);
+
+    expect(tree.root.children.map((child) => child.id)).toEqual(['left', 'right']);
   });
 
   it('throws when no root can be found', () => {
