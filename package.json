@@ -1,7 +1,7 @@
 {
   "name": "btcpp-web-groot-demo",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "main": "./dist/bt-editor.cjs.js",
   "module": "./dist/bt-editor.es.js",

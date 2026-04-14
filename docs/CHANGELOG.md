@@ -13,6 +13,29 @@ No unreleased changes at this time — `main` is the stable branch.
 
 ---
 
+## [0.1.0] — 2026-04-14
+
+### Added
+
+- Dual build outputs:
+  - Standalone web editor build (`build:web`)
+  - Embeddable component library build (`build:lib`)
+- Reusable `BTEditor` component entry for integration in external React projects.
+- Library entry/export setup for package consumers (`src/lib.ts`, `vite.lib.config.ts`).
+- Instance-aware store provider (`BTStoreProvider`) and `storageKey` support on `BTEditor`.
+
+### Changed
+
+- Refactored editor shell into reusable `BTEditor` core while preserving standalone app mode.
+- Converted editor layout to container-based sizing (`100%`), keeping standalone full-screen shell.
+- Migrated component store imports to provider-backed hooks to support isolated instances.
+
+### Fixed
+
+- Replaced singleton imperative store access paths in canvas/properties/favorites flows with provider-bound store API.
+
+---
+
 ## [0.0.0] — Initial releases
 
 > The following entries cover the full development history from the first commit through P4 completion.
