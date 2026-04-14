@@ -3,6 +3,7 @@ import {
   ReactFlow,
   Background,
   Controls,
+  ControlButton,
   MiniMap,
   addEdge,
   useNodesState,
@@ -39,6 +40,12 @@ import NodeSearchModal from './NodeSearchModal';
 
 const nodeTypes = { btNode: BTFlowNode };
 const edgeTypes = { btEdge: BTFlowEdge };
+
+type BTCanvasProps = {
+  sidePanelsCollapsed: boolean;
+  onToggleSidePanels: () => void;
+  toggleSidePanelsLabel: string;
+};
 
 /**
  * Get port definition for a specific port on a node type.
@@ -111,7 +118,11 @@ function bringNodeToFront(nodes: Node[], nodeId: string): Node[] {
   return nodes.map((node) => (node.id === nodeId ? { ...node, zIndex: nextZIndex } : node));
 }
 
-const BTCanvas: React.FC = () => {
+const BTCanvas: React.FC<BTCanvasProps> = ({
+  sidePanelsCollapsed,
+  onToggleSidePanels,
+  toggleSidePanelsLabel,
+}) => {
   const {
     project,
     activeTreeId,
@@ -721,17 +732,21 @@ const BTCanvas: React.FC = () => {
     [getPasteFlowPosition, pasteNode, pushHistory, selectNode, setNodes]
   );
 
-  const onPaneClick = useCallback(() => {
-    // Update zoom level display
-    const zoom = rfInstanceRef.current?.getZoom();
-    if (zoom) setZoomLevel(zoom);
+  const syncZoomLevel = useCallback((nextZoom: number) => {
+    if (!Number.isFinite(nextZoom)) return;
+    setZoomLevel((prev) => (Math.abs(prev - nextZoom) < 0.0001 ? prev : nextZoom));
+  }, []);
 
+  const onMove = useCallback((_: MouseEvent | TouchEvent | null, viewport: { zoom: number }) => {
+    syncZoomLevel(viewport.zoom);
+  }, [syncZoomLevel]);
+
+  const onPaneClick = useCallback(() => {
     // Detect double-click on pane to reset zoom
     const now = Date.now();
     if (now - lastPaneClickRef.current < 300) {
       // Double-click detected - reset zoom to fit view
       rfInstanceRef.current?.fitView({ duration: 300 });
-      setZoomLevel(1);
     }
     lastPaneClickRef.current = now;
 
@@ -1465,32 +1480,62 @@ const BTCanvas: React.FC = () => {
         selectionMode={SelectionMode.Partial}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        onInit={(instance) => { rfInstanceRef.current = instance; }}
+        onMove={onMove}
+        onInit={(instance) => {
+          rfInstanceRef.current = instance;
+          // fitView may adjust zoom after initialization; capture settled value on next frame.
+          requestAnimationFrame(() => {
+            syncZoomLevel(instance.getZoom());
+          });
+        }}
         nodeExtent={[[-5000, -5000], [5000, 5000]]}
         fitView
         colorMode="dark"
         defaultEdgeOptions={{ type: 'btEdge', style: { stroke: '#6888aa', strokeWidth: 2 } }}
       >
         <Background variant={BackgroundVariant.Dots} color="#334" gap={20} size={1} />
-        <Controls style={{ background: '#1e2235', border: '1px solid #334' }} />
-        {/* Zoom level indicator */}
+        <Controls style={{ background: '#1e2235', border: '1px solid #334' }}>
+          <ControlButton
+            onClick={onToggleSidePanels}
+            title={toggleSidePanelsLabel}
+            aria-label={toggleSidePanelsLabel}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: 12,
+                height: 12,
+                display: 'inline-block',
+                borderRadius: 2,
+                border: '2px solid #7f96c0',
+                boxSizing: 'border-box',
+                background: sidePanelsCollapsed ? 'rgba(127, 150, 192, 0.28)' : 'transparent',
+              }}
+            />
+          </ControlButton>
+        </Controls>
         <div
           style={{
             position: 'absolute',
-            bottom: 16,
-            left: 16,
+            bottom: 10,
+            left: 62,
             zIndex: 5,
-            background: '#1e2235',
-            border: '1px solid #334',
-            borderRadius: 4,
-            padding: '4px 10px',
-            fontSize: 12,
-            color: '#8899bb',
-            fontFamily: 'monospace',
             pointerEvents: 'none',
           }}
         >
-          {Math.round(zoomLevel * 100)}%
+          <div
+            style={{
+              background: '#1e2235',
+              border: '1px solid #334',
+              borderRadius: 4,
+              padding: '4px 10px',
+              fontSize: 12,
+              color: '#8899bb',
+              fontFamily: 'monospace',
+            }}
+          >
+            {Math.round(zoomLevel * 100)}%
+          </div>
         </div>
         <MiniMap
           nodeColor={(n) => {

@@ -181,6 +181,8 @@ const zh = {
     expandLeftSidebar: '展开左侧面板',
     collapseRightSidebar: '收起右侧面板',
     expandRightSidebar: '展开右侧面板',
+    collapseSidebars: '收起侧边面板',
+    expandSidebars: '展开侧边面板',
   },
   xmlPreview: {
     title: 'XML 预览',

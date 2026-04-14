@@ -181,6 +181,8 @@ const en = {
     expandLeftSidebar: 'Expand left sidebar',
     collapseRightSidebar: 'Collapse right sidebar',
     expandRightSidebar: 'Expand right sidebar',
+    collapseSidebars: 'Collapse side panels',
+    expandSidebars: 'Expand side panels',
   },
   xmlPreview: {
     title: 'Live XML',

@@ -18,18 +18,34 @@
 
 .left-sidebar-area {
   display: flex;
+  width: 238px;
+  min-width: 26px;
+  max-width: 238px;
+  overflow: hidden;
   border-right: 1px solid var(--border-color);
   background: var(--bg-secondary);
+  transition: width 0.28s cubic-bezier(0.22, 1, 0.36, 1), max-width 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .left-sidebar {
-  width: 220px;
-  min-width: 200px;
-  max-width: 260px;
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
   background: var(--bg-secondary);
+  transition: opacity 0.2s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.left-sidebar-area.collapsed {
+  width: 26px;
+  max-width: 26px;
+}
+
+.left-sidebar-area.collapsed .left-sidebar {
+  opacity: 0;
+  transform: translateX(-8px);
+  pointer-events: none;
 }
 
 .canvas-area {
@@ -46,23 +62,43 @@
   flex-direction: column;
   overflow-y: auto;
   background: var(--bg-secondary);
+  transition: opacity 0.2s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .right-sidebar-area {
   display: flex;
+  max-width: 1200px;
   min-width: 320px;
   overflow: hidden;
   border-left: 1px solid var(--border-color);
   background: var(--bg-secondary);
+  transition: max-width 0.28s cubic-bezier(0.22, 1, 0.36, 1), min-width 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .right-sidebar-area .right-sidebar {
   border-right: 1px solid var(--border-color);
 }
 
+.right-sidebar-area .xml-preview-sidebar {
+  transition: opacity 0.2s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.right-sidebar-area.collapsed {
+  max-width: 26px;
+  min-width: 26px;
+}
+
+.right-sidebar-area.collapsed .right-sidebar,
+.right-sidebar-area.collapsed .xml-preview-sidebar {
+  opacity: 0;
+  transform: translateX(8px);
+  pointer-events: none;
+}
+
 .sidebar-toggle-strip {
   width: 18px;
   min-width: 18px;
+  height: 100%;
   border: none;
   background: var(--bg-tertiary);
   color: var(--text-muted);
