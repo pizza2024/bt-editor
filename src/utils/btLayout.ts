@@ -4,7 +4,7 @@ import type { Node, Edge } from '@xyflow/react';
 const NODE_WIDTH = 200;
 const NODE_HEIGHT = 56;
 const NODE_GAP_X = 24;
-const NODE_GAP_Y = 40;
+const NODE_GAP_Y = 64;
 const SUBTREE_COMPACT_GAP_X = 18;
 
 function getChildIndex(node: Node): number | undefined {
@@ -180,14 +180,17 @@ function dagreLayout(nodes: Node[], edges: Edge[]): Node[] {
   });
 }
 
-function compactSiblingSubtrees(nodes: Node[], edges: Edge[]): void {
+function buildSortedChildIdsByParent(nodes: Node[], edges: Edge[]): Map<string, string[]> {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const childIdsByParent = buildChildIdsByParent(edges);
   const sortedChildIdsByParent = new Map<string, string[]>();
   childIdsByParent.forEach((childIds, parentId) => {
     sortedChildIdsByParent.set(parentId, sortChildIdsByNodeOrder(childIds, nodeById));
   });
+  return sortedChildIdsByParent;
+}
 
+function buildDepthById(nodes: Node[], edges: Edge[], childIdsByParent: Map<string, string[]>): Map<string, number> {
   const incomingCounts = new Map<string, number>();
   nodes.forEach((node) => incomingCounts.set(node.id, 0));
   edges.forEach((edge) => {
@@ -205,7 +208,7 @@ function compactSiblingSubtrees(nodes: Node[], edges: Edge[]): void {
     if (depthById.has(current.id)) continue;
     depthById.set(current.id, current.depth);
 
-    const childIds = sortedChildIdsByParent.get(current.id) ?? [];
+    const childIds = childIdsByParent.get(current.id) ?? [];
     childIds.forEach((childId) => {
       queue.push({ id: childId, depth: current.depth + 1 });
     });
@@ -217,25 +220,125 @@ function compactSiblingSubtrees(nodes: Node[], edges: Edge[]): void {
     }
   });
 
-  const getSubtreeNodeIds = (rootId: string): string[] => {
-    const ids: string[] = [];
-    const stack = [rootId];
-    while (stack.length > 0) {
-      const currentId = stack.pop()!;
-      ids.push(currentId);
-      const childIds = sortedChildIdsByParent.get(currentId) ?? [];
-      for (let index = childIds.length - 1; index >= 0; index -= 1) {
-        stack.push(childIds[index]);
-      }
+  return depthById;
+}
+
+function collectSubtreeNodeIds(rootId: string, childIdsByParent: Map<string, string[]>): string[] {
+  const ids: string[] = [];
+  const stack = [rootId];
+
+  while (stack.length > 0) {
+    const currentId = stack.pop()!;
+    ids.push(currentId);
+    const childIds = childIdsByParent.get(currentId) ?? [];
+    for (let index = childIds.length - 1; index >= 0; index -= 1) {
+      stack.push(childIds[index]);
     }
-    return ids;
+  }
+
+  return ids;
+}
+
+function evenlyDistributeChildSubtrees(nodes: Node[], edges: Edge[]): void {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const childIdsByParent = buildSortedChildIdsByParent(nodes, edges);
+  const depthById = buildDepthById(nodes, edges, childIdsByParent);
+
+  const shiftSubtree = (rootId: string, deltaX: number): void => {
+    if (deltaX === 0) return;
+
+    collectSubtreeNodeIds(rootId, childIdsByParent).forEach((nodeId) => {
+      const node = nodeById.get(nodeId);
+      if (!node) return;
+      node.position = {
+        ...node.position,
+        x: node.position.x + deltaX,
+      };
+    });
   };
+
+  const getSubtreeExtents = (rootId: string): { left: number; right: number } => {
+    const rootNode = nodeById.get(rootId);
+    if (!rootNode) return { left: NODE_WIDTH / 2, right: NODE_WIDTH / 2 };
+
+    const rootCenter = rootNode.position.x + NODE_WIDTH / 2;
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+
+    collectSubtreeNodeIds(rootId, childIdsByParent).forEach((nodeId) => {
+      const node = nodeById.get(nodeId);
+      if (!node) return;
+      minX = Math.min(minX, node.position.x);
+      maxX = Math.max(maxX, node.position.x + NODE_WIDTH);
+    });
+
+    return {
+      left: rootCenter - minX,
+      right: maxX - rootCenter,
+    };
+  };
+
+  const parents = [...nodes].sort((left, right) => {
+    const depthDelta = (depthById.get(right.id) ?? 0) - (depthById.get(left.id) ?? 0);
+    if (depthDelta !== 0) return depthDelta;
+    return left.id.localeCompare(right.id);
+  });
+
+  parents.forEach((parent) => {
+    const childIds = childIdsByParent.get(parent.id) ?? [];
+    if (childIds.length < 3) return;
+
+    const childNodes = childIds
+      .map((childId) => nodeById.get(childId))
+      .filter((node): node is Node => Boolean(node));
+    if (childNodes.length < 2) return;
+
+    const extents = childIds.map((childId) => getSubtreeExtents(childId));
+    const desiredStep = NODE_WIDTH + SUBTREE_COMPACT_GAP_X;
+    const pairwiseGaps: number[] = [];
+    for (let index = 0; index < extents.length - 1; index += 1) {
+      const minGap = extents[index].right + extents[index + 1].left + SUBTREE_COMPACT_GAP_X;
+      pairwiseGaps.push(Math.max(desiredStep, minGap));
+    }
+
+    const totalSpan = pairwiseGaps.reduce((sum, gap) => sum + gap, 0);
+
+    const parentCenter = parent.position.x + NODE_WIDTH / 2;
+    const firstCenter = parentCenter - totalSpan / 2;
+
+    let nextCenter = firstCenter;
+    childIds.forEach((childId, index) => {
+      const childNode = nodeById.get(childId);
+      if (!childNode) return;
+      const currentCenter = childNode.position.x + NODE_WIDTH / 2;
+      const targetCenter = nextCenter;
+      shiftSubtree(childId, targetCenter - currentCenter);
+
+      if (index < pairwiseGaps.length) {
+        nextCenter += pairwiseGaps[index];
+      }
+    });
+  });
+}
+
+function compactSiblingSubtrees(nodes: Node[], edges: Edge[]): void {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const sortedChildIdsByParent = buildSortedChildIdsByParent(nodes, edges);
+  const depthById = buildDepthById(nodes, edges, sortedChildIdsByParent);
+  const incomingCounts = new Map<string, number>();
+  nodes.forEach((node) => incomingCounts.set(node.id, 0));
+  edges.forEach((edge) => {
+    incomingCounts.set(edge.target, (incomingCounts.get(edge.target) ?? 0) + 1);
+  });
+  const roots = nodes
+    .filter((node) => (incomingCounts.get(node.id) ?? 0) === 0)
+    .sort((left, right) => left.id.localeCompare(right.id));
 
   const computeContours = (rootId: string): { left: Map<number, number>; right: Map<number, number> } => {
     const left = new Map<number, number>();
     const right = new Map<number, number>();
 
-    getSubtreeNodeIds(rootId).forEach((nodeId) => {
+    collectSubtreeNodeIds(rootId, sortedChildIdsByParent).forEach((nodeId) => {
       const node = nodeById.get(nodeId);
       if (!node) return;
 
@@ -252,7 +355,7 @@ function compactSiblingSubtrees(nodes: Node[], edges: Edge[]): void {
 
   const shiftSubtree = (rootId: string, deltaX: number): void => {
     if (deltaX === 0) return;
-    getSubtreeNodeIds(rootId).forEach((nodeId) => {
+    collectSubtreeNodeIds(rootId, sortedChildIdsByParent).forEach((nodeId) => {
       const node = nodeById.get(nodeId);
       if (!node) return;
       node.position = {
@@ -304,6 +407,84 @@ function compactSiblingSubtrees(nodes: Node[], edges: Edge[]): void {
   };
 
   roots.forEach((root) => compactChildren(root.id));
+}
+
+function centerParentsOverChildren(nodes: Node[], edges: Edge[]): void {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const childIdsByParent = buildChildIdsByParent(edges);
+  const incomingCounts = new Map<string, number>();
+  nodes.forEach((node) => incomingCounts.set(node.id, 0));
+  edges.forEach((edge) => {
+    incomingCounts.set(edge.target, (incomingCounts.get(edge.target) ?? 0) + 1);
+  });
+
+  const depthById = new Map<string, number>();
+  const roots = nodes
+    .filter((node) => (incomingCounts.get(node.id) ?? 0) === 0)
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const queue = roots.map((root) => ({ id: root.id, depth: 0 }));
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const existingDepth = depthById.get(current.id);
+    if (existingDepth !== undefined && existingDepth <= current.depth) continue;
+    depthById.set(current.id, current.depth);
+
+    const childIds = childIdsByParent.get(current.id) ?? [];
+    childIds.forEach((childId) => {
+      queue.push({ id: childId, depth: current.depth + 1 });
+    });
+  }
+
+  const nodesByDepth = [...nodes].sort((left, right) => {
+    const depthDelta = (depthById.get(right.id) ?? 0) - (depthById.get(left.id) ?? 0);
+    if (depthDelta !== 0) return depthDelta;
+    return left.id.localeCompare(right.id);
+  });
+
+  nodesByDepth.forEach((node) => {
+    const childIds = childIdsByParent.get(node.id) ?? [];
+    if (childIds.length < 2) return;
+
+    const childBounds = childIds
+      .map((childId) => nodeById.get(childId))
+      .filter((child): child is Node => Boolean(child))
+      .map((child) => ({ left: child.position.x, right: child.position.x + NODE_WIDTH }));
+
+    if (childBounds.length < 2) return;
+
+    const left = Math.min(...childBounds.map((bound) => bound.left));
+    const right = Math.max(...childBounds.map((bound) => bound.right));
+    const desiredCenterX = (left + right) / 2;
+
+    node.position = {
+      ...node.position,
+      x: desiredCenterX - NODE_WIDTH / 2,
+    };
+  });
+}
+
+function normalizeLayoutCenter(nodes: Node[], edges: Edge[]): void {
+  if (nodes.length === 0) return;
+
+  const incomingCounts = new Map<string, number>();
+  nodes.forEach((node) => incomingCounts.set(node.id, 0));
+  edges.forEach((edge) => {
+    incomingCounts.set(edge.target, (incomingCounts.get(edge.target) ?? 0) + 1);
+  });
+
+  const roots = nodes.filter((node) => (incomingCounts.get(node.id) ?? 0) === 0);
+  if (roots.length === 0) return;
+
+  const rootCenters = roots.map((root) => root.position.x + NODE_WIDTH / 2);
+  const desiredCenter = rootCenters.reduce((sum, center) => sum + center, 0) / rootCenters.length;
+
+  nodes.forEach((node) => {
+    node.position = {
+      ...node.position,
+      x: node.position.x - desiredCenter,
+    };
+  });
 }
 
 function enforceSiblingOrder(nodes: Node[], childIdsByParent: Map<string, string[]>): void {
@@ -395,6 +576,9 @@ export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
 
   if (useOrderedTreeLayout) {
     compactSiblingSubtrees(laidOutNodes, edges);
+    evenlyDistributeChildSubtrees(laidOutNodes, edges);
+    centerParentsOverChildren(laidOutNodes, edges);
+    normalizeLayoutCenter(laidOutNodes, edges);
   }
 
   const childIdsByParent = buildChildIdsByParent(edges);

@@ -162,4 +162,84 @@ describe('autoLayout', () => {
     expect(horizontalGap).toBeLessThan(260);
     expect(horizontalGap).toBeGreaterThan(150);
   });
+
+  it('keeps the top-level parent centered over its children after compaction', () => {
+    const nodes: Node[] = [
+      { id: 'root', type: 'btNode', position: { x: 0, y: 0 }, data: {} },
+      { id: 'left', type: 'btNode', position: { x: 0, y: 0 }, data: { childIndex: 0 } },
+      { id: 'middle', type: 'btNode', position: { x: 0, y: 0 }, data: { childIndex: 1 } },
+      { id: 'right', type: 'btNode', position: { x: 0, y: 0 }, data: { childIndex: 2 } },
+      { id: 'm1', type: 'btNode', position: { x: 0, y: 0 }, data: { childIndex: 0 } },
+      { id: 'm2', type: 'btNode', position: { x: 0, y: 0 }, data: { childIndex: 1 } },
+      { id: 'm3', type: 'btNode', position: { x: 0, y: 0 }, data: { childIndex: 2 } },
+    ];
+
+    const edges: Edge[] = [
+      { id: 'e1', source: 'root', target: 'left' },
+      { id: 'e2', source: 'root', target: 'middle' },
+      { id: 'e3', source: 'root', target: 'right' },
+      { id: 'e4', source: 'middle', target: 'm1' },
+      { id: 'e5', source: 'middle', target: 'm2' },
+      { id: 'e6', source: 'middle', target: 'm3' },
+    ];
+
+    const laidOut = autoLayout(nodes, edges);
+    const root = laidOut.find((n) => n.id === 'root');
+    const left = laidOut.find((n) => n.id === 'left');
+    const right = laidOut.find((n) => n.id === 'right');
+
+    expect(root).toBeDefined();
+    expect(left).toBeDefined();
+    expect(right).toBeDefined();
+
+    const rootCenter = (root?.position.x ?? 0) + 100;
+    const leftCenter = (left?.position.x ?? 0) + 100;
+    const rightCenter = (right?.position.x ?? 0) + 100;
+    const expectedCenter = (leftCenter + rightCenter) / 2;
+
+    expect(Math.abs(rootCenter - expectedCenter)).toBeLessThanOrEqual(1);
+  });
+
+  it('uses soft-even sibling spacing without stretching every gap', () => {
+    const nodes: Node[] = [
+      { id: 'root', type: 'btNode', position: { x: 0, y: 0 }, data: {} },
+      { id: 'c1', type: 'btNode', position: { x: 0, y: 0 }, data: { childIndex: 0 } },
+      { id: 'c2', type: 'btNode', position: { x: 0, y: 0 }, data: { childIndex: 1 } },
+      { id: 'c3', type: 'btNode', position: { x: 0, y: 0 }, data: { childIndex: 2 } },
+      { id: 'c4', type: 'btNode', position: { x: 0, y: 0 }, data: { childIndex: 3 } },
+      { id: 'c2a', type: 'btNode', position: { x: 0, y: 0 }, data: { childIndex: 0 } },
+      { id: 'c2b', type: 'btNode', position: { x: 0, y: 0 }, data: { childIndex: 1 } },
+      { id: 'c3a', type: 'btNode', position: { x: 0, y: 0 }, data: { childIndex: 0 } },
+      { id: 'c3b', type: 'btNode', position: { x: 0, y: 0 }, data: { childIndex: 1 } },
+      { id: 'c3c', type: 'btNode', position: { x: 0, y: 0 }, data: { childIndex: 2 } },
+    ];
+
+    const edges: Edge[] = [
+      { id: 'e1', source: 'root', target: 'c1' },
+      { id: 'e2', source: 'root', target: 'c2' },
+      { id: 'e3', source: 'root', target: 'c3' },
+      { id: 'e4', source: 'root', target: 'c4' },
+      { id: 'e5', source: 'c2', target: 'c2a' },
+      { id: 'e6', source: 'c2', target: 'c2b' },
+      { id: 'e7', source: 'c3', target: 'c3a' },
+      { id: 'e8', source: 'c3', target: 'c3b' },
+      { id: 'e9', source: 'c3', target: 'c3c' },
+    ];
+
+    const laidOut = autoLayout(nodes, edges);
+    const centers = ['c1', 'c2', 'c3', 'c4']
+      .map((id) => laidOut.find((node) => node.id === id))
+      .filter((node): node is Node => Boolean(node))
+      .map((node) => node.position.x + 100);
+
+    expect(centers).toHaveLength(4);
+
+    const gaps = [centers[1] - centers[0], centers[2] - centers[1], centers[3] - centers[2]];
+    const maxGap = Math.max(...gaps);
+    const minGap = Math.min(...gaps);
+
+    expect(minGap).toBeGreaterThan(100);
+    expect(maxGap - minGap).toBeGreaterThan(80);
+    expect(maxGap).toBeLessThan(560);
+  });
 });

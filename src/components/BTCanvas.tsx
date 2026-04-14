@@ -745,9 +745,55 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
   const beautifyLayout = useCallback(() => {
     storeApi.getState().pushHistory();
-    setNodes((prev) => autoLayout(prev, edges));
+    const currentNodes = nodesRef.current;
+    const attachedIds = getAttachedNodeIds(currentNodes, edges);
+    const attachedNodes = currentNodes.filter((node) => attachedIds.has(node.id));
+    const attachedEdges = edges.filter((edge) => attachedIds.has(edge.source) && attachedIds.has(edge.target));
+    const laidOutAttachedNodes = autoLayout(attachedNodes, attachedEdges);
+    const laidOutAttachedNodeMap = new Map(laidOutAttachedNodes.map((node) => [node.id, node]));
+
+    setNodes((prev) => prev.map((node) => laidOutAttachedNodeMap.get(node.id) ?? node));
+
+    if (laidOutAttachedNodes.length === 0) return;
+
+    const incomingCounts = new Map<string, number>();
+    laidOutAttachedNodes.forEach((node) => incomingCounts.set(node.id, 0));
+    attachedEdges.forEach((edge) => {
+      incomingCounts.set(edge.target, (incomingCounts.get(edge.target) ?? 0) + 1);
+    });
+
+    const layoutNodeById = new Map(laidOutAttachedNodes.map((node) => [node.id, node]));
+    const rootNode = laidOutAttachedNodes.find((node) => {
+      const data = node.data as { isRoot?: boolean } | undefined;
+      return data?.isRoot === true;
+    }) ?? laidOutAttachedNodes.find((node) => (incomingCounts.get(node.id) ?? 0) === 0);
+
+    let anchorNode = rootNode;
+    if (rootNode) {
+      const directChildren = attachedEdges
+        .filter((edge) => edge.source === rootNode.id)
+        .map((edge) => layoutNodeById.get(edge.target))
+        .filter((node): node is Node => Boolean(node));
+      if (directChildren.length === 1) {
+        anchorNode = directChildren[0];
+      }
+    }
+
     requestAnimationFrame(() => {
-      rfInstanceRef.current?.fitView({ duration: 250, padding: 0.15 });
+      const instance = rfInstanceRef.current;
+      const container = canvasContainerRef.current;
+      if (!instance || !container || !anchorNode) return;
+
+      const viewport = instance.getViewport();
+      const anchorWidth = typeof anchorNode.width === 'number' ? anchorNode.width : 200;
+      const anchorCenterX = anchorNode.position.x + anchorWidth / 2;
+      const nextViewportX = container.clientWidth / 2 - anchorCenterX * viewport.zoom;
+
+      instance.setViewport({
+        x: nextViewportX,
+        y: viewport.y,
+        zoom: viewport.zoom,
+      }, { duration: 250 });
     });
   }, [edges, setNodes, storeApi]);
 
@@ -1298,16 +1344,17 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     [project.nodeModels, addNodeModel, setNodes]
   );
 
-  // Check for unconnected nodes (no incoming AND no outgoing edges)
-  const unconnectedNodes = useMemo(() => {
+  // Check for nodes not connected to the ROOT-attached graph.
+  const disconnectedNodes = useMemo(() => {
     if (nodes.length === 0) return [];
+
+    const attachedIds = getAttachedNodeIds(nodes, edges);
     return nodes.filter((n) => {
       // Skip ROOT - it doesn't need connections
       const data = n.data as { isRoot?: boolean };
       if (data?.isRoot) return false;
-      const hasIncoming = edges.some((e) => e.target === n.id);
-      const hasOutgoing = edges.some((e) => e.source === n.id);
-      return !hasIncoming && !hasOutgoing;
+
+      return !attachedIds.has(n.id);
     });
   }, [nodes, edges]);
 
@@ -1573,8 +1620,8 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         />
       </ReactFlow>
 
-      {/* Unconnected nodes warning */}
-      {unconnectedNodes.length > 0 && (
+      {/* Disconnected nodes warning */}
+      {disconnectedNodes.length > 0 && (
         <div
           style={{
             position: 'absolute',
@@ -1592,10 +1639,10 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
             color: '#99aacc',
             boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
           }}
-          title={`Unconnected nodes: ${unconnectedNodes.map((n) => (n.data as { label?: string }).label || n.id).join(', ')}`}
+          title={`Disconnected nodes: ${disconnectedNodes.map((n) => (n.data as { label?: string }).label || n.id).join(', ')}`}
         >
           <span style={{ fontSize: 14 }}>⚠️</span>
-          <span style={{ fontWeight: 500 }}>{unconnectedNodes.length} unconnected node{unconnectedNodes.length > 1 ? 's' : ''}</span>
+          <span style={{ fontWeight: 500 }}>One or more nodes are not connected</span>
         </div>
       )}
 
