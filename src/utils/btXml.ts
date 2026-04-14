@@ -1,10 +1,19 @@
-import type { BTProject, BTTree, BTTreeNode, BTNodeDefinition } from '../types/bt';
+import type { BTProject, BTTree, BTTreeNode, BTNodeDefinition, BTNodeCategory, BTPort } from '../types/bt';
 import { BUILTIN_NODES, EDITOR_ROOT_TYPE } from '../types/bt-constants';
 
 // ─── XML → Project ─────────────────────────────────────────────────────────
 
 // Known XML element names that are categories (not node types)
 const LEAF_CATEGORY_TAGS = new Set(['Action', 'Condition']);
+const PRE_KEYS = ['_failureIf', '_successIf', '_skipIf', '_while'];
+const POST_KEYS = ['_onSuccess', '_onFailure', '_onHalted', '_post'];
+
+export interface MissingNodeModelCandidate {
+  type: string;
+  category: BTNodeCategory;
+  categoryOptions: BTNodeCategory[];
+  ports: BTPort[];
+}
 
 function parseTreeNode(el: Element, depth = 0): BTTreeNode {
   const xmlTag = el.tagName;
@@ -19,10 +28,6 @@ function parseTreeNode(el: Element, depth = 0): BTTreeNode {
   const preconditions: Record<string, string> = {};
   const postconditions: Record<string, string> = {};
   let portRemap: Record<string, string> | undefined;
-
-  // Pre/post condition attribute names
-  const PRE_KEYS = ['_failureIf', '_successIf', '_skipIf', '_while'];
-  const POST_KEYS = ['_onSuccess', '_onFailure', '_onHalted', '_post'];
 
   Array.from(el.attributes).forEach((attr) => {
     if (attr.name === 'ID' || attr.name === 'name') return;
@@ -69,6 +74,88 @@ function parseTreeNode(el: Element, depth = 0): BTTreeNode {
   };
 }
 
+export function analyzeMissingNodeModels(xmlText: string): MissingNodeModelCandidate[] {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, 'application/xml');
+
+  const parseError = doc.querySelector('parsererror');
+  if (parseError) {
+    throw new Error('XML parse error: ' + parseError.textContent);
+  }
+
+  const root = doc.documentElement;
+  const declaredTypes = new Set<string>();
+  const modelEl = root.querySelector(':scope > TreeNodesModel')
+    ?? root.querySelector(':scope > TreeConfiguration > TreeNodesModel');
+  if (modelEl) {
+    Array.from(modelEl.children).forEach((catEl) => {
+      declaredTypes.add(catEl.getAttribute('ID') || catEl.tagName);
+    });
+  }
+
+  const builtinTypes = new Set(BUILTIN_NODES.map((node) => node.type));
+  const records = new Map<string, { xmlTags: Set<string>; maxChildren: number; ports: Map<string, BTPort> }>();
+
+  const visit = (el: Element) => {
+    const xmlTag = el.tagName;
+    const idAttr = el.getAttribute('ID');
+    const isLeafCategory = LEAF_CATEGORY_TAGS.has(xmlTag);
+    const type = isLeafCategory && idAttr ? idAttr : xmlTag;
+
+    if (!builtinTypes.has(type) && !declaredTypes.has(type)) {
+      const existing = records.get(type) ?? {
+        xmlTags: new Set<string>(),
+        maxChildren: 0,
+        ports: new Map<string, BTPort>(),
+      };
+      existing.xmlTags.add(xmlTag);
+      existing.maxChildren = Math.max(existing.maxChildren, el.children.length);
+
+      Array.from(el.attributes).forEach((attr) => {
+        if (attr.name === 'ID' || attr.name === 'name' || attr.name === 'port_remap') return;
+        if (PRE_KEYS.includes(attr.name) || POST_KEYS.includes(attr.name)) return;
+        if (!existing.ports.has(attr.name)) {
+          existing.ports.set(attr.name, { name: attr.name, direction: 'input' });
+        }
+      });
+
+      records.set(type, existing);
+    }
+
+    Array.from(el.children).forEach((child) => visit(child as Element));
+  };
+
+  root.querySelectorAll(':scope > BehaviorTree').forEach((treeEl) => {
+    const firstChild = treeEl.firstElementChild;
+    if (firstChild) visit(firstChild);
+  });
+
+  return Array.from(records.entries())
+    .map(([type, record]) => {
+      const categoryOptions = inferCategoryOptions(record.xmlTags, record.maxChildren);
+      return {
+        type,
+        category: inferDefaultCategory(categoryOptions),
+        categoryOptions,
+        ports: Array.from(record.ports.values()),
+      };
+    })
+    .sort((a, b) => a.type.localeCompare(b.type));
+}
+
+function inferCategoryOptions(xmlTags: Set<string>, maxChildren: number): BTNodeCategory[] {
+  if (xmlTags.has('Action')) return ['Action'];
+  if (xmlTags.has('Condition')) return ['Condition'];
+  if (maxChildren > 1) return ['Control'];
+  if (maxChildren === 1) return ['Decorator', 'Control'];
+  return ['Action', 'Condition'];
+}
+
+function inferDefaultCategory(options: BTNodeCategory[]): BTNodeCategory {
+  if (options.includes('Decorator')) return 'Decorator';
+  return options[0] ?? 'Action';
+}
+
 export function parseXML(xmlText: string): BTProject {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
@@ -86,16 +173,24 @@ export function parseXML(xmlText: string): BTProject {
     const treeId = btEl.getAttribute('ID') || `Tree_${trees.length + 1}`;
     const rootEl = btEl.firstElementChild;
     if (!rootEl) return;
-    trees.push({ id: treeId, root: parseTreeNode(rootEl) });
+    const parsedRoot = parseTreeNode(rootEl);
+    const editorRoot: BTTreeNode = {
+      id: `n_root_${Math.random().toString(36).slice(2, 9)}`,
+      type: EDITOR_ROOT_TYPE,
+      ports: {},
+      children: [parsedRoot],
+    };
+    trees.push({ id: treeId, root: editorRoot });
   });
 
   if (trees.length === 0) {
     throw new Error('No <BehaviorTree> elements found in XML');
   }
 
-  // Parse TreeNodesModel (optional)
+  // Parse TreeNodesModel (optional; may be direct child of root or nested in TreeConfiguration)
   const nodeModels: BTNodeDefinition[] = [];
-  const modelEl = root.querySelector(':scope > TreeNodesModel');
+  const modelEl = root.querySelector(':scope > TreeNodesModel')
+    ?? root.querySelector(':scope > TreeConfiguration > TreeNodesModel');
   if (modelEl) {
     Array.from(modelEl.children).forEach((catEl) => {
       // XML uses Action/Condition tags directly as category
@@ -117,7 +212,9 @@ export function parseXML(xmlText: string): BTProject {
   // Discover all unique node types used in the tree
   const discoveredTypes = new Set<string>();
   const collectTypes = (node: BTTreeNode) => {
-    discoveredTypes.add(node.type);
+    if (node.type !== EDITOR_ROOT_TYPE) {
+      discoveredTypes.add(node.type);
+    }
     node.children.forEach(collectTypes);
   };
   trees.forEach((t) => collectTypes(t.root));
@@ -128,10 +225,16 @@ export function parseXML(xmlText: string): BTProject {
     ...BUILTIN_NODES.map((n) => n.type),
     ...nodeModels.map((m) => m.type),
   ]);
+  const missingCandidates = new Map(analyzeMissingNodeModels(xmlText).map((candidate) => [candidate.type, candidate]));
   const missingLeafModels: BTNodeDefinition[] = [];
   discoveredTypes.forEach((type) => {
     if (!existingTypes.has(type)) {
-      missingLeafModels.push({ type, category: 'Action' });
+      const candidate = missingCandidates.get(type);
+      missingLeafModels.push({
+        type,
+        category: candidate?.category ?? 'Action',
+        ...(candidate?.ports.length ? { ports: candidate.ports } : {}),
+      });
     }
   });
 
@@ -227,26 +330,28 @@ export function serializeXML(project: BTProject): string {
     lines.push('  </BehaviorTree>');
   });
 
-  // TreeNodesModel — only custom (non-builtin) nodes
+  // TreeNodesModel — only custom (non-builtin) nodes, wrapped in TreeConfiguration
   const builtinTypes = new Set(BUILTIN_NODES.map((n) => n.type));
   const customModels = project.nodeModels.filter((m) => !builtinTypes.has(m.type));
 
   if (customModels.length > 0) {
-    lines.push('  <TreeNodesModel>');
+    lines.push('  <TreeConfiguration>');
+    lines.push('    <TreeNodesModel>');
     customModels.forEach((m) => {
       // Use category directly; 'Action'/'Condition' are valid XML tags
       const cat = m.category;
       if (!m.ports || m.ports.length === 0) {
-        lines.push(`    <${cat} ID="${escapeXml(m.type)}"/>`);
+        lines.push(`      <${cat} ID="${escapeXml(m.type)}"/>`);
       } else {
-        lines.push(`    <${cat} ID="${escapeXml(m.type)}">`);
+        lines.push(`      <${cat} ID="${escapeXml(m.type)}">`);
         m.ports.forEach((p) => {
-          lines.push(`      <${p.direction}_port name="${escapeXml(p.name)}">${escapeXml(p.description || '')}</${p.direction}_port>`);
+          lines.push(`        <${p.direction}_port name="${escapeXml(p.name)}">${escapeXml(p.description || '')}</${p.direction}_port>`);
         });
-        lines.push(`    </${cat}>`);
+        lines.push(`      </${cat}>`);
       }
     });
-    lines.push('  </TreeNodesModel>');
+    lines.push('    </TreeNodesModel>');
+    lines.push('  </TreeConfiguration>');
   }
 
   lines.push('</root>');
@@ -515,6 +620,84 @@ export function parseBlackboardExpression(value: string): Array<{ type: 'literal
   return segments;
 }
 
+// ─── Name Validation (blacklist approach per BT.CPP rules) ───────────────────
+
+// Forbidden characters in model names and port names (ASCII only; Unicode is allowed)
+// Based on name_validation_rules.md from btcpp-groot2-research
+const FORBIDDEN_NAME_CHARS = new Set([
+  ' ', '\t', '\n', '\r', '<', '>', '&', '"', "'", '/', '\\', ':', '*', '?', '|', '.', '-'
+]);
+
+// Reserved attribute names that cannot be used as port names
+// These are XML/BT.CPP reserved attributes
+const RESERVED_PORT_NAMES = new Set([
+  'ID', 'name', '_description', '_skipIf', '_successIf', '_failureIf',
+  '_while', '_onSuccess', '_onFailure', '_onHalted', '_post', '_autoremap', '__shared_blackboard'
+]);
+
+/**
+ * Find forbidden character in a name (for model/port names).
+ * Returns the forbidden character or null if valid.
+ * Unicode bytes (>= 0x80) are always allowed.
+ */
+function findForbiddenChar(name: string): string | null {
+  for (const c of name) {
+    const code = c.charCodeAt(0);
+    // Allow Unicode (multibyte UTF-8 will have high bits set)
+    if (code >= 0x80) continue;
+    // Block control characters (ASCII 0-31 and 127)
+    if (code < 32 || code === 127) return c;
+    // Check forbidden list
+    if (FORBIDDEN_NAME_CHARS.has(c)) return c;
+  }
+  return null;
+}
+
+/**
+ * Validate a model name (node type name).
+ * Returns an error message string if invalid, or null if valid.
+ */
+export function validateModelName(name: string): string | null {
+  const trimmed = name.trim();
+  if (!trimmed) return 'Node type name cannot be empty';
+  if (trimmed === 'Root') return 'Node type name "Root" is reserved';
+  const forbidden = findForbiddenChar(trimmed);
+  if (forbidden) return `Node type name contains forbidden character "${forbidden}"`;
+  return null;
+}
+
+/**
+ * Validate a port name.
+ * Returns an error message string if invalid, or null if valid.
+ */
+export function validatePortName(name: string): string | null {
+  const trimmed = name.trim();
+  if (!trimmed) return 'Port name cannot be empty';
+  if (/^\d/.test(trimmed)) return 'Port name cannot start with a digit';
+  if (RESERVED_PORT_NAMES.has(trimmed)) return `Port name "${trimmed}" is a reserved attribute`;
+  const forbidden = findForbiddenChar(trimmed);
+  if (forbidden) return `Port name contains forbidden character "${forbidden}"`;
+  return null;
+}
+
+/**
+ * Validate an instance name (node label in tree).
+ * More relaxed than model/port names — only control chars are forbidden.
+ * Returns an error message string if invalid, or null if valid.
+ */
+export function validateInstanceName(name: string): string | null {
+  for (const c of name) {
+    const code = c.charCodeAt(0);
+    // Allow Unicode (>= 0x80)
+    if (code >= 0x80) continue;
+    // Block control characters (ASCII 0-8, 11-12, 14-31, 127)
+    if (code < 9 || code === 11 || code === 12 || (code >= 14 && code < 32) || code === 127) {
+      return `Instance name contains invalid control character`;
+    }
+  }
+  return null;
+}
+
 // ─── Node Model Definition Validation ───────────────────────────────────────
 
 const VALID_PORT_TYPES = new Set(['', 'string', 'int', 'unsigned', 'bool', 'double', 'NodeStatus', 'Any']);
@@ -531,12 +714,11 @@ export function validateNodeModel(
   const issues: ValidationIssue[] = [];
 
   // Validate node type name
-  const trimmedType = def.type.trim();
-  if (!trimmedType) {
-    issues.push({ severity: 'error', nodeType: def.type, message: 'Node type name cannot be empty' });
-  } else if (!isValidBlackboardKey(trimmedType)) {
-    issues.push({ severity: 'error', nodeType: def.type, message: `Node type "${trimmedType}" is not a valid identifier` });
+  const modelNameError = validateModelName(def.type);
+  if (modelNameError) {
+    issues.push({ severity: 'error', nodeType: def.type, message: modelNameError });
   } else {
+    const trimmedType = def.type.trim();
     // Check for duplicate node type (case-sensitive)
     const duplicate = existingModels.find(m => m.type === trimmedType && m !== def);
     if (duplicate) {
@@ -583,12 +765,13 @@ export function validateNodeModel(
     }
     seenPortNames.add(portName);
 
-    // Validate port name is a valid identifier
-    if (!isValidBlackboardKey(portName)) {
+    // Validate port name using blacklist rules
+    const portNameError = validatePortName(portName);
+    if (portNameError) {
       issues.push({
         severity: 'error',
         nodeType: def.type,
-        message: `Port name "${portName}" is not a valid identifier`,
+        message: portNameError,
       });
     }
 

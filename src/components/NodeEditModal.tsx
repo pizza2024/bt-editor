@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { validateConditionExpression } from '../utils/scriptExpressionParser';
 
 interface NodeEditModalProps {
   nodeId: string;
@@ -47,11 +48,15 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
 }) => {
   const isSubTree = nodeType === 'SubTree';
   const isLeaf = nodeCategory === 'Action' || nodeCategory === 'Condition';
+  const autoRemapEnabled = ports['__autoremap'] === 'true' || ports['__autoremap'] === '1';
+  const preconditionsKey = JSON.stringify(preconditions);
+  const postconditionsKey = JSON.stringify(postconditions);
+  const portRemapKey = JSON.stringify(portRemap);
 
   // ─── Instance state ───────────────────────────────────────────────────
   const [instanceName, setInstanceName] = useState(nodeName ?? '');
   const [subTreeTarget, setSubTreeTarget] = useState(isSubTree ? (nodeName ?? '') : '');
-  const [autoRemap, setAutoRemap] = useState(ports['__autoremap'] === 'true' || ports['__autoremap'] === '1');
+  const [autoRemap, setAutoRemap] = useState(autoRemapEnabled);
   const [portRemapEntries, setPortRemapEntries] = useState<Array<{ local: string; external: string }>>(
     Object.entries(portRemap).map(([k, v]) => ({ local: k, external: v }))
   );
@@ -59,13 +64,15 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
   // ─── Pre/Post conditions state ─────────────────────────────────────────
   const [preCond, setPreCond] = useState<Record<string, string>>({});
   const [postCond, setPostCond] = useState<Record<string, string>>({});
+  const [preCondErrors, setPreCondErrors] = useState<Record<string, string>>({});
+  const [postCondErrors, setPostCondErrors] = useState<Record<string, string>>({});
   const [description, setDescription] = useState('');
 
   // ─── Initialize ────────────────────────────────────────────────────────
   useEffect(() => {
     setInstanceName(nodeName ?? '');
     setSubTreeTarget(isSubTree ? (nodeName ?? '') : '');
-    setAutoRemap(ports['__autoremap'] === 'true' || ports['__autoremap'] === '1');
+    setAutoRemap(autoRemapEnabled);
 
     // Preconditions
     const initPre: Record<string, string> = {};
@@ -84,15 +91,27 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
     setPortRemapEntries(
       Object.entries(portRemap).map(([k, v]) => ({ local: k, external: v }))
     );
-  }, [nodeId, portRemap]);
+  }, [nodeId, nodeName, isSubTree, autoRemapEnabled, initialDescription, preconditionsKey, postconditionsKey, portRemapKey]);
 
   // ─── Handlers ───────────────────────────────────────────────────────────
   const handlePreChange = (key: string, value: string) => {
     setPreCond(prev => ({ ...prev, [key]: value }));
+    if (value.trim()) {
+      const result = validateConditionExpression(value);
+      setPreCondErrors(prev => ({ ...prev, [key]: result.valid ? '' : (result.error || 'Invalid expression') }));
+    } else {
+      setPreCondErrors(prev => ({ ...prev, [key]: '' }));
+    }
   };
 
   const handlePostChange = (key: string, value: string) => {
     setPostCond(prev => ({ ...prev, [key]: value }));
+    if (value.trim()) {
+      const result = validateConditionExpression(value);
+      setPostCondErrors(prev => ({ ...prev, [key]: result.valid ? '' : (result.error || 'Invalid expression') }));
+    } else {
+      setPostCondErrors(prev => ({ ...prev, [key]: '' }));
+    }
   };
 
   // ─── Port remap handlers ───────────────────────────────────────────────
@@ -111,6 +130,34 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
   };
 
   const handleSave = () => {
+    // F1.1: Re-validate all pre/post conditions before saving — block if invalid
+    const newPreErrors: Record<string, string> = {};
+    const newPostErrors: Record<string, string> = {};
+    let hasErrors = false;
+    PRE_KEYS.forEach(k => {
+      if (preCond[k].trim()) {
+        const result = validateConditionExpression(preCond[k]);
+        if (!result.valid) {
+          newPreErrors[k] = result.error || 'Invalid expression';
+          hasErrors = true;
+        }
+      }
+    });
+    POST_KEYS.forEach(k => {
+      if (postCond[k].trim()) {
+        const result = validateConditionExpression(postCond[k]);
+        if (!result.valid) {
+          newPostErrors[k] = result.error || 'Invalid expression';
+          hasErrors = true;
+        }
+      }
+    });
+    if (hasErrors) {
+      setPreCondErrors(newPreErrors);
+      setPostCondErrors(newPostErrors);
+      return; // Block save until errors are fixed
+    }
+
     // Clean up empty pre/post conditions
     const cleanPre: Record<string, string> = {};
     PRE_KEYS.forEach(k => { if (preCond[k].trim()) cleanPre[k] = preCond[k].trim(); });
@@ -296,7 +343,11 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
                   value={preCond[key] ?? ''}
                   onChange={(e) => handlePreChange(key, e.target.value)}
                   placeholder={key === '_while' ? '{key} == value' : '{expression}'}
+                  className={preCondErrors[key] ? 'input-error' : ''}
                 />
+                {preCondErrors[key] && (
+                  <div className="field-error">{preCondErrors[key]}</div>
+                )}
               </div>
             ))}
           </div>
@@ -315,7 +366,11 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
                   value={postCond[key] ?? ''}
                   onChange={(e) => handlePostChange(key, e.target.value)}
                   placeholder="{expression}"
+                  className={postCondErrors[key] ? 'input-error' : ''}
                 />
+                {postCondErrors[key] && (
+                  <div className="field-error">{postCondErrors[key]}</div>
+                )}
               </div>
             ))}
           </div>

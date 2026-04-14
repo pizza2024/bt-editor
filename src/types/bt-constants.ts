@@ -305,6 +305,26 @@ export const BUILTIN_NODES: BTNodeDefinition[] = [
       { name: 'entry', direction: 'input', description: 'Blackboard key to wait for' },
     ],
   },
+  {
+    type: 'UpdatedDecorator',
+    category: 'Decorator',
+    builtin: true,
+    description: 'Decorator that returns SUCCESS if the referenced blackboard entry was updated in the current tick, FAILURE otherwise. Simpler than EntryUpdatedDecorator which compares against a reference timestamp.',
+    ports: [
+      { name: 'entry', direction: 'input', description: 'Blackboard key to check' },
+    ],
+  },
+  {
+    type: 'EntryUpdatedDecorator',
+    category: 'Decorator',
+    builtin: true,
+    description: 'Decorator that controls execution based on whether a blackboard entry has been updated since the last tick. Returns SUCCESS if the entry was updated, FAILURE otherwise.',
+    ports: [
+      { name: 'entry', direction: 'input', description: 'Blackboard key to check' },
+      { name: 'sec', direction: 'input', description: 'Reference timestamp seconds (default: 0 = any update)', defaultValue: '0' },
+      { name: 'nsec', direction: 'input', description: 'Reference timestamp nanoseconds', defaultValue: '0' },
+    ],
+  },
 
   // ─── Action 节点 ───────────────────────────────────────────────────────────
   {

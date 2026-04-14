@@ -85,6 +85,26 @@ test.describe('Canvas Interaction - Edge Cases', () => {
     expect(await page.locator('.react-flow__node.selected').count()).toBe(0);
   });
 
+  test('single selected node should stay on top after blur', async ({ page }) => {
+    const nodes = page.locator('.react-flow__node');
+    const blurredNode = nodes.nth(1);
+    const otherNode = nodes.nth(2);
+
+    await blurredNode.click();
+    await page.waitForTimeout(100);
+    await page.locator('.react-flow__pane').click({ position: { x: 10, y: 10 } });
+    await page.waitForTimeout(100);
+
+    const blurredNodeZIndex = await blurredNode.evaluate(
+      (element) => Number.parseInt(window.getComputedStyle(element).zIndex || '0', 10) || 0
+    );
+    const otherNodeZIndex = await otherNode.evaluate(
+      (element) => Number.parseInt(window.getComputedStyle(element).zIndex || '0', 10) || 0
+    );
+
+    expect(blurredNodeZIndex).toBeGreaterThan(otherNodeZIndex);
+  });
+
   test('Delete with no selection should do nothing', async ({ page }) => {
     const nodes = page.locator('.react-flow__node');
     const initialCount = await nodes.count();
@@ -120,7 +140,7 @@ test.describe('Canvas Interaction - Edge Cases', () => {
     await nodes.nth(1).click({ button: 'right' });
     await page.waitForTimeout(300);
     
-    const copyBtn = page.getByRole('menuitem', { name: /copy/i });
+    const copyBtn = page.getByRole('button', { name: /copy/i });
     if (await copyBtn.isVisible()) {
       await copyBtn.click();
       await page.waitForTimeout(200);
@@ -129,7 +149,7 @@ test.describe('Canvas Interaction - Edge Cases', () => {
       await page.locator('.react-flow__pane').click({ button: 'right' });
       await page.waitForTimeout(300);
       
-      const pasteBtn = page.getByRole('menuitem', { name: /paste/i });
+      const pasteBtn = page.getByRole('button', { name: /paste/i });
       if (await pasteBtn.isVisible()) {
         await pasteBtn.click();
         await page.waitForTimeout(400);
