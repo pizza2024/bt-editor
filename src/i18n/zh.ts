@@ -161,6 +161,17 @@ const zh = {
     remove: '移除',
     hint: '拖动到画布使用',
   },
+  xmlPreview: {
+    title: 'XML 预览',
+    description: '实时预览当前工程导出的 XML。',
+    copy: '复制',
+    copied: '已复制',
+    copyFailed: '复制失败，当前环境无法访问剪贴板。',
+    collapse: '折叠 XML 预览',
+    expand: '展开 XML 预览',
+    activeTree: '当前树: {{tree}}',
+    empty: '暂无 XML 内容',
+  },
 };
 
 export default zh;

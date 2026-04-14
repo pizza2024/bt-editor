@@ -161,6 +161,17 @@ const en = {
     remove: 'Remove',
     hint: 'Drag to canvas to use',
   },
+  xmlPreview: {
+    title: 'Live XML',
+    description: 'Real-time preview of the exported project XML.',
+    copy: 'Copy',
+    copied: 'Copied',
+    copyFailed: 'Copy failed. Clipboard access is unavailable.',
+    collapse: 'Collapse XML preview',
+    expand: 'Expand XML preview',
+    activeTree: 'Active tree: {{tree}}',
+    empty: 'No XML available',
+  },
 };
 
 export default en;

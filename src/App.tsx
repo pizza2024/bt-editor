@@ -10,6 +10,7 @@ import './App.css';
 const PropertiesPanel = React.lazy(() => import('./components/PropertiesPanel'));
 const DebugPanel = React.lazy(() => import('./components/DebugPanel'));
 const FavoritesPanel = React.lazy(() => import('./components/FavoritesPanel'));
+const XmlPreviewPanel = React.lazy(() => import('./components/XmlPreviewPanel.tsx'));
 
 const App: React.FC = () => {
   useEffect(() => {
@@ -35,12 +36,17 @@ const App: React.FC = () => {
         </div>
 
         {/* Right sidebar */}
-        <div className="right-sidebar">
+        <div className="right-sidebar-area">
+          <div className="right-sidebar">
+            <Suspense fallback={null}>
+              <PropertiesPanel />
+            </Suspense>
+            <Suspense fallback={null}>
+              <DebugPanel />
+            </Suspense>
+          </div>
           <Suspense fallback={null}>
-            <PropertiesPanel />
-          </Suspense>
-          <Suspense fallback={null}>
-            <DebugPanel />
+            <XmlPreviewPanel />
           </Suspense>
         </div>
       </div>

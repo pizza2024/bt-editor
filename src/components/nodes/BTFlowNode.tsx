@@ -318,6 +318,35 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
     setShowPreview(false);
   };
 
+  const renderConditionBlock = (entries: Array<[string, string]>, marginBottom: number = 0) => (
+    <div
+      style={{
+        background: 'rgba(70, 170, 255, 0.22)',
+        border: '1px solid rgba(90, 190, 255, 0.35)',
+        borderRadius: 4,
+        padding: '4px 6px',
+        marginBottom,
+        fontSize: 10,
+        textAlign: 'left',
+      }}
+    >
+      {entries.map(([k, v]) => (
+        <div
+          key={k}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 8,
+            marginBottom: 2,
+          }}
+        >
+          <span style={{ opacity: 0.9 }}>{k}:</span>
+          <span style={{ color: '#e8f6ff', fontWeight: 600 }}>{v}</span>
+        </div>
+      ))}
+    </div>
+  );
+
   // ROOT node: render as a thin visual container bar
   if (isRootNode) {
     return (
@@ -403,10 +432,22 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
         {isLeaf ? 'Action' : category}
       </div>
 
+      {hasPre && (
+        <div style={{ marginBottom: 6 }}>
+          {renderConditionBlock(preEntries)}
+        </div>
+      )}
+
       {/* Label */}
       <div style={{ fontWeight: 600, fontSize: 13, wordBreak: 'break-word' }}>
         {label}
       </div>
+
+      {hasPost && (
+        <div style={{ marginTop: 6 }}>
+          {renderConditionBlock(postEntries)}
+        </div>
+      )}
 
       {/* Ports display - Groot2 style */}
       {portEntries.length > 0 && (
@@ -527,73 +568,6 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
                   }}>
                     {v || '(empty)'}
                   </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Pre/Post condition details */}
-      {(hasPre || hasPost) && (
-        <div
-          style={{
-            marginTop: 6,
-            marginBottom: 2,
-            paddingTop: 4,
-            borderTop: '1px solid rgba(255,255,255,0.1)',
-            fontSize: 10,
-            textAlign: 'left',
-          }}
-        >
-          {hasPre && (
-            <div
-              style={{
-                background: 'rgba(70, 170, 255, 0.22)',
-                border: '1px solid rgba(90, 190, 255, 0.35)',
-                borderRadius: 4,
-                padding: '4px 6px',
-                marginBottom: hasPost ? 4 : 0,
-              }}
-            >
-              {preEntries.map(([k, v]) => (
-                <div
-                  key={k}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    gap: 8,
-                    marginBottom: 2,
-                  }}
-                >
-                  <span style={{ opacity: 0.9 }}>{k}:</span>
-                  <span style={{ color: '#e8f6ff', fontWeight: 600 }}>{v}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {hasPost && (
-            <div
-              style={{
-                background: 'rgba(70, 170, 255, 0.22)',
-                border: '1px solid rgba(90, 190, 255, 0.35)',
-                borderRadius: 4,
-                padding: '4px 6px',
-              }}
-            >
-              {postEntries.map(([k, v]) => (
-                <div
-                  key={k}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    gap: 8,
-                    marginBottom: 2,
-                  }}
-                >
-                  <span style={{ opacity: 0.9 }}>{k}:</span>
-                  <span style={{ color: '#e8f6ff', fontWeight: 600 }}>{v}</span>
                 </div>
               ))}
             </div>
