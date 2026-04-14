@@ -26,6 +26,7 @@ function collectEdgeIds(node: BTTreeNode): string[] {
   return ids;
 }
 import { autoLayout } from '../utils/btLayout';
+import { isSourceNodeConnectionAllowed } from '../utils/btConnectionRules';
 import { validatePortConnection } from '../utils/btXml';
 import BTFlowNode from './nodes/BTFlowNode';
 import BTFlowEdge from './edges/BTFlowEdge';
@@ -408,6 +409,22 @@ const BTCanvas: React.FC = () => {
       const sourceNodeId = pendingConnection?.sourceNodeId;
       if (!sourceNodeId) {
         setNodePickerPosition(null);
+        setPendingConnection(null);
+        return;
+      }
+
+      // NodePicker only supports creating children from source handles.
+      if (pendingConnection?.sourceHandleType !== 'source') {
+        setNodePickerPosition(null);
+        setPendingConnection(null);
+        return;
+      }
+
+      // Apply the same source-side connection rules as normal drag-to-node connect.
+      const sourceNode = nodes.find((n) => n.id === sourceNodeId);
+      if (!sourceNode || !isSourceNodeConnectionAllowed(sourceNode, edges)) {
+        setNodePickerPosition(null);
+        setPendingConnection(null);
         return;
       }
 
@@ -449,37 +466,13 @@ const BTCanvas: React.FC = () => {
       setNodePickerPosition(null);
       setPendingConnection(null);
     },
-    [nodePickerPosition, pendingConnection, setNodes, setEdges, deleteEdge]
+    [nodePickerPosition, pendingConnection, setNodes, setEdges, deleteEdge, nodes, edges]
   );
 
   // Validate connection based on BT rules
   const isValidConnection = useCallback(
     (sourceNode: Node, existingEdges: Edge[]): boolean => {
-      const sourceCategory = (sourceNode.data as { category?: string }).category;
-
-      // Leaf nodes (Action/Condition) cannot have outgoing connections
-      if (sourceCategory === 'Action' || sourceCategory === 'Condition') {
-        return false;
-      }
-
-      // ROOT can only have ONE child
-      if (sourceCategory === 'ROOT') {
-        const existingEdgesFromRoot = existingEdges.filter((e) => e.source === sourceNode.id);
-        if (existingEdgesFromRoot.length > 0) {
-          return false; // ROOT already has a child
-        }
-      }
-
-      // Decorator can only have ONE child
-      if (sourceCategory === 'Decorator') {
-        const existingEdgesFromDecorator = existingEdges.filter((e) => e.source === sourceNode.id);
-        if (existingEdgesFromDecorator.length > 0) {
-          return false; // Decorator already has a child
-        }
-      }
-
-      // Control nodes and SubTree can have multiple children - always valid
-      return true;
+      return isSourceNodeConnectionAllowed(sourceNode, existingEdges);
     },
     []
   );

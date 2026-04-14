@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Node, Edge } from '@xyflow/react';
 import { validatePortConnection } from './btXml';
+import { isSourceNodeConnectionAllowed } from './btConnectionRules';
 
 // ─── 辅助：构造 Node ───────────────────────────────────────────────────────────
 
@@ -26,15 +27,7 @@ function makeNode(id: string, category: string): Node {
 // ─── isValidConnection 逻辑（从 BTCanvas.tsx 提取）─────────────────────────────
 
 function isValidConnection(sourceNode: Node, existingEdges: Edge[]): boolean {
-  const sourceCategory = (sourceNode.data as { category?: string }).category;
-  if (sourceCategory === 'Action' || sourceCategory === 'Condition') return false;
-  if (sourceCategory === 'ROOT') {
-    if (existingEdges.filter((e) => e.source === sourceNode.id).length > 0) return false;
-  }
-  if (sourceCategory === 'Decorator') {
-    if (existingEdges.filter((e) => e.source === sourceNode.id).length > 0) return false;
-  }
-  return true;
+  return isSourceNodeConnectionAllowed(sourceNode, existingEdges);
 }
 
 // ─── cycleDetection 逻辑（从 BTCanvas.tsx 提取）────────────────────────────────
@@ -108,6 +101,15 @@ describe('ROOT 节点连线规则', () => {
     const cond = makeNode('cond', 'Condition');
     const r = canConnect(root, 'cond', [], [root, cond]);
     expect(r.allowed).toBe(true);
+  });
+
+  it('ROOT-005: ROOT 已有子节点时，NodePicker 路径也必须拒绝第二条子边', () => {
+    const root = makeNode('root', 'ROOT');
+    const edges: Edge[] = [{ id: 'e1', source: 'root', target: 'seq', sourceHandle: 'out0', targetHandle: 'in0' }];
+
+    // Regression: create-and-connect flow (NodePicker) must follow same source rules.
+    const allowedFromPickerPath = isSourceNodeConnectionAllowed(root, edges);
+    expect(allowedFromPickerPath).toBe(false);
   });
 });
 
