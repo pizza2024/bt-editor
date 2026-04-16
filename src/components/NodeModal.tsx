@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { CATEGORY_COLORS, PORT_DIRECTIONS, BUILTIN_NODES } from '../types/bt-constants';
+import { CATEGORY_COLORS, PORT_DIRECTIONS } from '../types/bt-constants';
 import type { BTNodeCategory, BTNodeDefinition, BTPort, PortDirection } from '../types/bt';
+import { useBTStore } from '../store/BTStoreProvider';
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -67,7 +68,7 @@ export interface NodeModalSaveResult {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function getNodeDef(nodeType: string, _category: string, nodeModels: BTNodeDefinition[]): BTNodeDefinition | undefined {
-  return BUILTIN_NODES.find(n => n.type === nodeType) ?? nodeModels.find(n => n.type === nodeType);
+  return nodeModels.find((n) => n.type === nodeType);
 }
 
 function isNumericPort(name: string): boolean {
@@ -79,6 +80,7 @@ function isNumericPort(name: string): boolean {
 // ─── Component ─────────────────────────────────────────────────────────────
 
 const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
+  const nodeModels = useBTStore((state) => state.project.nodeModels);
   const isCreate = data.mode === 'create';
   const isEditInstance = data.mode === 'edit-instance';
   const isEditDefinition = data.mode === 'edit-definition';
@@ -99,8 +101,8 @@ const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
   // ─── Derive node definition (for edit-instance, lookup builtin/custom def) ───
   const nodeDef = useMemo(() => {
     if (!isEditInstance) return undefined;
-    return getNodeDef(data.nodeType, data.nodeCategory, []);
-  }, [isEditInstance, data]);
+    return getNodeDef(data.nodeType, data.nodeCategory, nodeModels);
+  }, [isEditInstance, data, nodeModels]);
 
   // ─── Initialize form ────────────────────────────────────────────────────
   useEffect(() => {
@@ -113,7 +115,7 @@ const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
       setSubTreeTarget('');
       setAutoRemap(false);
     } else if (isEditInstance) {
-      const def = getNodeDef(data.nodeType, data.nodeCategory, []);
+      const def = getNodeDef(data.nodeType, data.nodeCategory, nodeModels);
       setNodeType(data.nodeType);
       setCategory(data.nodeCategory as BTNodeCategory);
       setInstanceName(data.nodeName ?? '');
@@ -156,7 +158,7 @@ const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
       setSubTreeTarget('');
       setAutoRemap(false);
     }
-  }, [data]);
+  }, [data, nodeModels]);
 
   // ─── Port management (create/edit-definition only) ─────────────────────────
   const handleAddPort = () => setPorts(prev => [...prev, { ...emptyPort }]);
