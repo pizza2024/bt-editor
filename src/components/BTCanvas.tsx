@@ -136,6 +136,20 @@ function bringNodeToFront(nodes: Node[], nodeId: string): Node[] {
   return nodes.map((node) => (node.id === nodeId ? { ...node, zIndex: nextZIndex } : node));
 }
 
+function ensureUniqueEdgeIds(edges: Edge[]): Edge[] {
+  const seen = new Set<string>();
+  return edges.map((edge, index) => {
+    if (!seen.has(edge.id)) {
+      seen.add(edge.id);
+      return edge;
+    }
+
+    const nextId = `${edge.id}__dup_${index}`;
+    seen.add(nextId);
+    return { ...edge, id: nextId };
+  });
+}
+
 const BTCanvas: React.FC<BTCanvasProps> = ({
   sidePanelsCollapsed,
   onToggleSidePanels,
@@ -214,10 +228,15 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   const [nodes, setNodes, onNodesChange] = useNodesState(initial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
   const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
 
   React.useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
+
+  React.useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
 
   const deleteEdge = useCallback((edgeId: string) => {
     setEdges((prev) => {
@@ -393,8 +412,19 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       return;
     }
 
+    const previousTreeId = lastSyncedTreeRef.current;
+    if (previousTreeId && previousTreeId !== activeTreeId) {
+      const pendingTimerId = saveTimersRef.current.get(previousTreeId);
+      if (pendingTimerId) {
+        window.clearTimeout(pendingTimerId);
+        saveTimersRef.current.delete(previousTreeId);
+      }
+      persistTreeSnapshot(nodesRef.current, edgesRef.current, previousTreeId);
+    }
+
     // Force layout when switching trees or first load OR when project changed (e.g., loaded new XML)
     const { localNodes: storeLocalNodes, localEdges: storeLocalEdges } = storeApi.getState();
+    const isTreeSwitch = lastSyncedTreeRef.current !== null && lastSyncedTreeRef.current !== activeTreeId;
     const shouldForceLayout =
       forceLayoutRef.current
       || lastSyncedTreeRef.current !== activeTreeId
@@ -421,15 +451,24 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           data: { ...node.data, isCollapsed: collapsed.has(node.id) },
         }));
 
+        if (isTreeSwitch) {
+          detachedNodeIdsRef.current = new Set();
+          return rebuilt;
+        }
+
         // Keep detached nodes on canvas even when force-rebuilding from project tree.
         const attachedIds = new Set(rebuilt.map((node) => node.id));
         const detachedToRestore = prevNodes.filter((node) => detachedNodeIdsRef.current.has(node.id) && !attachedIds.has(node.id));
         return [...rebuilt, ...detachedToRestore];
       });
       setEdges((prevEdges) => {
+        if (isTreeSwitch) {
+          return withSelectedEdge(ensureUniqueEdgeIds([...e]), selectedEdgeId, deleteEdge);
+        }
+
         const attachedIds = new Set(n.map((node) => node.id));
         const detachedEdgesToRestore = prevEdges.filter((edge) => !attachedIds.has(edge.source) && !attachedIds.has(edge.target));
-        return withSelectedEdge([...e, ...detachedEdgesToRestore], selectedEdgeId, deleteEdge);
+        return withSelectedEdge(ensureUniqueEdgeIds([...e, ...detachedEdgesToRestore]), selectedEdgeId, deleteEdge);
       });
       lastSyncedTreeRef.current = activeTreeId;
       forceLayoutRef.current = false;
@@ -482,7 +521,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       setEdges((prevEdges) => {
         const attachedIds = new Set(laidOutNodes.map((node) => node.id));
         const detachedEdgesToRestore = prevEdges.filter((edge) => !attachedIds.has(edge.source) && !attachedIds.has(edge.target));
-        return withSelectedEdge([...edgesWithStatus, ...detachedEdgesToRestore], selectedEdgeId, deleteEdge);
+        return withSelectedEdge(ensureUniqueEdgeIds([...edgesWithStatus, ...detachedEdgesToRestore]), selectedEdgeId, deleteEdge);
       });
     }
   }, [activeTreeId, project, debugState.nodeStatuses, selectedEdgeId, deleteEdge, collapsedNodeIds]);
@@ -937,49 +976,75 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
   // Save tree back to store when nodes/edges change (debounced)
   // This does NOT trigger the sync effect - they're decoupled
-  const saveTimerRef = useRef<number | null>(null);
-  const saveToStore = useCallback(() => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = window.setTimeout(() => {
-      try {
-        // Always read fresh localNodes/localEdges from store at execution time,
-        // so edits via PropertiesPanel (which update localNodes directly) are saved correctly.
-        const { localNodes: freshNodes, localEdges: freshEdges, project: p, activeTreeId: treeId } = storeApi.getState();
-
-        // Keep only nodes reachable from ROOT when persisting tree structure.
-        // Non-reachable nodes are tracked as detached and kept on canvas.
-        const attachedIds = getAttachedNodeIds(freshNodes, freshEdges);
-        const nextDetachedIds = getDetachedNodeIds(freshNodes, freshEdges);
-        detachedNodeIdsRef.current = nextDetachedIds;
-
-        const attachedNodes = freshNodes.filter((n) => attachedIds.has(n.id));
-        const attachedEdges = freshEdges.filter(
-          (e) => attachedIds.has(e.source) && attachedIds.has(e.target)
-        );
-        const tree = flowToTree(treeId, attachedNodes, attachedEdges);
-        const currentTree = p.trees.find((t) => t.id === treeId);
-
-        // Only skip save if node structure unchanged AND edges unchanged.
-        // isSameTreeStructure checks node IDs/types/ports/children, but not edge identity.
-        // Edge identity = which specific child IDs each parent has.
-        // If edge IDs differ, the tree must be re-saved even if child count is same.
-        const currentEdgeIds = currentTree ? collectEdgeIds(currentTree.root) : [];
-        const newEdgeIds = collectEdgeIds(tree.root);
-        const edgesUnchanged = currentTree && isSameTreeStructure(currentTree, tree) && JSON.stringify(currentEdgeIds) === JSON.stringify(newEdgeIds);
-        if (edgesUnchanged) return;
-
-        const trees = p.trees.map((t) => (t.id === treeId ? tree : t));
-        skipNextProjectSyncRef.current = true;
-        storeApi.setState({ project: { ...p, trees } });
-      } catch {
-        // ignore intermediate invalid states
-      }
-    }, 500);
-  }, [activeTreeId]);
+  const saveTimersRef = useRef<Map<string, number>>(new Map());
 
   React.useEffect(() => {
-    saveToStore();
-  }, [nodes, edges, saveToStore]);
+    const saveTimers = saveTimersRef.current;
+    return () => {
+      saveTimers.forEach((timerId) => window.clearTimeout(timerId));
+      saveTimers.clear();
+    };
+  }, []);
+
+  function persistTreeSnapshot(nodesSnapshot: Node[], edgesSnapshot: Edge[], treeIdSnapshot: string) {
+    try {
+      const { project: p } = storeApi.getState();
+
+      // Tree might have been removed/renamed while debounce timer was pending.
+      if (!p.trees.some((tree) => tree.id === treeIdSnapshot)) {
+        return;
+      }
+
+      // Keep only nodes reachable from ROOT when persisting tree structure.
+      // Non-reachable nodes are tracked as detached and kept on canvas.
+      const attachedIds = getAttachedNodeIds(nodesSnapshot, edgesSnapshot);
+      const nextDetachedIds = getDetachedNodeIds(nodesSnapshot, edgesSnapshot);
+      detachedNodeIdsRef.current = nextDetachedIds;
+
+      const attachedNodes = nodesSnapshot.filter((n) => attachedIds.has(n.id));
+      const attachedEdges = edgesSnapshot.filter(
+        (e) => attachedIds.has(e.source) && attachedIds.has(e.target)
+      );
+      const tree = flowToTree(treeIdSnapshot, attachedNodes, attachedEdges);
+      const currentTree = p.trees.find((t) => t.id === treeIdSnapshot);
+
+      // Only skip save if node structure unchanged AND edges unchanged.
+      // isSameTreeStructure checks node IDs/types/ports/children, but not edge identity.
+      // Edge identity = which specific child IDs each parent has.
+      // If edge IDs differ, the tree must be re-saved even if child count is same.
+      const currentEdgeIds = currentTree ? collectEdgeIds(currentTree.root) : [];
+      const newEdgeIds = collectEdgeIds(tree.root);
+      const edgesUnchanged = currentTree && isSameTreeStructure(currentTree, tree) && JSON.stringify(currentEdgeIds) === JSON.stringify(newEdgeIds);
+      if (edgesUnchanged) return;
+
+      const trees = p.trees.map((t) => (t.id === treeIdSnapshot ? tree : t));
+      skipNextProjectSyncRef.current = true;
+      storeApi.setState({ project: { ...p, trees } });
+    } catch {
+      // ignore intermediate invalid states
+    }
+  }
+
+  const saveToStore = useCallback((nodesSnapshot: Node[], edgesSnapshot: Edge[], treeIdSnapshot: string) => {
+    const existingTimerId = saveTimersRef.current.get(treeIdSnapshot);
+    if (existingTimerId) {
+      window.clearTimeout(existingTimerId);
+    }
+
+    const timerId = window.setTimeout(() => {
+      try {
+        persistTreeSnapshot(nodesSnapshot, edgesSnapshot, treeIdSnapshot);
+      } finally {
+        saveTimersRef.current.delete(treeIdSnapshot);
+      }
+    }, 500);
+
+    saveTimersRef.current.set(treeIdSnapshot, timerId);
+  }, []);
+
+  React.useEffect(() => {
+    saveToStore(nodes, edges, activeTreeId);
+  }, [nodes, edges, activeTreeId, saveToStore]);
 
   // Immediately sync localNodes/localEdges to store for lookup (not debounced)
   React.useEffect(() => {
