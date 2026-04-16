@@ -20,6 +20,7 @@ interface BTNodeData {
   isRoot?: boolean;
   isCollapsed?: boolean;
   isExpandedSubTree?: boolean;
+  isSubTreeUnlinked?: boolean;
   cdata?: string;
   [key: string]: unknown;
 }
@@ -27,16 +28,18 @@ interface BTNodeData {
 const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId }) => {
   const { t } = useTranslation();
   const d = data as BTNodeData;
-  const { label, category, colors, ports, preconditions, postconditions, description, status, isRoot, isCollapsed, isExpandedSubTree, cdata } = d;
+  const { label, category, colors, ports, preconditions, postconditions, description, status, isRoot, isCollapsed, isExpandedSubTree, isSubTreeUnlinked, cdata } = d;
 
   const statusColor = status ? STATUS_COLORS[status] : undefined;
   const isSubTreeExpanded = isExpandedSubTree === true;
-  const borderColor = statusColor ?? (isSubTreeExpanded ? '#4fa0ff' : (selected ? '#ffffff' : colors.border));
+  const hasSubTreeLinkWarning = isSubTreeUnlinked === true;
+  const borderColor = statusColor ?? (hasSubTreeLinkWarning ? '#ff9153' : (isSubTreeExpanded ? '#4fa0ff' : (selected ? '#ffffff' : colors.border)));
   const borderWidth = isSubTreeExpanded ? 2.5 : (selected ? 2 : 1.5);
 
   const isLeaf = category === 'Action' || category === 'Condition' || category === 'SubTree';
   const isRootNode = isRoot === true;
   const isSubTreeNode = category === 'SubTree';
+  const subtreeToggleIcon = isSubTreeExpanded ? '▾' : '▸';
 
   // Memoize port entries grouping
   const { inputPorts, outputPorts, inoutPorts, hasPre, hasPost, portEntries, preEntries, postEntries } = useMemo(() => {
@@ -124,12 +127,12 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
     return result;
   }, [isRootNode, isLeaf]);
 
-  // Double click opens edit modal (disabled for ROOT)
+  // Double click opens referenced subtree for SubTree nodes, edit modal for others.
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (isRootNode) return;
     e.stopPropagation();
 
-    if (isSubTreeNode && (e.ctrlKey || e.metaKey)) {
+    if (isSubTreeNode) {
       window.dispatchEvent(new CustomEvent('bt-open-subtree', {
         detail: { nodeId }
       }));
@@ -300,13 +303,32 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
         {category === 'SubTree' ? 'SubTree' : (isLeaf ? 'Action' : category)}
       </div>
 
+      {hasSubTreeLinkWarning && (
+        <div
+          title={t('nodeWarnings.subtreeUnlinkedHint')}
+          style={{
+            marginBottom: 6,
+            background: 'rgba(255, 145, 83, 0.18)',
+            border: '1px solid rgba(255, 145, 83, 0.65)',
+            borderRadius: 4,
+            padding: '2px 6px',
+            fontSize: 10,
+            fontWeight: 700,
+            color: '#ffd2b6',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {t('nodeWarnings.subtreeUnlinked')}
+        </div>
+      )}
+
       {isSubTreeNode && (
         <div style={{ display: 'flex', gap: 4, position: 'absolute', top: 6, right: 6 }}>
           <button
             type="button"
             onClick={handleToggleExpandSubTree}
-            title="Toggle expanded preview in canvas"
-            aria-label="Toggle SubTree preview"
+            title={isSubTreeExpanded ? 'Collapse SubTree preview in canvas' : 'Expand SubTree preview in canvas'}
+            aria-label={isSubTreeExpanded ? 'Collapse SubTree preview' : 'Expand SubTree preview'}
             style={{
               background: 'rgba(255,255,255,0.08)',
               border: '1px solid rgba(255,255,255,0.18)',
@@ -318,7 +340,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
               lineHeight: 1.2,
             }}
           >
-            ⬇
+            {subtreeToggleIcon}
           </button>
           <button
             type="button"
@@ -527,6 +549,8 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
     prev.colors.border === next.colors.border &&
     prev.isRoot === next.isRoot &&
     prev.isCollapsed === next.isCollapsed &&
+    prev.isExpandedSubTree === next.isExpandedSubTree &&
+    prev.isSubTreeUnlinked === next.isSubTreeUnlinked &&
     prev.cdata === next.cdata
   );
 });

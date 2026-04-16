@@ -217,6 +217,10 @@ const zh = {
     activeTree: '当前树: {{tree}}',
     empty: '暂无 XML 内容',
   },
+  nodeWarnings: {
+    subtreeUnlinked: '子树未关联',
+    subtreeUnlinkedHint: '该 SubTree 节点尚未关联目标树，请编辑节点后选择目标树。',
+  },
 };
 
 export default zh;

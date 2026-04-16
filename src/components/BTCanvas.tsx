@@ -82,6 +82,66 @@ function inferPortDirection(
   return undefined;
 }
 
+function getSubTreeTargetFromNodeData(data: { nodeType?: string; label?: string }): string | null {
+  if (data.nodeType !== 'SubTree') return null;
+  if (!data.label || data.label === 'SubTree') return null;
+  return data.label;
+}
+
+function collectSubTreeReferences(node: BTTreeNode): string[] {
+  const refs: string[] = [];
+  const walk = (current: BTTreeNode) => {
+    if (current.type === 'SubTree' && current.name) {
+      refs.push(current.name);
+    }
+    current.children.forEach((child) => walk(child));
+  };
+  walk(node);
+  return refs;
+}
+
+function buildSubTreeGraph(project: BTProject): Map<string, Set<string>> {
+  const graph = new Map<string, Set<string>>();
+  project.trees.forEach((tree) => {
+    graph.set(tree.id, new Set(collectSubTreeReferences(tree.root)));
+  });
+  return graph;
+}
+
+function hasPathBetweenTrees(graph: Map<string, Set<string>>, fromTreeId: string, toTreeId: string): boolean {
+  if (fromTreeId === toTreeId) return true;
+  const visited = new Set<string>();
+  const stack = [fromTreeId];
+
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (current === toTreeId) return true;
+    if (visited.has(current)) continue;
+    visited.add(current);
+
+    const nextTargets = graph.get(current);
+    if (!nextTargets) continue;
+    nextTargets.forEach((nextId) => {
+      if (!visited.has(nextId)) stack.push(nextId);
+    });
+  }
+
+  return false;
+}
+
+function wouldCreateSubTreeLoop(project: BTProject, sourceTreeId: string, targetTreeId: string): boolean {
+  const graph = buildSubTreeGraph(project);
+  return hasPathBetweenTrees(graph, targetTreeId, sourceTreeId);
+}
+
+function isSubTreePreviewNode(node: Node): boolean {
+  return (node.data as { isSubTreePreview?: boolean } | undefined)?.isSubTreePreview === true;
+}
+
+function isSubTreePreviewEdge(edge: Edge): boolean {
+  return (edge.data as { isSubTreePreview?: boolean } | undefined)?.isSubTreePreview === true;
+}
+
 function buildFlowNodes(
   treeId: string,
   project: BTProject,
@@ -90,35 +150,137 @@ function buildFlowNodes(
 ): { nodes: Node[]; edges: Edge[] } {
   const tree = project.trees.find((t) => t.id === treeId);
   if (!tree) return { nodes: [], edges: [] };
+  const treeById = new Map(project.trees.map((item) => [item.id, item]));
   let { nodes, edges } = treeToFlow(tree, project.nodeModels);
   nodes = autoLayout(nodes, edges);
-  
-  // Inject debug statuses into nodes
-  nodes = nodes.map((n) => ({
-    ...n,
-    data: { 
-      ...n.data, 
-      status: debugStatuses.get(n.id) ?? 'IDLE',
-      // Mark nodes that are expanded SubTrees for visual feedback
-      isExpandedSubTree: expandedSubTreeNodeIds.has(n.id),
+
+  const expandedPreviewNodes: Node[] = [];
+  const expandedPreviewEdges: Edge[] = [];
+
+  const addExpandedSubTreePreview = (hostNode: Node, targetTreeId: string) => {
+    const targetTree = treeById.get(targetTreeId);
+    if (!targetTree) return;
+
+    const { nodes: rawSubNodes, edges: rawSubEdges } = treeToFlow(targetTree, project.nodeModels);
+    const laidOutSubNodes = autoLayout(rawSubNodes, rawSubEdges);
+    const subRoot = laidOutSubNodes.find((n) => {
+      const d = n.data as { isRoot?: boolean; nodeType?: string };
+      return d.isRoot === true || d.nodeType === 'ROOT';
+    });
+    if (!subRoot) return;
+
+    const hostWidth = typeof hostNode.width === 'number' ? hostNode.width : 160;
+    const subRootWidth = typeof subRoot.width === 'number' ? subRoot.width : 120;
+    const hostCenterX = hostNode.position.x + hostWidth / 2;
+    const subRootCenterX = subRoot.position.x + subRootWidth / 2;
+    const offsetX = hostCenterX - subRootCenterX;
+    const offsetY = hostNode.position.y + 170 - subRoot.position.y;
+
+    const idMap = new Map<string, string>();
+    laidOutSubNodes.forEach((subNode) => {
+      idMap.set(subNode.id, `subexp:${hostNode.id}:${targetTreeId}:${subNode.id}`);
+    });
+
+    expandedPreviewNodes.push(
+      ...laidOutSubNodes.map((subNode) => ({
+        ...subNode,
+        id: idMap.get(subNode.id) ?? subNode.id,
+        position: {
+          x: subNode.position.x + offsetX,
+          y: subNode.position.y + offsetY,
+        },
+        draggable: false,
+        selectable: false,
+        data: {
+          ...subNode.data,
+          isSubTreePreview: true,
+          previewHostSubTreeNodeId: hostNode.id,
+          previewTreeId: targetTreeId,
+        },
+      }))
+    );
+
+    expandedPreviewEdges.push(
+      ...rawSubEdges.map((subEdge, edgeIndex) => ({
+        ...subEdge,
+        id: `subexp-edge:${hostNode.id}:${targetTreeId}:${edgeIndex}`,
+        source: idMap.get(subEdge.source) ?? subEdge.source,
+        target: idMap.get(subEdge.target) ?? subEdge.target,
+        style: {
+          stroke: '#4fa0ff',
+          strokeWidth: 1.5,
+          strokeDasharray: '4 4',
+          opacity: 0.8,
+        },
+        data: {
+          ...subEdge.data,
+          isSubTreePreview: true,
+          targetStatus: 'IDLE',
+        },
+      }))
+    );
+
+    const mappedRootId = idMap.get(subRoot.id);
+    if (mappedRootId) {
+      expandedPreviewEdges.push({
+        id: `subexp-link:${hostNode.id}:${targetTreeId}`,
+        source: hostNode.id,
+        target: mappedRootId,
+        type: 'btEdge',
+        style: {
+          stroke: '#7eb5ff',
+          strokeWidth: 2,
+          strokeDasharray: '6 4',
+          opacity: 0.95,
+        },
+        data: {
+          isSubTreePreview: true,
+          targetStatus: 'IDLE',
+        },
+      });
+    }
+  };
+
+  nodes.forEach((node) => {
+    const data = node.data as { nodeType?: string; label?: string };
+    const targetTreeId = getSubTreeTargetFromNodeData(data);
+    if (!targetTreeId) return;
+    if (!expandedSubTreeNodeIds.has(node.id)) return;
+    if (targetTreeId === treeId) return;
+    if (wouldCreateSubTreeLoop(project, treeId, targetTreeId)) return;
+    addExpandedSubTreePreview(node, targetTreeId);
+  });
+
+  const allNodes = [...nodes, ...expandedPreviewNodes];
+  const allEdges = [...edges, ...expandedPreviewEdges];
+
+  const nodesWithState = allNodes.map((n) => {
+    const data = n.data as { nodeType?: string; label?: string; isSubTreePreview?: boolean };
+    const targetTreeId = getSubTreeTargetFromNodeData(data);
+
+    return {
+      ...n,
+      data: {
+        ...n.data,
+        status: data.isSubTreePreview ? 'IDLE' : (debugStatuses.get(n.id) ?? 'IDLE'),
+        isExpandedSubTree: !data.isSubTreePreview && expandedSubTreeNodeIds.has(n.id),
+        isSubTreeUnlinked:
+          !data.isSubTreePreview
+          && data.nodeType === 'SubTree'
+          && !targetTreeId,
+      },
+    };
+  });
+
+  const edgesWithState = allEdges.map((e) => ({
+    ...e,
+    data: {
+      ...e.data,
+      targetStatus: isSubTreePreviewEdge(e) ? 'IDLE' : (debugStatuses.get(e.target) ?? 'IDLE'),
     },
   }));
-  
-  // Inject target node status into edges (for RUNNING edge animation)
-  edges = edges.map((e) => ({
-    ...e,
-    data: { ...e.data, targetStatus: debugStatuses.get(e.target) ?? 'IDLE' },
-  }));
-  
-  // TODO: Implement full SubTree expansion rendering
-  // This would include:
-  // 1. For each expanded SubTree node, find its target tree
-  // 2. Add nodes from the target tree to the canvas
-  // 3. Handle circular references (detect if a tree references itself)
-  // 4. Adjust positions to show expanded subtrees below their parent
-  // For now, we just mark the nodes as expanded and update their visual appearance
-  
-  return { nodes, edges };
+
+  return { nodes: nodesWithState, edges: edgesWithState };
 }
 
 function bringNodeToFront(nodes: Node[], nodeId: string): Node[] {
@@ -148,6 +310,30 @@ function ensureUniqueEdgeIds(edges: Edge[]): Edge[] {
     seen.add(nextId);
     return { ...edge, id: nextId };
   });
+}
+
+const SUBTREE_TARGET_CACHE_KEY = 'bt-editor:last-subtree-target';
+const SUBTREE_LOOP_WARNING_MESSAGE = 'One or more SubTrees in this tree reference this SubTree, which may cause an infinite loop. Please check the SubTree references.';
+
+function readCachedSubTreeTarget(activeTreeId: string, project: BTProject): string | null {
+  try {
+    const cached = window.localStorage.getItem(SUBTREE_TARGET_CACHE_KEY);
+    if (!cached) return null;
+    const exists = project.trees.some((tree) => tree.id === cached);
+    if (!exists || cached === activeTreeId) return null;
+    return cached;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedSubTreeTarget(treeId?: string): void {
+  if (!treeId) return;
+  try {
+    window.localStorage.setItem(SUBTREE_TARGET_CACHE_KEY, treeId);
+  } catch {
+    // Ignore localStorage failures (private mode/quota)
+  }
 }
 
 const BTCanvas: React.FC<BTCanvasProps> = ({
@@ -229,6 +415,11 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
+  const expandedSubTreeStateKey = useMemo(
+    () => Array.from(expandedSubTreeNodeIds).sort().join('|'),
+    [expandedSubTreeNodeIds]
+  );
+  const lastExpandedSubTreeStateRef = useRef('');
 
   React.useEffect(() => {
     nodesRef.current = nodes;
@@ -409,6 +600,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       skipNextProjectSyncRef.current = false;
       lastSyncedTreeRef.current = activeTreeId;
       forceLayoutRef.current = false;
+      lastExpandedSubTreeStateRef.current = expandedSubTreeStateKey;
       return;
     }
 
@@ -425,9 +617,11 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     // Force layout when switching trees or first load OR when project changed (e.g., loaded new XML)
     const { localNodes: storeLocalNodes, localEdges: storeLocalEdges } = storeApi.getState();
     const isTreeSwitch = lastSyncedTreeRef.current !== null && lastSyncedTreeRef.current !== activeTreeId;
+    const hasExpandedStateChanged = lastExpandedSubTreeStateRef.current !== expandedSubTreeStateKey;
     const shouldForceLayout =
       forceLayoutRef.current
       || lastSyncedTreeRef.current !== activeTreeId
+      || hasExpandedStateChanged
       || (storeLocalNodes.length === 0 && storeLocalEdges.length === 0);
     if (shouldForceLayout) {
       // Full rebuild with autoLayout for tree switch or initial load
@@ -472,6 +666,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       });
       lastSyncedTreeRef.current = activeTreeId;
       forceLayoutRef.current = false;
+      lastExpandedSubTreeStateRef.current = expandedSubTreeStateKey;
     } else {
       // Incremental update: only sync structure from project, preserve existing positions
       const tree = project.trees.find((t) => t.id === activeTreeId);
@@ -523,8 +718,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         const detachedEdgesToRestore = prevEdges.filter((edge) => !attachedIds.has(edge.source) && !attachedIds.has(edge.target));
         return withSelectedEdge(ensureUniqueEdgeIds([...edgesWithStatus, ...detachedEdgesToRestore]), selectedEdgeId, deleteEdge);
       });
+      lastExpandedSubTreeStateRef.current = expandedSubTreeStateKey;
     }
-  }, [activeTreeId, project, debugState.nodeStatuses, selectedEdgeId, deleteEdge, collapsedNodeIds]);
+  }, [activeTreeId, project, debugState.nodeStatuses, selectedEdgeId, deleteEdge, collapsedNodeIds, expandedSubTreeStateKey]);
 
   // Highlight selected nodes
   React.useEffect(() => {
@@ -602,18 +798,22 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       const validCategory = category && category in CATEGORY_COLORS ? category : 'Control';
       const colors = CATEGORY_COLORS[validCategory] ?? CATEGORY_COLORS.Control;
       const isLeaf = category === 'Action' || category === 'Condition' || category === 'SubTree';
+      const isSubTreeNode = nodeType === 'SubTree';
+      const cachedSubTreeTarget = isSubTreeNode ? readCachedSubTreeTarget(activeTreeId, project) : null;
+      const resolvedLabel = cachedSubTreeTarget ?? nodeType;
 
       const newNode: Node = {
         id: newNodeId,
         type: 'btNode',
         position: { x: nodePickerPosition.flowX, y: nodePickerPosition.flowY },
         data: {
-          label: nodeType,
+          label: resolvedLabel,
           nodeType,
           category,
           colors,
           ports: {},
           childrenCount: isLeaf ? 0 : 1,
+          isSubTreeUnlinked: isSubTreeNode && !cachedSubTreeTarget,
         },
       };
 
@@ -634,7 +834,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       setNodePickerPosition(null);
       setPendingConnection(null);
     },
-    [nodePickerPosition, pendingConnection, setNodes, setEdges, deleteEdge, nodes, edges]
+    [activeTreeId, project, nodePickerPosition, pendingConnection, setNodes, setEdges, deleteEdge, nodes, edges]
   );
 
   // Validate connection based on BT rules
@@ -995,14 +1195,21 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         return;
       }
 
+      const persistentNodes = nodesSnapshot.filter((node) => !isSubTreePreviewNode(node));
+      const persistentNodeIds = new Set(persistentNodes.map((node) => node.id));
+      const persistentEdges = edgesSnapshot.filter((edge) => {
+        if (isSubTreePreviewEdge(edge)) return false;
+        return persistentNodeIds.has(edge.source) && persistentNodeIds.has(edge.target);
+      });
+
       // Keep only nodes reachable from ROOT when persisting tree structure.
       // Non-reachable nodes are tracked as detached and kept on canvas.
-      const attachedIds = getAttachedNodeIds(nodesSnapshot, edgesSnapshot);
-      const nextDetachedIds = getDetachedNodeIds(nodesSnapshot, edgesSnapshot);
+      const attachedIds = getAttachedNodeIds(persistentNodes, persistentEdges);
+      const nextDetachedIds = getDetachedNodeIds(persistentNodes, persistentEdges);
       detachedNodeIdsRef.current = nextDetachedIds;
 
-      const attachedNodes = nodesSnapshot.filter((n) => attachedIds.has(n.id));
-      const attachedEdges = edgesSnapshot.filter(
+      const attachedNodes = persistentNodes.filter((n) => attachedIds.has(n.id));
+      const attachedEdges = persistentEdges.filter(
         (e) => attachedIds.has(e.source) && attachedIds.has(e.target)
       );
       const tree = flowToTree(treeIdSnapshot, attachedNodes, attachedEdges);
@@ -1048,7 +1255,10 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
   // Immediately sync localNodes/localEdges to store for lookup (not debounced)
   React.useEffect(() => {
-    setLocalCanvas(nodes, edges);
+    const persistentNodes = nodes.filter((node) => !isSubTreePreviewNode(node));
+    const persistentNodeIds = new Set(persistentNodes.map((node) => node.id));
+    const persistentEdges = edges.filter((edge) => !isSubTreePreviewEdge(edge) && persistentNodeIds.has(edge.source) && persistentNodeIds.has(edge.target));
+    setLocalCanvas(persistentNodes, persistentEdges);
   }, [nodes, edges, setLocalCanvas]);
 
   // When PropertiesPanel saves (updates localNodes), sync to ReactFlow nodes
@@ -1090,6 +1300,18 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   React.useEffect(() => {
     const handleToggleExpandSubTree = (e: Event) => {
       const customEvent = e as CustomEvent<{ nodeId: string }>;
+      const node = nodes.find((item) => item.id === customEvent.detail.nodeId);
+      if (!node) return;
+
+      const data = node.data as { nodeType?: string; label?: string };
+      const targetTreeId = getSubTreeTargetFromNodeData(data);
+      if (!targetTreeId) return;
+
+      if (wouldCreateSubTreeLoop(project, activeTreeId, targetTreeId)) {
+        alert(SUBTREE_LOOP_WARNING_MESSAGE);
+        return;
+      }
+
       storeApi.getState().toggleExpandSubTree(customEvent.detail.nodeId);
     };
 
@@ -1116,7 +1338,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       window.removeEventListener('bt-toggle-expand-subtree', handleToggleExpandSubTree);
       window.removeEventListener('bt-open-subtree', handleOpenSubTree);
     };
-  }, [nodes, project.trees, activeTreeId, setActiveTree, clearSelection, hideMenu]);
+  }, [nodes, project, project.trees, activeTreeId, setActiveTree, clearSelection, hideMenu]);
 
   // Handle PNG export
   React.useEffect(() => {
@@ -1215,6 +1437,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
               postconditions: data.postconditions ?? nodeData.postconditions,
               description: data.description,
               portRemap: computedPortRemap,
+              isSubTreeUnlinked:
+                nodeData.nodeType === 'SubTree'
+                && (!data.name || data.name === 'SubTree'),
             },
           };
         }
@@ -1225,6 +1450,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     // Update store for persistence
     if (data.name !== undefined) {
       updateNodeName(editingNodeId, data.name);
+      if (editingNodeData?.nodeType === 'SubTree' && data.name && data.name !== 'SubTree') {
+        writeCachedSubTreeTarget(data.name);
+      }
     }
     if (data.ports !== undefined) {
       const { updateNodePorts } = storeApi.getState();
@@ -1371,7 +1599,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       // Ctrl+A: Select all nodes
       if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
         event.preventDefault();
-        const allIds = new Set(nodes.map((n) => n.id));
+        const allIds = new Set(nodes.filter((n) => !isSubTreePreviewNode(n)).map((n) => n.id));
         storeApi.getState().clearSelection();
         allIds.forEach((id) => storeApi.getState().addToSelection(id));
         return;
@@ -1571,6 +1799,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
       // Handle regular node type drop
       const nodeType = event.dataTransfer.getData('application/btnode-type');
+      const subtreeTarget = event.dataTransfer.getData('application/bt-subtree-target') || null;
       if (!nodeType || !rfInstanceRef.current) return;
 
       const position = rfInstanceRef.current.screenToFlowPosition({
@@ -1581,18 +1810,22 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       const def: BTNodeDefinition | undefined = project.nodeModels.find((m) => m.type === nodeType);
       const category = def?.category ?? 'Action';
       const colors = CATEGORY_COLORS[category] ?? CATEGORY_COLORS['Action'];
+      const isSubTreeNode = nodeType === 'SubTree';
+      const cachedSubTreeTarget = isSubTreeNode ? readCachedSubTreeTarget(activeTreeId, project) : null;
+      const resolvedLabel = subtreeTarget ?? cachedSubTreeTarget ?? nodeType;
 
       const newNode: Node = {
         id: `n_${Math.random().toString(36).slice(2, 9)}`,
         type: 'btNode',
         position,
         data: {
-          label: nodeType,
+          label: resolvedLabel,
           nodeType,
           category,
           colors,
           ports: {},
           childrenCount: 0,
+          isSubTreeUnlinked: isSubTreeNode && !subtreeTarget && !cachedSubTreeTarget,
         },
       };
 
@@ -1607,23 +1840,35 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       setNodes((nds) => [...nds, newNode]);
       setSelectedEdgeId(null);
     },
-    [project.nodeModels, addNodeModel, setNodes]
+    [activeTreeId, project, addNodeModel, setNodes]
   );
 
   // Check for nodes that should trigger disconnected warning.
   // Includes two cases:
   // 1) Nodes not connected to the ROOT-attached graph.
   // 2) Control nodes with no child edge (special invalid case aligned with Groot2 behavior).
-  const disconnectedNodes = useMemo(() => {
-    if (nodes.length === 0) return [];
+  const subTreeGraph = useMemo(() => buildSubTreeGraph(project), [project]);
 
-    const attachedIds = getAttachedNodeIds(nodes, edges);
+  const hasSubTreeLoopWarning = useMemo(() => {
+    const activeTree = project.trees.find((tree) => tree.id === activeTreeId);
+    if (!activeTree) return false;
+
+    const refs = collectSubTreeReferences(activeTree.root);
+    return refs.some((targetTreeId) => hasPathBetweenTrees(subTreeGraph, targetTreeId, activeTreeId));
+  }, [project.trees, activeTreeId, subTreeGraph]);
+
+  const disconnectedNodes = useMemo(() => {
+    const persistentNodes = nodes.filter((node) => !isSubTreePreviewNode(node));
+    const persistentEdges = edges.filter((edge) => !isSubTreePreviewEdge(edge));
+    if (persistentNodes.length === 0) return [];
+
+    const attachedIds = getAttachedNodeIds(persistentNodes, persistentEdges);
     const outgoingCountBySource = new Map<string, number>();
-    edges.forEach((edge) => {
+    persistentEdges.forEach((edge) => {
       outgoingCountBySource.set(edge.source, (outgoingCountBySource.get(edge.source) ?? 0) + 1);
     });
 
-    return nodes.filter((n) => {
+    return persistentNodes.filter((n) => {
       // Skip ROOT - it doesn't need connections
       const data = n.data as { isRoot?: boolean; category?: string };
       if (data?.isRoot) return false;
@@ -1641,6 +1886,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     const targetNode = targetNodeId ? nodes.find((n) => n.id === targetNodeId) : null;
     const targetData = targetNode?.data as {
       isRoot?: boolean;
+      isSubTreePreview?: boolean;
       nodeType?: string;
       label?: string;
       ports?: Record<string, string>;
@@ -1652,6 +1898,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       isCollapsed?: boolean;
     } | undefined;
     const isRoot = targetData?.isRoot === true;
+    const isPreviewNode = targetData?.isSubTreePreview === true;
     const hasChildren = (targetData?.childrenCount ?? 0) > 0;
     const isSubTreeNode = targetData?.nodeType === 'SubTree';
     const referencedTreeId = isSubTreeNode ? targetData?.label : undefined;
@@ -1675,7 +1922,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           },
         },
       ] : [],
-      node: menuState.targetType === 'node' && menuState.targetId && !isRoot ? [
+      node: menuState.targetType === 'node' && menuState.targetId && !isRoot && !isPreviewNode ? [
         {
           id: 'copy',
           label: 'Copy Node',
@@ -1884,6 +2131,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           action: () => {
             const allIds = new Set(
               nodes
+                .filter((n) => !isSubTreePreviewNode(n))
                 .filter((n) => ((n.data as { isRoot?: boolean } | undefined)?.isRoot !== true))
                 .map((n) => n.id)
             );
@@ -2032,6 +2280,32 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         >
           <span style={{ fontSize: 14 }}>⚠️</span>
           <span style={{ fontWeight: 500 }}>One or more nodes are not connected</span>
+        </div>
+      )}
+
+      {hasSubTreeLoopWarning && (
+        <div
+          style={{
+            position: 'absolute',
+            top: disconnectedNodes.length > 0 ? 62 : 12,
+            right: 12,
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            background: '#2a1a12',
+            border: '1px solid #c47a46',
+            borderRadius: 6,
+            padding: '6px 10px',
+            fontSize: 11,
+            color: '#ffd9c0',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+            maxWidth: 460,
+          }}
+          title={SUBTREE_LOOP_WARNING_MESSAGE}
+        >
+          <span style={{ fontSize: 14 }}>⚠️</span>
+          <span style={{ fontWeight: 500 }}>{SUBTREE_LOOP_WARNING_MESSAGE}</span>
         </div>
       )}
 

@@ -7,6 +7,13 @@ import NodeModelModal from './NodeModelModal';
 
 const CATEGORIES: BTNodeCategory[] = ['Action', 'Condition', 'Control', 'Decorator', 'SubTree'].sort((a, b) => a.localeCompare(b)) as BTNodeCategory[];
 
+type PaletteEntry = {
+  def: BTNodeDefinition;
+  displayLabel?: string;
+  subtreeTarget?: string;
+  isGeneratedSubTree?: boolean;
+};
+
 const NodePalette: React.FC = () => {
   const { t } = useTranslation();
   const { project, addNodeModel, updateNodeModel, deleteNodeModel } = useBTStore();
@@ -22,13 +29,51 @@ const NodePalette: React.FC = () => {
     | null
   >(null);
 
-  // Filter nodes by search query (search by name, description, or category)
+  const getPaletteEntries = (cat: BTNodeCategory): PaletteEntry[] => {
+    const baseEntries: PaletteEntry[] = project.nodeModels
+      .filter((m) => m.category === cat)
+      .map((def) => ({ def }));
+
+    if (cat !== 'SubTree') {
+      return baseEntries.sort((a, b) => a.def.type.localeCompare(b.def.type));
+    }
+
+    const generatedSubTrees: PaletteEntry[] = project.trees
+      .filter((tree) => tree.id !== project.mainTreeId)
+      .map((tree) => ({
+        def: {
+          type: 'SubTree',
+          category: 'SubTree',
+          description: `SubTree reference to ${tree.id}`,
+          builtin: true,
+        },
+        displayLabel: tree.id,
+        subtreeTarget: tree.id,
+        isGeneratedSubTree: true,
+      }));
+
+    const hasBaseSubTreeModel = baseEntries.some((entry) => entry.def.type === 'SubTree');
+    const merged: PaletteEntry[] = hasBaseSubTreeModel
+      ? [...generatedSubTrees, ...baseEntries]
+      : [...generatedSubTrees, ...baseEntries, {
+          def: { type: 'SubTree', category: 'SubTree' as BTNodeCategory, builtin: true },
+        }];
+
+    return merged.sort((a, b) => (a.displayLabel ?? a.def.type).localeCompare(b.displayLabel ?? b.def.type));
+  };
+
+  const allPaletteEntries = CATEGORIES.flatMap((cat) => getPaletteEntries(cat));
+
+  // Filter nodes by search query (search by display label, type, description, or category)
   const filteredNodes = searchQuery.trim()
-    ? project.nodeModels.filter((m) =>
-        m.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.category.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+    ? allPaletteEntries.filter((entry) => {
+        const label = (entry.displayLabel ?? entry.def.type).toLowerCase();
+        const q = searchQuery.toLowerCase();
+        return label.includes(q)
+          || entry.def.type.toLowerCase().includes(q)
+          || entry.def.description?.toLowerCase().includes(q)
+          || entry.def.category.toLowerCase().includes(q);
+      })
     : null; // null means no search, show all by category
 
   const toggleCat = (cat: string) => {
@@ -40,11 +85,13 @@ const NodePalette: React.FC = () => {
     });
   };
 
-  const byCategory = (cat: BTNodeCategory) =>
-    project.nodeModels.filter((m) => m.category === cat).sort((a, b) => a.type.localeCompare(b.type));
+  const byCategory = (cat: BTNodeCategory) => getPaletteEntries(cat);
 
-  const onDragStart = (event: React.DragEvent, nodeType: string) => {
+  const onDragStart = (event: React.DragEvent, nodeType: string, subtreeTarget?: string) => {
     event.dataTransfer.setData('application/btnode-type', nodeType);
+    if (subtreeTarget) {
+      event.dataTransfer.setData('application/bt-subtree-target', subtreeTarget);
+    }
     event.dataTransfer.effectAllowed = 'move';
   };
 
@@ -100,7 +147,7 @@ const NodePalette: React.FC = () => {
               {filteredNodes.length > 0 ? (
                 // Group search results by category
                 CATEGORIES.map((cat) => {
-                  const matchingInCat = filteredNodes.filter((m) => m.category === cat);
+                  const matchingInCat = filteredNodes.filter((m) => m.def.category === cat);
                   if (matchingInCat.length === 0) return null;
 
                   const colors = CATEGORY_COLORS[cat];
@@ -120,16 +167,19 @@ const NodePalette: React.FC = () => {
 
                       {isExpanded && (
                         <div style={{ paddingLeft: 4 }}>
-                          {matchingInCat.map((node) => (
+                          {matchingInCat.map((entry) => (
                             <PaletteItem
-                              key={node.type}
-                              def={node}
+                              key={`${entry.def.type}:${entry.displayLabel ?? entry.def.type}`}
+                              def={entry.def}
+                              displayLabel={entry.displayLabel}
+                              subtreeTarget={entry.subtreeTarget}
+                              isGeneratedSubTree={entry.isGeneratedSubTree}
                               colors={colors}
                               onDragStart={onDragStart}
                               customModelLabel={t('palette.customModel')}
-                              onOpen={() => setModelModal({ mode: 'view', def: node })}
-                              onEdit={!node.builtin ? () => setModelModal({ mode: 'edit', def: node }) : undefined}
-                              onDelete={!node.builtin ? deleteNodeModel : undefined}
+                              onOpen={entry.isGeneratedSubTree ? undefined : () => setModelModal({ mode: 'view', def: entry.def })}
+                              onEdit={!entry.def.builtin && !entry.isGeneratedSubTree ? () => setModelModal({ mode: 'edit', def: entry.def }) : undefined}
+                              onDelete={!entry.def.builtin && !entry.isGeneratedSubTree ? deleteNodeModel : undefined}
                             />
                           ))}
                         </div>
@@ -145,7 +195,7 @@ const NodePalette: React.FC = () => {
             </div>
           ) : (
             CATEGORIES.map((cat) => {
-              const nodes = byCategory(cat);
+              const entries = byCategory(cat);
               const colors = CATEGORY_COLORS[cat];
               const isExpanded = expandedCats.has(cat);
 
@@ -157,24 +207,27 @@ const NodePalette: React.FC = () => {
                     onClick={() => toggleCat(cat)}
                   >
                     <span>{isExpanded ? '▼' : '▶'} {cat}</span>
-                    <span style={{ fontSize: 10, opacity: 0.7 }}>{nodes.length}</span>
+                    <span style={{ fontSize: 10, opacity: 0.7 }}>{entries.length}</span>
                   </button>
 
                   {isExpanded && (
                     <div style={{ paddingLeft: 4 }}>
-                      {nodes.map((node) => (
+                      {entries.map((entry) => (
                         <PaletteItem
-                          key={node.type}
-                          def={node}
+                          key={`${entry.def.type}:${entry.displayLabel ?? entry.def.type}`}
+                          def={entry.def}
+                          displayLabel={entry.displayLabel}
+                          subtreeTarget={entry.subtreeTarget}
+                          isGeneratedSubTree={entry.isGeneratedSubTree}
                           colors={colors}
                           onDragStart={onDragStart}
                           customModelLabel={t('palette.customModel')}
-                          onOpen={() => setModelModal({ mode: 'view', def: node })}
-                          onEdit={!node.builtin ? () => setModelModal({ mode: 'edit', def: node }) : undefined}
-                          onDelete={!node.builtin ? deleteNodeModel : undefined}
+                          onOpen={entry.isGeneratedSubTree ? undefined : () => setModelModal({ mode: 'view', def: entry.def })}
+                          onEdit={!entry.def.builtin && !entry.isGeneratedSubTree ? () => setModelModal({ mode: 'edit', def: entry.def }) : undefined}
+                          onDelete={!entry.def.builtin && !entry.isGeneratedSubTree ? deleteNodeModel : undefined}
                         />
                       ))}
-                      {nodes.length === 0 && (
+                      {entries.length === 0 && (
                         <div style={{ fontSize: 11, color: '#556', padding: '4px 8px' }}>
                           No nodes
                         </div>
@@ -232,25 +285,40 @@ const NodePalette: React.FC = () => {
 
 interface PaletteItemProps {
   def: BTNodeDefinition;
+  displayLabel?: string;
+  subtreeTarget?: string;
+  isGeneratedSubTree?: boolean;
   colors: { bg: string; border: string; text: string };
-  onDragStart: (e: React.DragEvent, type: string) => void;
+  onDragStart: (e: React.DragEvent, type: string, subtreeTarget?: string) => void;
   customModelLabel: string;
   onOpen?: (def: BTNodeDefinition) => void;
   onEdit?: (def: BTNodeDefinition) => void;
   onDelete?: (type: string) => void;
 }
 
-const PaletteItem: React.FC<PaletteItemProps> = ({ def, colors, onDragStart, customModelLabel, onOpen, onEdit, onDelete }) => (
+const PaletteItem: React.FC<PaletteItemProps> = ({
+  def,
+  displayLabel,
+  subtreeTarget,
+  isGeneratedSubTree,
+  colors,
+  onDragStart,
+  customModelLabel,
+  onOpen,
+  onEdit,
+  onDelete,
+}) => (
   <div className="palette-item-wrapper">
     <div
       draggable
-      onDragStart={(e) => onDragStart(e, def.type)}
+      onDragStart={(e) => onDragStart(e, def.type, subtreeTarget)}
       onDoubleClick={() => onOpen?.(def)}
       className="palette-item"
       style={{ background: colors.bg, borderColor: colors.border, color: colors.text }}
-      title={def.description || def.type}
+      title={def.description || displayLabel || def.type}
     >
       <span className="palette-item-label" style={{ flex: 1, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {isGeneratedSubTree && <span style={{ marginRight: 6, opacity: 0.85 }}>🌳</span>}
         {!def.builtin && (
           <span
             className="palette-custom-icon"
@@ -260,7 +328,7 @@ const PaletteItem: React.FC<PaletteItemProps> = ({ def, colors, onDragStart, cus
             ★
           </span>
         )}
-        {def.type}
+        {displayLabel ?? def.type}
       </span>
     </div>
     {(onEdit || onDelete) && (

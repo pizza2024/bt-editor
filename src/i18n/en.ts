@@ -217,6 +217,10 @@ const en = {
     activeTree: 'Active tree: {{tree}}',
     empty: 'No XML available',
   },
+  nodeWarnings: {
+    subtreeUnlinked: 'UNLINKED SUBTREE',
+    subtreeUnlinkedHint: 'This SubTree node is not linked to a target tree. Edit node and select a tree.',
+  },
 };
 
 export default en;

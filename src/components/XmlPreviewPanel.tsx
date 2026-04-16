@@ -39,10 +39,14 @@ const XmlPreviewPanel: React.FC = () => {
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const previewProject = useMemo(
-    () => ({ ...project, mainTreeId: activeTreeId }),
-    [project, activeTreeId]
-  );
+  const previewProject = useMemo(() => {
+    const activeTree = project.trees.find((tree) => tree.id === activeTreeId);
+    return {
+      ...project,
+      mainTreeId: activeTreeId,
+      trees: activeTree ? [activeTree] : [],
+    };
+  }, [project, activeTreeId]);
   const xml = useMemo(() => serializeXML(previewProject), [previewProject]);
   const formattedXml = useMemo(() => formatXmlForPreview(xml), [xml]);
 
