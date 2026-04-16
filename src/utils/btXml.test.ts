@@ -52,6 +52,29 @@ describe('parseXML', () => {
     expect(project.exportFormat).toBe(3);
     expect(project.trees).toHaveLength(2);
     expect(project.trees[0].root.children[0].type).toBe('Sequence');
+
+    // v3 builtins should be loaded; v4-only builtins should not
+    expect(project.nodeModels.some((m) => m.type === 'SequenceStar' && m.builtin)).toBe(true);
+    expect(project.nodeModels.some((m) => m.type === 'Script' && m.builtin)).toBe(false);
+  });
+
+  it('normalizes common v3 legacy aliases during import', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="3" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <lfThenElse>
+      <Action ID="AlwaysSuccess"/>
+      <Action ID="AlwaysFailure"/>
+      <Action ID="AlwaysSuccess"/>
+    </lfThenElse>
+  </BehaviorTree>
+</root>`;
+
+    const project = parseXML(xml);
+    const rootChild = project.trees[0].root.children[0];
+
+    expect(rootChild.type).toBe('IfThenElse');
+    expect(project.exportFormat).toBe(3);
   });
 });
 

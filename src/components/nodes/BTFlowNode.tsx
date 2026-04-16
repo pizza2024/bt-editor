@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
-import { STATUS_COLORS, BUILTIN_NODES } from '../../types/bt-constants';
+import { STATUS_COLORS } from '../../types/bt-constants';
+import type { BTPort } from '../../types/bt';
 
 interface BTNodeData {
   label: string;
@@ -9,6 +10,7 @@ interface BTNodeData {
   category: string;
   colors: { bg: string; border: string; text: string };
   ports: Record<string, string>;
+  portDefs?: BTPort[];
   preconditions?: Record<string, string>;
   postconditions?: Record<string, string>;
   description?: string;
@@ -31,16 +33,10 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
   const isLeaf = category === 'Action' || category === 'Condition';
   const isRootNode = isRoot === true;
 
-  // Memoize node definition lookup
-  const nodeDef = useMemo(
-    () => BUILTIN_NODES.find(n => n.type === d.nodeType),
-    [d.nodeType]
-  );
-
   // Memoize port entries grouping
   const { inputPorts, outputPorts, inoutPorts, hasPre, hasPost, portEntries, preEntries, postEntries } = useMemo(() => {
     // Group port entries by direction
-    const definedPorts = nodeDef?.ports ?? [];
+    const definedPorts = d.portDefs ?? [];
     const portEntries: Array<[string, string]> = [];
 
     // First add ports from node data (non-empty values)
@@ -90,7 +86,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
     const hasPost = postEntries.length > 0;
 
     return { inputPorts, outputPorts, inoutPorts, hasPre, hasPost, portEntries, preEntries, postEntries };
-  }, [nodeDef, ports, preconditions, postconditions]);
+  }, [d.portDefs, ports, preconditions, postconditions]);
 
   // Memoize handle list
   const handles = useMemo(() => {

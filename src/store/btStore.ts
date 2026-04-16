@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { BTProject, BTNodeDefinition, NodeStatus } from '../types/bt';
 import type { Node, Edge } from '@xyflow/react';
 import { defaultProject, parseXML, serializeXML } from '../utils/btXml';
-import { BUILTIN_NODES } from '../types/bt-constants';
+import { createNodeModelsForFormat, isBuiltinNodeType } from '../types/bt-constants';
 
 export interface DebugState {
   active: boolean;
@@ -263,7 +263,13 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
 
   setExportFormat(format: 3 | 4) {
     const { project } = get();
-    set({ project: { ...project, exportFormat: format } });
+    set({
+      project: {
+        ...project,
+        exportFormat: format,
+        nodeModels: createNodeModelsForFormat(project.nodeModels, format),
+      },
+    });
   },
 
   setProject(p) {
@@ -362,7 +368,7 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
 
   deleteNodeModel(type) {
     const { project } = get();
-    if (BUILTIN_NODES.find((n) => n.type === type)) {
+    if (isBuiltinNodeType(type, project.exportFormat ?? 4)) {
       alert('Cannot delete built-in node types');
       return;
     }

@@ -11,6 +11,10 @@ const Toolbar: React.FC = () => {
   const [missingModelCandidates, setMissingModelCandidates] = useState<MissingNodeModelCandidate[]>([]);
   const [xmlFormat, setXmlFormat] = useState<3 | 4>(project.exportFormat ?? 4);
 
+  useEffect(() => {
+    setXmlFormat(project.exportFormat ?? 4);
+  }, [project.exportFormat]);
+
   const toggleLanguage = () => {
     const newLang = i18n.language === 'en' ? 'zh' : 'en';
     i18n.changeLanguage(newLang);

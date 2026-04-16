@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useBTStore, useBTStoreApi } from '../store/BTStoreProvider';
 import type { BTNodeDefinition } from '../types/bt';
-import { BUILTIN_NODES, CATEGORY_COLORS } from '../types/bt-constants';
+import { CATEGORY_COLORS } from '../types/bt-constants';
 import type { Node } from '@xyflow/react';
 
 // Pre/post condition attribute keys (matching NodeEditModal)
@@ -69,8 +69,7 @@ const PropertiesPanel: React.FC = () => {
     ? project.nodeModels.find((m) => m.type === btNode.type)
     : undefined;
 
-  const builtinDef = btNode ? BUILTIN_NODES.find((n) => n.type === btNode.type) : undefined;
-  const nodeCategory = nodeDef?.category ?? builtinDef?.category ?? 'Control';
+  const nodeCategory = nodeDef?.category ?? 'Control';
   const colors = CATEGORY_COLORS[nodeCategory] ?? CATEGORY_COLORS.Control;
 
   // Force re-render when node selection changes
@@ -110,7 +109,7 @@ const PropertiesPanel: React.FC = () => {
     setLocalPostconditions(initPost);
   }, [nodeKey, btNode?.postconditions]);
 
-  const allPorts = builtinDef?.ports ?? nodeDef?.ports ?? [];
+  const allPorts = nodeDef?.ports ?? [];
   const isLeaf = nodeCategory === 'Action' || nodeCategory === 'Condition';
   const isSubTree = btNode?.type === 'SubTree';
 
@@ -258,18 +257,18 @@ const PropertiesPanel: React.FC = () => {
         }}
       >
         <div style={{ fontSize: 10, color: colors.text, opacity: 0.7, textTransform: 'uppercase' }}>
-          {nodeDef?.category ?? builtinDef?.category ?? 'Unknown'}
+          {nodeDef?.category ?? 'Unknown'}
         </div>
         <div style={{ fontWeight: 700, color: colors.text, fontSize: 14 }}>{btNode.type}</div>
-        {(nodeDef?.description ?? builtinDef?.description) && (
+        {nodeDef?.description && (
           <div style={{ fontSize: 11, color: '#8899bb', marginTop: 4 }}>
-            {nodeDef?.description ?? builtinDef?.description}
+            {nodeDef.description}
           </div>
         )}
       </div>
 
       {/* Node Name (for Control/Decorator/SubTree) */}
-      {(builtinDef || isSubTree) && !isLeaf && (
+      {(nodeDef || isSubTree) && !isLeaf && (
         <Section title={t('properties.name')}>
           <div style={{ display: 'flex', gap: 6 }}>
             <input
@@ -278,7 +277,7 @@ const PropertiesPanel: React.FC = () => {
               placeholder={t('properties.optionalAlias')}
               style={inputStyle}
             />
-            {(builtinDef || isSubTree) && (
+            {(nodeDef || isSubTree) && (
               <button className="btn-primary" onClick={handleSaveName} style={{ flexShrink: 0 }}>
                 {t('properties.save')}
               </button>

@@ -31,7 +31,7 @@ import { isSourceNodeConnectionAllowed } from '../utils/btConnectionRules';
 import { validatePortConnection } from '../utils/btXml';
 import BTFlowNode from './nodes/BTFlowNode';
 import BTFlowEdge from './edges/BTFlowEdge';
-import { BUILTIN_NODES, CATEGORY_COLORS } from '../types/bt-constants';
+import { CATEGORY_COLORS } from '../types/bt-constants';
 import { useContextMenu, type MenuConfig, type MenuItem } from './ContextMenu';
 import NodePicker from './NodePicker';
 import NodeEditModal from './NodeEditModal';
@@ -50,16 +50,15 @@ type BTCanvasProps = {
 
 /**
  * Get port definition for a specific port on a node type.
- * Looks in both BUILTIN_NODES and nodeModels.
+ * Looks in project nodeModels (which already includes builtins for current mode).
  */
 function getPortDefinition(
   nodeType: string,
   portName: string,
   nodeModels: BTNodeDefinition[]
 ): BTPort | undefined {
-  const builtin = BUILTIN_NODES.find((n) => n.type === nodeType);
   const model = nodeModels.find((n) => n.type === nodeType);
-  const ports = builtin?.ports ?? model?.ports;
+  const ports = model?.ports;
   return ports?.find((p) => p.name === portName);
 }
 
@@ -1295,8 +1294,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           y: event.clientY,
         });
 
-        const def: BTNodeDefinition | undefined = project.nodeModels.find((m) => m.type === template.type)
-          ?? BUILTIN_NODES.find((m) => m.type === template.type);
+        const def: BTNodeDefinition | undefined = project.nodeModels.find((m) => m.type === template.type);
         const category = def?.category ?? template.category ?? 'Action';
         const colors = CATEGORY_COLORS[category] ?? CATEGORY_COLORS['Action'];
 
@@ -1331,8 +1329,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         y: event.clientY,
       });
 
-      const def: BTNodeDefinition | undefined = project.nodeModels.find((m) => m.type === nodeType)
-        ?? BUILTIN_NODES.find((m) => m.type === nodeType);
+      const def: BTNodeDefinition | undefined = project.nodeModels.find((m) => m.type === nodeType);
       const category = def?.category ?? 'Action';
       const colors = CATEGORY_COLORS[category] ?? CATEGORY_COLORS['Action'];
 
