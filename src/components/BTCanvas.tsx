@@ -127,6 +127,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   const {
     project,
     activeTreeId,
+    setActiveTree,
     selectNode,
     selectedNodeIds,
     clearSelection,
@@ -517,7 +518,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       // Ensure category is valid key in CATEGORY_COLORS
       const validCategory = category && category in CATEGORY_COLORS ? category : 'Control';
       const colors = CATEGORY_COLORS[validCategory] ?? CATEGORY_COLORS.Control;
-      const isLeaf = category === 'Action' || category === 'Condition';
+      const isLeaf = category === 'Action' || category === 'Condition' || category === 'SubTree';
 
       const newNode: Node = {
         id: newNodeId,
@@ -1379,9 +1380,25 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   const dynamicMenuConfig: MenuConfig = useMemo(() => {
     const targetNodeId = menuState.targetId;
     const targetNode = targetNodeId ? nodes.find((n) => n.id === targetNodeId) : null;
-    const targetData = targetNode?.data as { isRoot?: boolean; type?: string; ports?: Record<string, string>; category?: string; name?: string; description?: string; childrenCount?: number; isCollapsed?: boolean } | undefined;
+    const targetData = targetNode?.data as {
+      isRoot?: boolean;
+      nodeType?: string;
+      label?: string;
+      ports?: Record<string, string>;
+      category?: string;
+      preconditions?: Record<string, string>;
+      postconditions?: Record<string, string>;
+      description?: string;
+      childrenCount?: number;
+      isCollapsed?: boolean;
+    } | undefined;
     const isRoot = targetData?.isRoot === true;
     const hasChildren = (targetData?.childrenCount ?? 0) > 0;
+    const isSubTreeNode = targetData?.nodeType === 'SubTree';
+    const referencedTreeId = isSubTreeNode ? targetData?.label : undefined;
+    const referencedTreeExists = referencedTreeId
+      ? project.trees.some((tree) => tree.id === referencedTreeId && tree.id !== activeTreeId)
+      : false;
     // Read collapsed state from store (authoritative)
     const collapsedSet = storeApi.getState().collapsedNodeIds;
     const isCollapsed = targetNodeId ? collapsedSet.has(targetNodeId) : false;
@@ -1467,17 +1484,30 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
             }
           },
         }] : []),
+        ...(isSubTreeNode ? [{
+          id: 'open-subtree',
+          label: 'Open Referenced Tree',
+          icon: '🌳',
+          disabled: !referencedTreeExists,
+          action: () => {
+            if (referencedTreeId && referencedTreeExists) {
+              setActiveTree(referencedTreeId);
+            }
+          },
+        }] : []),
         { id: 'sep-save', label: '', separator: true } as MenuItem,
         {
           id: 'save-template',
           label: 'Save as Template',
           icon: '⭐',
           action: () => {
-            if (targetData?.type) {
+            if (targetData?.nodeType) {
               storeApi.getState().addFavorite({
-                name: targetData.name || targetData.type,
-                type: targetData.type,
+                name: targetData.label || targetData.nodeType,
+                type: targetData.nodeType,
                 ports: targetData.ports,
+                preconditions: targetData.preconditions,
+                postconditions: targetData.postconditions,
                 category: targetData.category || 'Action',
               });
             }
@@ -1546,7 +1576,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         },
       ] : [],
     };
-  }, [menuState, nodes, deleteEdge, copyNode, pasteClipboardNode, clearSelection, toggleNodeCollapse, beautifyLayout]);
+  }, [menuState, nodes, deleteEdge, copyNode, pasteClipboardNode, clearSelection, toggleNodeCollapse, beautifyLayout, project.trees, activeTreeId, setActiveTree]);
 
   return (
     <div ref={canvasContainerRef} onMouseMove={handleCanvasMouseMove} style={{ width: '100%', height: '100%' }}>

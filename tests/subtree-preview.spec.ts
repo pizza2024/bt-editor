@@ -38,4 +38,15 @@ test.describe('SubTree Preview', () => {
       expect(count).toBeGreaterThanOrEqual(0);
     }
   });
+
+  test('SubTree can open referenced tree from context menu', async ({ page }) => {
+    const subtreeNode = page.locator('.react-flow__node').filter({ hasText: 'GraspPipeline' }).first();
+    await subtreeNode.click({ button: 'right' });
+
+    const openItem = page.getByText('Open Referenced Tree', { exact: false });
+    await expect(openItem).toBeVisible();
+    await openItem.click();
+
+    await expect(page.locator('.tree-item.active')).toContainText('GraspPipeline');
+  });
 });

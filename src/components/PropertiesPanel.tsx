@@ -110,7 +110,7 @@ const PropertiesPanel: React.FC = () => {
   }, [nodeKey, btNode?.postconditions]);
 
   const allPorts = nodeDef?.ports ?? [];
-  const isLeaf = nodeCategory === 'Action' || nodeCategory === 'Condition';
+  const isLeaf = nodeCategory === 'Action' || nodeCategory === 'Condition' || nodeCategory === 'SubTree';
   const isSubTree = btNode?.type === 'SubTree';
 
   // Save handler for port values

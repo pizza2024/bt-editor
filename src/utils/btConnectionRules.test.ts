@@ -235,18 +235,21 @@ describe('Leaf 节点（Action/Condition）连线规则', () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe('SubTree 节点连线规则', () => {
-  it('SUB-001: SubTree → Action，允许', () => {
+  it('SUB-001: SubTree → Action，拒绝（SubTree 是引用节点，不能有子节点）', () => {
     const sub = makeNode('sub', 'SubTree');
     const a = makeNode('a', 'Action');
     const edges: Edge[] = [{ id: 'e1', source: 'sub', target: 'a', sourceHandle: 'out0', targetHandle: 'in0' }];
     const r = canConnect(sub, 'a', edges, [sub, a]);
-    expect(r.allowed).toBe(true);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toContain('isValidConnection');
   });
 
-  it('SUB-X: SubTree → Control，允许', () => {
+  it('SUB-X: SubTree → Control，拒绝（SubTree 不能有子节点）', () => {
     const sub = makeNode('sub', 'SubTree');
     const seq = makeNode('seq', 'Control');
-    expect(canConnect(sub, 'seq', [], [sub, seq]).allowed).toBe(true);
+    const r = canConnect(sub, 'seq', [], [sub, seq]);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toContain('isValidConnection');
   });
 });
 

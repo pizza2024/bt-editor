@@ -110,4 +110,13 @@ test.describe('XML Export', () => {
     expect(xmlContent).toContain('<Action ID=');
     expect(xmlContent).toContain('<Condition ID=');
   });
+
+  test('已有树内容时不允许切换 v3 v4 版本', async ({ page }) => {
+    await page.goto('/');
+    await loadSampleTree(page);
+
+    await expect(page.locator('input[name="xml-format"][value="3"]')).toBeDisabled();
+    await expect(page.locator('input[name="xml-format"][value="4"]')).toBeDisabled();
+    await expect(page.getByText('Locked')).toBeVisible();
+  });
 });

@@ -4,12 +4,17 @@ import { useBTStore } from '../store/BTStoreProvider';
 import { SAMPLE_XML, analyzeMissingNodeModels, type MissingNodeModelCandidate } from '../utils/btXml';
 import MissingNodeModelsImporterModal from './MissingNodeModelsImporterModal';
 
+function isProjectModeSwitchLocked(project: { trees: Array<{ root: { children: unknown[] } }>; mainTreeId: string }): boolean {
+  return project.trees.some((tree) => tree.root.children.length > 0);
+}
+
 const Toolbar: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { loadXML, exportXML, project, activeTreeId, theme, toggleTheme, setExportFormat } = useBTStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [missingModelCandidates, setMissingModelCandidates] = useState<MissingNodeModelCandidate[]>([]);
   const [xmlFormat, setXmlFormat] = useState<3 | 4>(project.exportFormat ?? 4);
+  const formatSwitchLocked = isProjectModeSwitchLocked(project);
 
   useEffect(() => {
     setXmlFormat(project.exportFormat ?? 4);
@@ -102,6 +107,7 @@ const Toolbar: React.FC = () => {
             name="xml-format"
             value="3"
             checked={xmlFormat === 3}
+            disabled={formatSwitchLocked}
             onChange={(e) => {
               const fmt = parseInt(e.target.value) as 3 | 4;
               setXmlFormat(fmt);
@@ -117,6 +123,7 @@ const Toolbar: React.FC = () => {
             name="xml-format"
             value="4"
             checked={xmlFormat === 4}
+            disabled={formatSwitchLocked}
             onChange={(e) => {
               const fmt = parseInt(e.target.value) as 3 | 4;
               setXmlFormat(fmt);
@@ -127,6 +134,11 @@ const Toolbar: React.FC = () => {
           <span style={{ fontSize: '12px' }}>{t('toolbar.xmlFormatV4')}</span>
         </label>
       </div>
+      {formatSwitchLocked && (
+        <div style={{ fontSize: '11px', color: '#8899bb', paddingRight: '8px' }} title="Version switching is locked once the current project has tree content.">
+          Locked
+        </div>
+      )}
       <button className="toolbar-btn" onClick={handleExportPNG} title={t('toolbar.exportPng')}>
         🖼️ {t('toolbar.exportPng')}
       </button>

@@ -30,7 +30,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
   const borderColor = statusColor ?? (selected ? '#ffffff' : colors.border);
   const borderWidth = selected ? 2 : 1.5;
 
-  const isLeaf = category === 'Action' || category === 'Condition';
+  const isLeaf = category === 'Action' || category === 'Condition' || category === 'SubTree';
   const isRootNode = isRoot === true;
 
   // Memoize port entries grouping
@@ -243,7 +243,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
 
       {/* Category badge */}
       <div style={{ fontSize: 9, opacity: 0.7, marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        {isLeaf ? 'Action' : category}
+        {category === 'SubTree' ? 'SubTree' : (isLeaf ? 'Action' : category)}
       </div>
 
       {hasPre && (
