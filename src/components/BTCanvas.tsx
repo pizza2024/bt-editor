@@ -85,22 +85,39 @@ function inferPortDirection(
 function buildFlowNodes(
   treeId: string,
   project: BTProject,
-  debugStatuses: Map<string, import('../types/bt').NodeStatus>
+  debugStatuses: Map<string, import('../types/bt').NodeStatus>,
+  expandedSubTreeNodeIds: Set<string> = new Set()
 ): { nodes: Node[]; edges: Edge[] } {
   const tree = project.trees.find((t) => t.id === treeId);
   if (!tree) return { nodes: [], edges: [] };
   let { nodes, edges } = treeToFlow(tree, project.nodeModels);
   nodes = autoLayout(nodes, edges);
+  
   // Inject debug statuses into nodes
   nodes = nodes.map((n) => ({
     ...n,
-    data: { ...n.data, status: debugStatuses.get(n.id) ?? 'IDLE' },
+    data: { 
+      ...n.data, 
+      status: debugStatuses.get(n.id) ?? 'IDLE',
+      // Mark nodes that are expanded SubTrees for visual feedback
+      isExpandedSubTree: expandedSubTreeNodeIds.has(n.id),
+    },
   }));
+  
   // Inject target node status into edges (for RUNNING edge animation)
   edges = edges.map((e) => ({
     ...e,
     data: { ...e.data, targetStatus: debugStatuses.get(e.target) ?? 'IDLE' },
   }));
+  
+  // TODO: Implement full SubTree expansion rendering
+  // This would include:
+  // 1. For each expanded SubTree node, find its target tree
+  // 2. Add nodes from the target tree to the canvas
+  // 3. Handle circular references (detect if a tree references itself)
+  // 4. Adjust positions to show expanded subtrees below their parent
+  // For now, we just mark the nodes as expanded and update their visual appearance
+  
   return { nodes, edges };
 }
 
@@ -142,6 +159,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     pushHistory,
     collapsedNodeIds,
     toggleNodeCollapse,
+    expandedSubTreeNodeIds,
   } = useBTStore();
 
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
@@ -188,9 +206,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   const skipNextProjectSyncRef = useRef(false);
 
   const initial = useMemo(
-    () => buildFlowNodes(activeTreeId, project, debugState.nodeStatuses),
+    () => buildFlowNodes(activeTreeId, project, debugState.nodeStatuses, expandedSubTreeNodeIds),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeTreeId, project, debugState.nodeStatuses]
+    [activeTreeId, project, debugState.nodeStatuses, expandedSubTreeNodeIds]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initial.nodes);
@@ -213,6 +231,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   // ── Ctrl+Drag Subtree ──────────────────────────────────────────────────────
   // Track Ctrl key state separately via keydown/keyup so we can detect it reliably
   const ctrlKeyRef = useRef(false);
+  const shiftKeyRef = useRef(false);
   const [isBoxSelectionEnabled, setIsBoxSelectionEnabled] = React.useState(false);
   const lastSingleSelectedNodeIdRef = useRef<string | null>(null);
 
@@ -229,17 +248,28 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Control' || e.key === 'Meta') {
         ctrlKeyRef.current = true;
+      }
+      if (e.key === 'Shift') {
+        shiftKeyRef.current = true;
+      }
+      if (ctrlKeyRef.current || shiftKeyRef.current) {
         setIsBoxSelectionEnabled(true);
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === 'Control' || e.key === 'Meta') {
         ctrlKeyRef.current = false;
+      }
+      if (e.key === 'Shift') {
+        shiftKeyRef.current = false;
+      }
+      if (!ctrlKeyRef.current && !shiftKeyRef.current) {
         setIsBoxSelectionEnabled(false);
       }
     };
     const handleWindowBlur = () => {
       ctrlKeyRef.current = false;
+      shiftKeyRef.current = false;
       setIsBoxSelectionEnabled(false);
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -371,7 +401,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       || (storeLocalNodes.length === 0 && storeLocalEdges.length === 0);
     if (shouldForceLayout) {
       // Full rebuild with autoLayout for tree switch or initial load
-      const { nodes: n, edges: e } = buildFlowNodes(activeTreeId, project, debugState.nodeStatuses);
+      const { nodes: n, edges: e } = buildFlowNodes(activeTreeId, project, debugState.nodeStatuses, storeApi.getState().expandedSubTreeNodeIds);
       // Apply collapsed filter
       const collapsed = storeApi.getState().collapsedNodeIds;
       const collapsedDescendants = new Set<string>();
@@ -384,14 +414,23 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       });
       setNodes((prevNodes) => {
         const existingZIndexes = new Map(prevNodes.map((node) => [node.id, node.zIndex]));
-        return n.map((node) => ({
+        const rebuilt = n.map((node) => ({
           ...node,
           hidden: collapsedDescendants.has(node.id),
           zIndex: existingZIndexes.get(node.id) ?? node.zIndex,
           data: { ...node.data, isCollapsed: collapsed.has(node.id) },
         }));
+
+        // Keep detached nodes on canvas even when force-rebuilding from project tree.
+        const attachedIds = new Set(rebuilt.map((node) => node.id));
+        const detachedToRestore = prevNodes.filter((node) => detachedNodeIdsRef.current.has(node.id) && !attachedIds.has(node.id));
+        return [...rebuilt, ...detachedToRestore];
       });
-      setEdges(withSelectedEdge(e, selectedEdgeId, deleteEdge));
+      setEdges((prevEdges) => {
+        const attachedIds = new Set(n.map((node) => node.id));
+        const detachedEdgesToRestore = prevEdges.filter((edge) => !attachedIds.has(edge.source) && !attachedIds.has(edge.target));
+        return withSelectedEdge([...e, ...detachedEdgesToRestore], selectedEdgeId, deleteEdge);
+      });
       lastSyncedTreeRef.current = activeTreeId;
       forceLayoutRef.current = false;
     } else {
@@ -440,7 +479,11 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         ...e,
         data: { ...e.data, targetStatus: debugState.nodeStatuses.get(e.target) ?? 'IDLE' },
       }));
-      setEdges(withSelectedEdge(edgesWithStatus, selectedEdgeId, deleteEdge));
+      setEdges((prevEdges) => {
+        const attachedIds = new Set(laidOutNodes.map((node) => node.id));
+        const detachedEdgesToRestore = prevEdges.filter((edge) => !attachedIds.has(edge.source) && !attachedIds.has(edge.target));
+        return withSelectedEdge([...edgesWithStatus, ...detachedEdgesToRestore], selectedEdgeId, deleteEdge);
+      });
     }
   }, [activeTreeId, project, debugState.nodeStatuses, selectedEdgeId, deleteEdge, collapsedNodeIds]);
 
@@ -847,9 +890,12 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   const onNodeContextMenu = useCallback(
     (event: React.MouseEvent, node: Node) => {
       event.preventDefault();
+      if (!selectedNodeIds.has(node.id)) {
+        selectNode(node.id);
+      }
       showMenu(event, 'node', node.id);
     },
-    [showMenu]
+    [showMenu, selectedNodeIds, selectNode]
   );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -880,6 +926,14 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     },
     []
   );
+
+  const onCanvasContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    // Fallback guard: some selection overlays may bypass pane context handler.
+    if (selectedNodeIds.size > 1) {
+      event.preventDefault();
+      showMenu(event, 'pane', null);
+    }
+  }, [selectedNodeIds.size, showMenu]);
 
   // Save tree back to store when nodes/edges change (debounced)
   // This does NOT trigger the sync effect - they're decoupled
@@ -969,6 +1023,11 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   }, []);
 
   React.useEffect(() => {
+    const handleToggleExpandSubTree = (e: Event) => {
+      const customEvent = e as CustomEvent<{ nodeId: string }>;
+      storeApi.getState().toggleExpandSubTree(customEvent.detail.nodeId);
+    };
+
     const handleOpenSubTree = (e: Event) => {
       const customEvent = e as CustomEvent<{ nodeId: string }>;
       const node = nodes.find((item) => item.id === customEvent.detail.nodeId);
@@ -986,8 +1045,12 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       hideMenu();
     };
 
+    window.addEventListener('bt-toggle-expand-subtree', handleToggleExpandSubTree);
     window.addEventListener('bt-open-subtree', handleOpenSubTree);
-    return () => window.removeEventListener('bt-open-subtree', handleOpenSubTree);
+    return () => {
+      window.removeEventListener('bt-toggle-expand-subtree', handleToggleExpandSubTree);
+      window.removeEventListener('bt-open-subtree', handleOpenSubTree);
+    };
   }, [nodes, project.trees, activeTreeId, setActiveTree, clearSelection, hideMenu]);
 
   // Handle PNG export
@@ -1175,6 +1238,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           const rootIds = new Set(localNodes.filter((n) => (n.data as { isRoot?: boolean }).isRoot).map((n) => n.id));
           const idsToDelete = new Set([...selectedNodeIds].filter((id) => !rootIds.has(id)));
           if (idsToDelete.size === 0) return; // Only ROOT was selected, do nothing
+
           storeApi.getState().pushHistory();
           setNodes((prev) => prev.filter((n) => !idsToDelete.has(n.id)));
           setEdges((prev) => prev.filter((e) => !idsToDelete.has(e.source) && !idsToDelete.has(e.target)));
@@ -1302,7 +1366,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   // Drag-over handler for dropping from palette
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
+    const types = Array.from(event.dataTransfer.types);
+    const isFavoriteTemplateDrag = types.includes('application/bt-template');
+    event.dataTransfer.dropEffect = isFavoriteTemplateDrag ? 'copy' : 'move';
   }, []);
 
   const onDrop = useCallback(
@@ -1312,36 +1378,130 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       // Check for favorite template drop first
       const templateData = event.dataTransfer.getData('application/bt-template');
       if (templateData && rfInstanceRef.current) {
-        const template = JSON.parse(templateData);
-        const position = rfInstanceRef.current.screenToFlowPosition({
-          x: event.clientX,
-          y: event.clientY,
-        });
+        try {
+          const template = JSON.parse(templateData) as {
+            name?: string;
+            type: string;
+            category?: string;
+            ports?: Record<string, string>;
+            preconditions?: Record<string, string>;
+            postconditions?: Record<string, string>;
+            subtree?: {
+              rootId: string;
+              nodes: Array<{
+                id: string;
+                position: { x: number; y: number };
+                data: {
+                  label?: string;
+                  nodeType: string;
+                  category: string;
+                  colors?: { bg: string; border: string; text: string };
+                  ports?: Record<string, string>;
+                  preconditions?: Record<string, string>;
+                  postconditions?: Record<string, string>;
+                  childrenCount?: number;
+                  description?: string;
+                  cdata?: string;
+                };
+              }>;
+              edges: Array<{
+                source: string;
+                target: string;
+                sourceHandle?: string | null;
+                targetHandle?: string | null;
+              }>;
+            };
+          };
+          const position = rfInstanceRef.current.screenToFlowPosition({
+            x: event.clientX,
+            y: event.clientY,
+          });
 
-        const def: BTNodeDefinition | undefined = project.nodeModels.find((m) => m.type === template.type);
-        const category = def?.category ?? template.category ?? 'Action';
-        const colors = CATEGORY_COLORS[category] ?? CATEGORY_COLORS['Action'];
+          if (template.subtree && template.subtree.nodes.length > 0) {
+            const rootTemplateNode = template.subtree.nodes.find((n) => n.id === template.subtree!.rootId);
+            const anchor = rootTemplateNode?.position ?? template.subtree.nodes[0].position;
+            const dx = position.x - anchor.x;
+            const dy = position.y - anchor.y;
 
-        const newNode: Node = {
-          id: `n_${Math.random().toString(36).slice(2, 9)}`,
-          type: 'btNode',
-          position,
-          data: {
-            label: template.name || template.type,
-            nodeType: template.type,
-            category,
-            colors,
-            ports: template.ports || {},
-            preconditions: template.preconditions,
-            postconditions: template.postconditions,
-            childrenCount: 0,
-          },
-        };
+            const idMap = new Map<string, string>();
+            template.subtree.nodes.forEach((n) => {
+              idMap.set(n.id, `n_${Math.random().toString(36).slice(2, 9)}`);
+            });
 
-        storeApi.getState().pushHistory();
-        setNodes((nds) => [...nds, newNode]);
-        setSelectedEdgeId(null);
-        return;
+            const clonedNodes: Node[] = template.subtree.nodes.map((n) => {
+              const category = n.data.category || 'Action';
+              const colors = n.data.colors ?? (CATEGORY_COLORS[category] ?? CATEGORY_COLORS.Action);
+              return {
+                id: idMap.get(n.id)!,
+                type: 'btNode',
+                position: { x: n.position.x + dx, y: n.position.y + dy },
+                data: {
+                  label: n.data.label || n.data.nodeType,
+                  nodeType: n.data.nodeType,
+                  category,
+                  colors,
+                  ports: n.data.ports ?? {},
+                  preconditions: n.data.preconditions,
+                  postconditions: n.data.postconditions,
+                  childrenCount: n.data.childrenCount ?? 0,
+                  description: n.data.description,
+                  cdata: n.data.cdata,
+                },
+              };
+            });
+
+            const clonedEdges: Edge[] = template.subtree.edges
+              .map((e) => {
+                const source = idMap.get(e.source);
+                const target = idMap.get(e.target);
+                if (!source || !target) return null;
+                return {
+                  id: `e_${Math.random().toString(36).slice(2, 9)}`,
+                  source,
+                  target,
+                  sourceHandle: e.sourceHandle ?? undefined,
+                  targetHandle: e.targetHandle ?? undefined,
+                  type: 'btEdge',
+                  style: { stroke: '#6888aa', strokeWidth: 2 },
+                } as Edge;
+              })
+              .filter((e): e is Edge => Boolean(e));
+
+            storeApi.getState().pushHistory();
+            setNodes((nds) => [...nds, ...clonedNodes]);
+            setEdges((eds) => withSelectedEdge([...eds, ...clonedEdges], null, deleteEdge));
+            setSelectedEdgeId(null);
+            return;
+          }
+
+          const def: BTNodeDefinition | undefined = project.nodeModels.find((m) => m.type === template.type);
+          const category = def?.category ?? template.category ?? 'Action';
+          const colors = CATEGORY_COLORS[category] ?? CATEGORY_COLORS['Action'];
+
+          const newNode: Node = {
+            id: `n_${Math.random().toString(36).slice(2, 9)}`,
+            type: 'btNode',
+            position,
+            data: {
+              label: template.name || template.type,
+              nodeType: template.type,
+              category,
+              colors,
+              ports: template.ports || {},
+              preconditions: template.preconditions,
+              postconditions: template.postconditions,
+              childrenCount: 0,
+            },
+          };
+
+          storeApi.getState().pushHistory();
+          setNodes((nds) => [...nds, newNode]);
+          setSelectedEdgeId(null);
+          return;
+        } catch (error) {
+          console.error('Failed to parse favorite template:', error);
+          // Fall through to handle as regular node type
+        }
       }
 
       // Handle regular node type drop
@@ -1385,17 +1545,28 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     [project.nodeModels, addNodeModel, setNodes]
   );
 
-  // Check for nodes not connected to the ROOT-attached graph.
+  // Check for nodes that should trigger disconnected warning.
+  // Includes two cases:
+  // 1) Nodes not connected to the ROOT-attached graph.
+  // 2) Control nodes with no child edge (special invalid case aligned with Groot2 behavior).
   const disconnectedNodes = useMemo(() => {
     if (nodes.length === 0) return [];
 
     const attachedIds = getAttachedNodeIds(nodes, edges);
+    const outgoingCountBySource = new Map<string, number>();
+    edges.forEach((edge) => {
+      outgoingCountBySource.set(edge.source, (outgoingCountBySource.get(edge.source) ?? 0) + 1);
+    });
+
     return nodes.filter((n) => {
       // Skip ROOT - it doesn't need connections
-      const data = n.data as { isRoot?: boolean };
+      const data = n.data as { isRoot?: boolean; category?: string };
       if (data?.isRoot) return false;
 
-      return !attachedIds.has(n.id);
+      const isDetachedFromRoot = !attachedIds.has(n.id);
+      const isControlLeaf = data?.category === 'Control' && (outgoingCountBySource.get(n.id) ?? 0) === 0;
+
+      return isDetachedFromRoot || isControlLeaf;
     });
   }, [nodes, edges]);
 
@@ -1479,13 +1650,13 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           danger: true,
           action: () => {
             if (!menuState.targetId) return;
-            storeApi.getState().pushHistory();
-
             // Get all descendant node IDs (subtree)
             const subtreeNodeIds = new Set<string>();
             subtreeNodeIds.add(menuState.targetId);
             const descendants = getDescendantIds(menuState.targetId, edges);
             descendants.forEach((id) => subtreeNodeIds.add(id));
+
+            storeApi.getState().pushHistory();
 
             // Delete all nodes in subtree
             setNodes((prev) => prev.filter((n) => !subtreeNodeIds.has(n.id)));
@@ -1525,12 +1696,66 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           icon: '⭐',
           action: () => {
             if (targetData?.nodeType) {
+              const fallbackNodeType = targetData.nodeType;
+              const rootId = targetNodeId;
+              const descendants = rootId ? getDescendantIds(rootId, edges) : [];
+              const subtreeNodeIds = new Set<string>(rootId ? [rootId, ...descendants] : []);
+
+              const subtreeNodes = nodes
+                .filter((n) => subtreeNodeIds.has(n.id))
+                .map((n) => {
+                  const d = n.data as {
+                    label?: string;
+                    nodeType?: string;
+                    category?: string;
+                    colors?: { bg: string; border: string; text: string };
+                    ports?: Record<string, string>;
+                    preconditions?: Record<string, string>;
+                    postconditions?: Record<string, string>;
+                    childrenCount?: number;
+                    description?: string;
+                    cdata?: string;
+                  };
+                  return {
+                    id: n.id,
+                    position: { x: n.position.x, y: n.position.y },
+                    data: {
+                      label: d.label,
+                      nodeType: d.nodeType ?? fallbackNodeType,
+                      category: d.category ?? 'Action',
+                      colors: d.colors,
+                      ports: d.ports,
+                      preconditions: d.preconditions,
+                      postconditions: d.postconditions,
+                      childrenCount: d.childrenCount,
+                      description: d.description,
+                      cdata: d.cdata,
+                    },
+                  };
+                });
+
+              const subtreeEdges = edges
+                .filter((e) => subtreeNodeIds.has(e.source) && subtreeNodeIds.has(e.target))
+                .map((e) => ({
+                  source: e.source,
+                  target: e.target,
+                  sourceHandle: e.sourceHandle ?? null,
+                  targetHandle: e.targetHandle ?? null,
+                }));
+
               storeApi.getState().addFavorite({
                 name: targetData.label || targetData.nodeType,
                 type: targetData.nodeType,
                 ports: targetData.ports,
                 preconditions: targetData.preconditions,
                 postconditions: targetData.postconditions,
+                subtree: rootId
+                  ? {
+                      rootId,
+                      nodes: subtreeNodes,
+                      edges: subtreeEdges,
+                    }
+                  : undefined,
                 category: targetData.category || 'Action',
               });
             }
@@ -1549,6 +1774,22 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         },
       ] : [],
       pane: menuState.targetType === 'pane' ? [
+        ...(selectedNodeIds.size > 1 ? [{
+          id: 'delete-selected',
+          label: `Delete Selected (${selectedNodeIds.size})`,
+          icon: '🗑️',
+          danger: true,
+          action: () => {
+            const idsToDelete = new Set(selectedNodeIds);
+            storeApi.getState().pushHistory();
+            setNodes((prev) => prev.filter((n) => !idsToDelete.has(n.id)));
+            setEdges((prev) => prev.filter((e) => !idsToDelete.has(e.source) && !idsToDelete.has(e.target)));
+            const nextDetached = new Set(detachedNodeIdsRef.current);
+            idsToDelete.forEach((id) => nextDetached.delete(id));
+            detachedNodeIdsRef.current = nextDetached;
+            clearSelection();
+          },
+        }, { id: 'sep-batch', label: '', separator: true } as MenuItem] : []),
         ...(storeApi.getState().clipboard ? [{
           id: 'paste',
           label: 'Paste Node',
@@ -1599,10 +1840,10 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         },
       ] : [],
     };
-  }, [menuState, nodes, deleteEdge, copyNode, pasteClipboardNode, clearSelection, toggleNodeCollapse, beautifyLayout, project.trees, activeTreeId, setActiveTree]);
+  }, [menuState, nodes, edges, selectedNodeIds, deleteEdge, copyNode, pasteClipboardNode, clearSelection, toggleNodeCollapse, beautifyLayout, project.trees, activeTreeId, setActiveTree]);
 
   return (
-    <div ref={canvasContainerRef} onMouseMove={handleCanvasMouseMove} style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div ref={canvasContainerRef} onMouseMove={handleCanvasMouseMove} onContextMenu={onCanvasContextMenu} style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TreeTabs />
       <div style={{ width: '100%', height: '100%', minHeight: 0, position: 'relative' }}>
       <ReactFlow

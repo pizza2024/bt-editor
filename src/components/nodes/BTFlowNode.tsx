@@ -19,6 +19,7 @@ interface BTNodeData {
   childrenCount: number;
   isRoot?: boolean;
   isCollapsed?: boolean;
+  isExpandedSubTree?: boolean;
   cdata?: string;
   [key: string]: unknown;
 }
@@ -26,11 +27,12 @@ interface BTNodeData {
 const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId }) => {
   const { t } = useTranslation();
   const d = data as BTNodeData;
-  const { label, category, colors, ports, preconditions, postconditions, description, status, isRoot, isCollapsed, cdata } = d;
+  const { label, category, colors, ports, preconditions, postconditions, description, status, isRoot, isCollapsed, isExpandedSubTree, cdata } = d;
 
   const statusColor = status ? STATUS_COLORS[status] : undefined;
-  const borderColor = statusColor ?? (selected ? '#ffffff' : colors.border);
-  const borderWidth = selected ? 2 : 1.5;
+  const isSubTreeExpanded = isExpandedSubTree === true;
+  const borderColor = statusColor ?? (isSubTreeExpanded ? '#4fa0ff' : (selected ? '#ffffff' : colors.border));
+  const borderWidth = isSubTreeExpanded ? 2.5 : (selected ? 2 : 1.5);
 
   const isLeaf = category === 'Action' || category === 'Condition' || category === 'SubTree';
   const isRootNode = isRoot === true;
@@ -142,6 +144,14 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
   const handleOpenSubTreeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     window.dispatchEvent(new CustomEvent('bt-open-subtree', {
+      detail: { nodeId }
+    }));
+  };
+
+  // Toggle SubTree expansion (inline preview)
+  const handleToggleExpandSubTree = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.dispatchEvent(new CustomEvent('bt-toggle-expand-subtree', {
       detail: { nodeId }
     }));
   };
@@ -259,33 +269,76 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
         </div>
       )}
 
+      {/* Expanded SubTree indicator */}
+      {isSubTreeExpanded && (
+        <div
+          style={{
+            position: 'absolute',
+            top: -8,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#4fa0ff',
+            borderRadius: '50%',
+            width: 16,
+            height: 16,
+            border: '2px solid var(--bg-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 10,
+            color: '#000',
+            zIndex: 10,
+          }}
+          title="SubTree is expanded"
+        >
+          ⬇
+        </div>
+      )}
+
       {/* Category badge */}
       <div style={{ fontSize: 9, opacity: 0.7, marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
         {category === 'SubTree' ? 'SubTree' : (isLeaf ? 'Action' : category)}
       </div>
 
       {isSubTreeNode && (
-        <button
-          type="button"
-          onClick={handleOpenSubTreeClick}
-          title={`${t('contextMenu.openReferencedTree')} (Ctrl/Cmd+Double Click)`}
-          aria-label={t('contextMenu.openReferencedTree')}
-          style={{
-            position: 'absolute',
-            top: 6,
-            right: 6,
-            background: 'rgba(255,255,255,0.08)',
-            border: '1px solid rgba(255,255,255,0.18)',
-            color: colors.text,
-            borderRadius: 4,
-            padding: '1px 5px',
-            fontSize: 10,
-            cursor: 'pointer',
-            lineHeight: 1.2,
-          }}
-        >
-          ↗
-        </button>
+        <div style={{ display: 'flex', gap: 4, position: 'absolute', top: 6, right: 6 }}>
+          <button
+            type="button"
+            onClick={handleToggleExpandSubTree}
+            title="Toggle expanded preview in canvas"
+            aria-label="Toggle SubTree preview"
+            style={{
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.18)',
+              color: colors.text,
+              borderRadius: 4,
+              padding: '1px 5px',
+              fontSize: 10,
+              cursor: 'pointer',
+              lineHeight: 1.2,
+            }}
+          >
+            ⬇
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenSubTreeClick}
+            title={`${t('contextMenu.openReferencedTree')} (Ctrl/Cmd+Double Click)`}
+            aria-label={t('contextMenu.openReferencedTree')}
+            style={{
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.18)',
+              color: colors.text,
+              borderRadius: 4,
+              padding: '1px 5px',
+              fontSize: 10,
+              cursor: 'pointer',
+              lineHeight: 1.2,
+            }}
+          >
+            ↗
+          </button>
+        </div>
       )}
 
       {hasPre && (

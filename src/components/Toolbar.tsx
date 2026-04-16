@@ -16,8 +16,12 @@ const Toolbar: React.FC = () => {
   const [xmlFormat, setXmlFormat] = useState<3 | 4>(project.exportFormat ?? 4);
   const formatSwitchLocked = isProjectModeSwitchLocked(project);
 
+  // Sync xmlFormat state when project's exportFormat changes (e.g., after loading XML)
   useEffect(() => {
-    setXmlFormat(project.exportFormat ?? 4);
+    const detectedFormat = project.exportFormat ?? 4;
+    if (detectedFormat !== xmlFormat) {
+      setXmlFormat(detectedFormat);
+    }
   }, [project.exportFormat]);
 
   const toggleLanguage = () => {

@@ -51,6 +51,31 @@ export interface FavoriteTemplate {
   ports?: Record<string, string>;
   preconditions?: Record<string, string>;
   postconditions?: Record<string, string>;
+  subtree?: {
+    rootId: string;
+    nodes: Array<{
+      id: string;
+      position: { x: number; y: number };
+      data: {
+        label?: string;
+        nodeType: string;
+        category: string;
+        colors?: { bg: string; border: string; text: string };
+        ports?: Record<string, string>;
+        preconditions?: Record<string, string>;
+        postconditions?: Record<string, string>;
+        childrenCount?: number;
+        description?: string;
+        cdata?: string;
+      };
+    }>;
+    edges: Array<{
+      source: string;
+      target: string;
+      sourceHandle?: string | null;
+      targetHandle?: string | null;
+    }>;
+  };
   category: string;
   createdAt: number;
 }
@@ -69,6 +94,8 @@ export interface BTStore {
   localEdges: Edge[];
   // Collapsed nodes (hidden in canvas)
   collapsedNodeIds: Set<string>;
+  // Expanded SubTree nodes (showing their content inline in canvas)
+  expandedSubTreeNodeIds: Set<string>;
 
   // Groot2 real-time debugging
   connectGroot2: (url?: string) => Promise<void>;
@@ -114,6 +141,10 @@ export interface BTStore {
   updateNodeCdata: (nodeId: string, cdata: string | undefined) => void;
   toggleNodeCollapse: (nodeId: string) => void;
   isNodeCollapsed: (nodeId: string) => boolean;
+  // SubTree expand/collapse (for inline preview)
+  toggleExpandSubTree: (nodeId: string) => void;
+  isSubTreeExpanded: (nodeId: string) => boolean;
+  clearExpandedSubTrees: () => void;
 
   // Selection
   selectNode: (id: string | null) => void;
@@ -174,6 +205,7 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
   localNodes: [],
   localEdges: [],
   collapsedNodeIds: new Set<string>(),
+  expandedSubTreeNodeIds: new Set<string>(),
   // Undo/Redo history
   _undoStack: [] as BTProject[],
   _redoStack: [] as BTProject[],
@@ -303,7 +335,12 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
     const nextOpened = openedTreeIds.includes(id)
       ? openedTreeIds
       : [...openedTreeIds, id];
-    set({ activeTreeId: id, openedTreeIds: nextOpened, selectedNodeId: null });
+    set({ 
+      activeTreeId: id, 
+      openedTreeIds: nextOpened, 
+      selectedNodeId: null,
+      expandedSubTreeNodeIds: new Set(), // Clear expanded SubTrees when switching trees
+    });
   },
 
   openTreeTab(id) {
@@ -535,6 +572,28 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
   // Check if node is collapsed
   isNodeCollapsed(nodeId: string): boolean {
     return get().collapsedNodeIds.has(nodeId);
+  },
+
+  // Toggle SubTree node expansion (for inline preview)
+  toggleExpandSubTree(nodeId: string) {
+    const { expandedSubTreeNodeIds } = get();
+    const newSet = new Set(expandedSubTreeNodeIds);
+    if (newSet.has(nodeId)) {
+      newSet.delete(nodeId);
+    } else {
+      newSet.add(nodeId);
+    }
+    set({ expandedSubTreeNodeIds: newSet });
+  },
+
+  // Check if SubTree node is expanded
+  isSubTreeExpanded(nodeId: string): boolean {
+    return get().expandedSubTreeNodeIds.has(nodeId);
+  },
+
+  // Clear all expanded SubTrees (e.g., when switching trees)
+  clearExpandedSubTrees() {
+    set({ expandedSubTreeNodeIds: new Set() });
   },
 
   clipboard: null,
