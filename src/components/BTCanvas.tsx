@@ -169,12 +169,28 @@ function buildFlowNodes(
     });
     if (!subRoot) return;
 
+    // Exclude the ROOT node – connect host directly to ROOT's children for visual continuity
+    const subNodesWithoutRoot = laidOutSubNodes.filter((n) => n.id !== subRoot.id);
+    const rootChildEdges = rawSubEdges.filter((e) => e.source === subRoot.id);
+    const rootChildIds = new Set(rootChildEdges.map((e) => e.target));
+    const subEdgesWithoutRoot = rawSubEdges.filter(
+      (e) => e.source !== subRoot.id && e.target !== subRoot.id
+    );
+
+    // Find the topmost non-root node to anchor the Y offset
+    const topNonRootNode = subNodesWithoutRoot.reduce<Node | null>((top, n) => {
+      if (!top || n.position.y < top.position.y) return n;
+      return top;
+    }, null);
+    if (!topNonRootNode && subNodesWithoutRoot.length === 0) return;
+
     const hostWidth = typeof hostNode.width === 'number' ? hostNode.width : 160;
     const subRootWidth = typeof subRoot.width === 'number' ? subRoot.width : 120;
     const hostCenterX = hostNode.position.x + hostWidth / 2;
     const subRootCenterX = subRoot.position.x + subRootWidth / 2;
     const offsetX = hostCenterX - subRootCenterX;
-    const offsetY = hostNode.position.y + 170 - subRoot.position.y;
+    const topY = topNonRootNode ? topNonRootNode.position.y : subRoot.position.y;
+    const offsetY = hostNode.position.y + 100 - topY;
 
     const idMap = new Map<string, string>();
     laidOutSubNodes.forEach((subNode) => {
@@ -182,7 +198,7 @@ function buildFlowNodes(
     });
 
     expandedPreviewNodes.push(
-      ...laidOutSubNodes.map((subNode) => ({
+      ...subNodesWithoutRoot.map((subNode) => ({
         ...subNode,
         id: idMap.get(subNode.id) ?? subNode.id,
         position: {
@@ -201,7 +217,7 @@ function buildFlowNodes(
     );
 
     expandedPreviewEdges.push(
-      ...rawSubEdges.map((subEdge, edgeIndex) => ({
+      ...subEdgesWithoutRoot.map((subEdge, edgeIndex) => ({
         ...subEdge,
         id: `subexp-edge:${hostNode.id}:${targetTreeId}:${edgeIndex}`,
         source: idMap.get(subEdge.source) ?? subEdge.source,
@@ -220,25 +236,28 @@ function buildFlowNodes(
       }))
     );
 
-    const mappedRootId = idMap.get(subRoot.id);
-    if (mappedRootId) {
-      expandedPreviewEdges.push({
-        id: `subexp-link:${hostNode.id}:${targetTreeId}`,
-        source: hostNode.id,
-        target: mappedRootId,
-        type: 'btEdge',
-        style: {
-          stroke: '#7eb5ff',
-          strokeWidth: 2,
-          strokeDasharray: '6 4',
-          opacity: 0.95,
-        },
-        data: {
-          isSubTreePreview: true,
-          targetStatus: 'IDLE',
-        },
-      });
-    }
+    // Connect host SubTree node directly to each of ROOT's children
+    rootChildIds.forEach((childId, idx) => {
+      const mappedChildId = idMap.get(childId);
+      if (mappedChildId) {
+        expandedPreviewEdges.push({
+          id: `subexp-link:${hostNode.id}:${targetTreeId}:${idx}`,
+          source: hostNode.id,
+          target: mappedChildId,
+          type: 'btEdge',
+          style: {
+            stroke: '#7eb5ff',
+            strokeWidth: 2,
+            strokeDasharray: '6 4',
+            opacity: 0.95,
+          },
+          data: {
+            isSubTreePreview: true,
+            targetStatus: 'IDLE',
+          },
+        });
+      }
+    });
   };
 
   nodes.forEach((node) => {
