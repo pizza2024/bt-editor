@@ -76,10 +76,10 @@ const KeyboardShortcutsHelp: React.FC<KeyboardShortcutsHelpProps> = ({ onClose }
                   fontWeight: 700,
                   textTransform: 'uppercase',
                   letterSpacing: '0.08em',
-                  color: '#6677aa',
+                  color: 'var(--text-muted)',
                   marginBottom: 6,
                   paddingBottom: 4,
-                  borderBottom: '1px solid #2a3a5a',
+                  borderBottom: '1px solid var(--border-light)',
                 }}
               >
                 {group.category}
@@ -90,26 +90,26 @@ const KeyboardShortcutsHelp: React.FC<KeyboardShortcutsHelpProps> = ({ onClose }
                     key={item.description}
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                   >
-                    <span style={{ fontSize: 12, color: '#99aabb' }}>{item.description}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{item.description}</span>
                     <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
                       {item.keys.map((key, i) => (
                         <React.Fragment key={key + i}>
                           {i > 0 && (
-                            <span style={{ fontSize: 10, color: '#445', margin: '0 1px' }}>/</span>
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)', margin: '0 1px' }}>/</span>
                           )}
                           <kbd
                             style={{
-                              background: '#1e2840',
-                              border: '1px solid #3a4a6a',
+                              background: 'var(--bg-tertiary)',
+                              border: '1px solid var(--border-light)',
                               borderRadius: 4,
                               padding: '2px 6px',
                               fontSize: 11,
                               fontFamily: 'monospace',
-                              color: '#c8e0ff',
+                              color: 'var(--text-link)',
                               minWidth: 20,
                               textAlign: 'center',
                               display: 'inline-block',
-                              boxShadow: '0 1px 0 #3a4a6a',
+                              boxShadow: '0 1px 0 rgba(74, 128, 208, 0.3)',
                             }}
                           >
                             {key}
@@ -126,11 +126,11 @@ const KeyboardShortcutsHelp: React.FC<KeyboardShortcutsHelpProps> = ({ onClose }
 
         <div
           className="modal-footer"
-          style={{ justifyContent: 'center', borderTop: '1px solid #2a3a5a', padding: '8px 16px' }}
+          style={{ justifyContent: 'center', borderTop: '1px solid var(--border-light)', padding: '8px 16px' }}
         >
-          <span style={{ fontSize: 11, color: '#556677' }}>
-            Press <kbd style={{ background: '#1e2840', border: '1px solid #3a4a6a', borderRadius: 3, padding: '1px 5px', fontSize: 11, fontFamily: 'monospace', color: '#c8e0ff' }}>?</kbd> or{' '}
-            <kbd style={{ background: '#1e2840', border: '1px solid #3a4a6a', borderRadius: 3, padding: '1px 5px', fontSize: 11, fontFamily: 'monospace', color: '#c8e0ff' }}>F1</kbd> to toggle this
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            Press <kbd style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 3, padding: '1px 5px', fontSize: 11, fontFamily: 'monospace', color: 'var(--text-link)' }}>?</kbd> or{' '}
+            <kbd style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 3, padding: '1px 5px', fontSize: 11, fontFamily: 'monospace', color: 'var(--text-link)' }}>F1</kbd> to toggle this
             panel
           </span>
         </div>

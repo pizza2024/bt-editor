@@ -119,8 +119,8 @@ const Toolbar: React.FC = () => {
         ⬇ {t('toolbar.exportXml')}
       </button>
       {/* XML Format selector */}
-      <div style={{ display: 'flex', gap: '2px', alignItems: 'center', marginLeft: '12px', paddingRight: '8px', backgroundColor: '#1e2535', borderRadius: '4px', padding: '4px 8px' }}>
-        <span style={{ fontSize: '12px', color: '#8899bb', marginRight: '4px', fontWeight: 500 }}>
+      <div className="toolbar-format-group">
+        <span className="toolbar-format-label">
           {t('toolbar.xmlFormat')}
         </span>
         <button
@@ -129,18 +129,7 @@ const Toolbar: React.FC = () => {
             setExportFormat(3);
           }}
           disabled={formatSwitchLocked}
-          style={{
-            padding: '4px 10px',
-            fontSize: '12px',
-            fontWeight: xmlFormat === 3 ? 600 : 400,
-            backgroundColor: xmlFormat === 3 ? '#4a80d0' : '#2a3f5f',
-            color: xmlFormat === 3 ? '#ffffff' : '#8899bb',
-            border: xmlFormat === 3 ? '1px solid #6ba3ff' : '1px solid #3a5f8f',
-            borderRadius: '3px',
-            cursor: formatSwitchLocked ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s ease',
-            opacity: formatSwitchLocked ? 0.5 : 1,
-          }}
+          className={`toolbar-format-btn${xmlFormat === 3 ? ' active' : ''}`}
           title={formatSwitchLocked ? t('toolbar.formatLockedHint') : 'Select BehaviorTree.CPP v3 format'}
         >
           v3
@@ -151,18 +140,7 @@ const Toolbar: React.FC = () => {
             setExportFormat(4);
           }}
           disabled={formatSwitchLocked}
-          style={{
-            padding: '4px 10px',
-            fontSize: '12px',
-            fontWeight: xmlFormat === 4 ? 600 : 400,
-            backgroundColor: xmlFormat === 4 ? '#4a80d0' : '#2a3f5f',
-            color: xmlFormat === 4 ? '#ffffff' : '#8899bb',
-            border: xmlFormat === 4 ? '1px solid #6ba3ff' : '1px solid #3a5f8f',
-            borderRadius: '3px',
-            cursor: formatSwitchLocked ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s ease',
-            opacity: formatSwitchLocked ? 0.5 : 1,
-          }}
+          className={`toolbar-format-btn${xmlFormat === 4 ? ' active' : ''}`}
           title={formatSwitchLocked ? t('toolbar.formatLockedHint') : 'Select BehaviorTree.CPP v4 format'}
         >
           v4

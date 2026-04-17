@@ -46,9 +46,9 @@ const TreeManager: React.FC = () => {
           placeholder={t('treeManager.filterPlaceholder')}
           style={{
             width: '100%',
-            background: '#1a1a2e',
-            border: '1px solid #334',
-            color: '#ccd',
+            background: 'var(--bg-tertiary)',
+            border: '1px solid var(--border-light)',
+            color: 'var(--text-primary)',
             borderRadius: 4,
             padding: '4px 6px',
             fontSize: 12,
@@ -93,9 +93,9 @@ const TreeManager: React.FC = () => {
                   }}
                   onClick={(e) => e.stopPropagation()}
                   style={{
-                    background: '#1a1a2e',
+                    background: 'var(--bg-tertiary)',
                     border: '1px solid #4a80d0',
-                    color: '#ccd',
+                    color: 'var(--text-primary)',
                     borderRadius: 3,
                     padding: '2px 4px',
                     fontSize: 12,
@@ -139,7 +139,7 @@ const TreeManager: React.FC = () => {
                 );
               })}
               {visibleTrees.length === 0 && (
-                <div style={{ fontSize: 11, color: '#8899bb', padding: '4px 2px' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '4px 2px' }}>
                   {t('treeManager.noTreesFound')}
                 </div>
               )}
@@ -155,9 +155,9 @@ const TreeManager: React.FC = () => {
             placeholder={t('treeManager.newTreePlaceholder')}
             style={{
               flex: 1,
-              background: '#1a1a2e',
-              border: '1px solid #334',
-              color: '#ccd',
+              background: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-light)',
+              color: 'var(--text-primary)',
               borderRadius: 4,
               padding: '4px 6px',
               fontSize: 12,

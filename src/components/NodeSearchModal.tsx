@@ -111,10 +111,10 @@ const NodeSearchModal: React.FC<NodeSearchModalProps> = ({ nodes, onSelect, onCl
             alignItems: 'center',
             gap: 8,
             padding: '10px 14px',
-            borderBottom: '1px solid #2a3a5a',
+            borderBottom: '1px solid var(--border-light)',
           }}
         >
-          <span style={{ color: '#667', fontSize: 16 }}>🔍</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 16 }}>🔍</span>
           <input
             ref={inputRef}
             type="text"
@@ -127,20 +127,20 @@ const NodeSearchModal: React.FC<NodeSearchModalProps> = ({ nodes, onSelect, onCl
               background: 'transparent',
               border: 'none',
               outline: 'none',
-              color: '#e0e8f8',
+              color: 'var(--text-primary)',
               fontSize: 14,
               fontFamily: 'inherit',
             }}
           />
           <kbd
             style={{
-              background: '#1e2840',
-              border: '1px solid #3a4a6a',
+              background: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-light)',
               borderRadius: 4,
               padding: '2px 6px',
               fontSize: 11,
               fontFamily: 'monospace',
-              color: '#667',
+              color: 'var(--text-muted)',
             }}
           >
             ESC
@@ -154,16 +154,16 @@ const NodeSearchModal: React.FC<NodeSearchModalProps> = ({ nodes, onSelect, onCl
             flexWrap: 'wrap',
             gap: 6,
             padding: '8px 14px 10px',
-            borderBottom: '1px solid #2a3a5a',
+            borderBottom: '1px solid var(--border-light)',
           }}
         >
           <button
             type="button"
             onClick={() => setSelectedCategory('All')}
             style={{
-              border: selectedCategory === 'All' ? '1px solid #5b8def' : '1px solid #3a4a6a',
-              background: selectedCategory === 'All' ? '#23385f' : '#1e2840',
-              color: selectedCategory === 'All' ? '#e0e8ff' : '#8899bb',
+              border: selectedCategory === 'All' ? '1px solid #5b8def' : '1px solid var(--border-light)',
+              background: selectedCategory === 'All' ? 'rgba(74, 128, 208, 0.24)' : 'var(--bg-tertiary)',
+              color: selectedCategory === 'All' ? 'var(--text-link)' : 'var(--text-muted)',
               borderRadius: 4,
               fontSize: 11,
               padding: '3px 8px',
@@ -181,9 +181,9 @@ const NodeSearchModal: React.FC<NodeSearchModalProps> = ({ nodes, onSelect, onCl
                 type="button"
                 onClick={() => setSelectedCategory(category)}
                 style={{
-                  border: isActive ? `1px solid ${colors.border}` : '1px solid #3a4a6a',
-                  background: isActive ? colors.bg : '#1e2840',
-                  color: isActive ? colors.text : '#8899bb',
+                  border: isActive ? `1px solid ${colors.border}` : '1px solid var(--border-light)',
+                  background: isActive ? colors.bg : 'var(--bg-tertiary)',
+                  color: isActive ? colors.text : 'var(--text-muted)',
                   borderRadius: 4,
                   fontSize: 11,
                   padding: '3px 8px',
@@ -210,7 +210,7 @@ const NodeSearchModal: React.FC<NodeSearchModalProps> = ({ nodes, onSelect, onCl
               style={{
                 padding: '24px 16px',
                 textAlign: 'center',
-                color: '#556677',
+                color: 'var(--text-muted)',
                 fontSize: 13,
               }}
             >
@@ -238,7 +238,7 @@ const NodeSearchModal: React.FC<NodeSearchModalProps> = ({ nodes, onSelect, onCl
                     gap: 10,
                     padding: '8px 14px',
                     cursor: 'pointer',
-                    background: isSelected ? '#2a3a5a' : 'transparent',
+                    background: isSelected ? 'var(--bg-hover)' : 'transparent',
                     borderLeft: isSelected ? '2px solid #5b8def' : '2px solid transparent',
                     transition: 'background 0.1s',
                   }}
@@ -258,7 +258,7 @@ const NodeSearchModal: React.FC<NodeSearchModalProps> = ({ nodes, onSelect, onCl
                     <div
                       style={{
                         fontSize: 13,
-                        color: isSelected ? '#e0e8ff' : '#c0cce0',
+                        color: isSelected ? 'var(--text-link)' : 'var(--text-primary)',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -269,7 +269,7 @@ const NodeSearchModal: React.FC<NodeSearchModalProps> = ({ nodes, onSelect, onCl
                     <div
                       style={{
                         fontSize: 11,
-                        color: '#556677',
+                        color: 'var(--text-muted)',
                         fontFamily: 'monospace',
                       }}
                     >
@@ -296,13 +296,13 @@ const NodeSearchModal: React.FC<NodeSearchModalProps> = ({ nodes, onSelect, onCl
                   {isSelected && (
                     <kbd
                       style={{
-                        background: '#1e2840',
-                        border: '1px solid #3a4a6a',
+                        background: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-light)',
                         borderRadius: 3,
                         padding: '1px 5px',
                         fontSize: 10,
                         fontFamily: 'monospace',
-                        color: '#556677',
+                        color: 'var(--text-muted)',
                         flexShrink: 0,
                       }}
                     >
@@ -321,9 +321,9 @@ const NodeSearchModal: React.FC<NodeSearchModalProps> = ({ nodes, onSelect, onCl
             display: 'flex',
             gap: 16,
             padding: '6px 14px',
-            borderTop: '1px solid #2a3a5a',
+            borderTop: '1px solid var(--border-light)',
             fontSize: 11,
-            color: '#445566',
+            color: 'var(--text-muted)',
           }}
         >
           <span>↑↓ navigate</span>
