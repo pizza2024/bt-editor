@@ -522,6 +522,19 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     };
   }, []);
 
+  // Disable text selection globally while box-selection mode is active so that
+  // dragging the selection marquee doesn't accidentally select text outside the canvas.
+  React.useEffect(() => {
+    if (isBoxSelectionEnabled) {
+      document.body.style.userSelect = 'none';
+    } else {
+      document.body.style.userSelect = '';
+    }
+    return () => {
+      document.body.style.userSelect = '';
+    };
+  }, [isBoxSelectionEnabled]);
+
   const onNodeDragStart = useCallback(
     (event: React.MouseEvent, node: Node) => {
       const useSubtreeDrag = ctrlKeyRef.current || event.altKey;

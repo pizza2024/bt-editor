@@ -4,6 +4,7 @@ import type { NodeProps } from '@xyflow/react';
 import { STATUS_COLORS } from '../../types/bt-constants';
 import type { BTPort } from '../../types/bt';
 import { useTranslation } from 'react-i18next';
+import { useBTStore } from '../../store/BTStoreProvider';
 
 interface BTNodeData {
   label: string;
@@ -27,14 +28,20 @@ interface BTNodeData {
 
 const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId }) => {
   const { t } = useTranslation();
+  const { theme } = useBTStore();
+  const isLightTheme = theme === 'light';
   const d = data as BTNodeData;
   const { label, category, colors, ports, preconditions, postconditions, description, status, isRoot, isCollapsed, isExpandedSubTree, isSubTreeUnlinked, cdata } = d;
 
   const statusColor = status ? STATUS_COLORS[status] : undefined;
   const isSubTreeExpanded = isExpandedSubTree === true;
   const hasSubTreeLinkWarning = isSubTreeUnlinked === true;
-  const borderColor = statusColor ?? (hasSubTreeLinkWarning ? '#ff9153' : (isSubTreeExpanded ? '#4fa0ff' : (selected ? '#ffffff' : colors.border)));
-  const borderWidth = isSubTreeExpanded ? 2.5 : (selected ? 2 : 1.5);
+  const borderColor = statusColor ?? (hasSubTreeLinkWarning ? '#ff9153' : (isSubTreeExpanded ? '#4fa0ff' : colors.border));
+  const borderWidth = isSubTreeExpanded ? 2.5 : 1.5;
+  const selectedShadow = isLightTheme
+    ? '0 6px 28px rgba(59,130,246,0.7), 0 2px 10px rgba(59,130,246,0.4)'
+    : '0 0 22px 7px rgba(255,255,255,0.55), 0 2px 8px rgba(0,0,0,0.5)';
+  const baseShadow = isLightTheme ? '0 2px 8px rgba(0,0,0,0.15)' : '0 2px 8px rgba(0,0,0,0.5)';
 
   const isLeaf = category === 'Action' || category === 'Condition' || category === 'SubTree';
   const isRootNode = isRoot === true;
@@ -211,7 +218,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
           fontFamily: 'monospace',
           fontSize: 11,
           textAlign: 'center',
-          boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.3)' : '0 2px 8px rgba(0,0,0,0.5)',
+          boxShadow: selected ? selectedShadow : baseShadow,
           userSelect: 'none',
           position: 'relative',
           cursor: 'pointer',
@@ -237,8 +244,8 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
         fontFamily: 'monospace',
         fontSize: 12,
         textAlign: 'center',
-        boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.3)' : '0 2px 8px rgba(0,0,0,0.5)',
-        transition: 'border-color 0.2s, box-shadow 0.2s',
+        boxShadow: selected ? selectedShadow : baseShadow,
+        transition: 'box-shadow 0.2s',
         userSelect: 'none',
         position: 'relative',
         cursor: 'pointer',
