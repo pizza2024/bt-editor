@@ -112,8 +112,8 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
       );
     }
 
-    // Source handle (output) - only for nodes that can have children
-    if (!isLeaf) {
+    // Source handle (output) - only for nodes that can have children, or expanded SubTree nodes
+    if (!isLeaf || isSubTreeExpanded) {
       result.push(
         <Handle
           key="source"
@@ -125,7 +125,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
     }
 
     return result;
-  }, [isRootNode, isLeaf]);
+  }, [isRootNode, isLeaf, isSubTreeExpanded]);
 
   // Double click opens referenced subtree for SubTree nodes, edit modal for others.
   const handleDoubleClick = (e: React.MouseEvent) => {
