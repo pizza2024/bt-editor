@@ -16,7 +16,8 @@ type PaletteEntry = {
 
 const NodePalette: React.FC = () => {
   const { t } = useTranslation();
-  const { project, addNodeModel, updateNodeModel, deleteNodeModel } = useBTStore();
+  const { project, theme, addNodeModel, updateNodeModel, deleteNodeModel } = useBTStore();
+  const isLightTheme = theme === 'light';
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(CATEGORIES));
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsed, setCollapsed] = useState(false);
@@ -118,6 +119,7 @@ const NodePalette: React.FC = () => {
           {/* Search box */}
           <div style={{ padding: '8px 8px 4px 8px' }}>
             <input
+              className="node-palette-search-input"
               type="text"
               placeholder={t('palette.searchPlaceholder')}
               value={searchQuery}
@@ -125,12 +127,13 @@ const NodePalette: React.FC = () => {
               style={{
                 width: '100%',
                 padding: '6px 10px',
-                background: '#0d0d1a',
-                border: '1px solid #334',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-light)',
                 borderRadius: 4,
-                color: '#ccd',
+                color: 'var(--text-primary)',
                 fontSize: 12,
                 boxSizing: 'border-box',
+                boxShadow: isLightTheme ? '0 1px 0 rgba(74, 128, 208, 0.14)' : 'none',
               }}
             />
           </div>
@@ -152,11 +155,17 @@ const NodePalette: React.FC = () => {
                     <div key={cat} style={{ marginBottom: 4 }}>
                       <button
                         className="cat-header"
-                        style={{ borderColor: colors.border, color: colors.text }}
+                        style={{
+                          borderColor: isLightTheme ? `${colors.border}99` : colors.border,
+                          background: isLightTheme ? `${colors.bg}1f` : colors.bg,
+                          color: isLightTheme ? colors.border : colors.text,
+                        }}
                         onClick={() => toggleCat(cat)}
                       >
-                        <span>{isExpanded ? '▼' : '▶'} {cat}</span>
-                        <span style={{ fontSize: 10, opacity: 0.7 }}>{matchingInCat.length}</span>
+                        <span style={{ fontWeight: 700, letterSpacing: '0.02em' }}>
+                          {isExpanded ? '▼' : '▶'} {cat}
+                        </span>
+                        <span style={{ fontSize: 10, opacity: isLightTheme ? 0.9 : 0.75 }}>{matchingInCat.length}</span>
                       </button>
 
                       {isExpanded && (
@@ -182,7 +191,7 @@ const NodePalette: React.FC = () => {
                   );
                 }).filter(Boolean)
               ) : (
-                <div style={{ fontSize: 11, color: '#556', padding: '8px' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '8px' }}>
                   No models match &quot;{searchQuery}&quot;
                 </div>
               )}
@@ -197,11 +206,17 @@ const NodePalette: React.FC = () => {
                 <div key={cat} style={{ marginBottom: 4 }}>
                   <button
                     className="cat-header"
-                    style={{ borderColor: colors.border, color: colors.text }}
+                    style={{
+                      borderColor: isLightTheme ? `${colors.border}99` : colors.border,
+                      background: isLightTheme ? `${colors.bg}1f` : colors.bg,
+                      color: isLightTheme ? colors.border : colors.text,
+                    }}
                     onClick={() => toggleCat(cat)}
                   >
-                    <span>{isExpanded ? '▼' : '▶'} {cat}</span>
-                    <span style={{ fontSize: 10, opacity: 0.7 }}>{entries.length}</span>
+                    <span style={{ fontWeight: 700, letterSpacing: '0.02em' }}>
+                      {isExpanded ? '▼' : '▶'} {cat}
+                    </span>
+                    <span style={{ fontSize: 10, opacity: isLightTheme ? 0.9 : 0.75 }}>{entries.length}</span>
                   </button>
 
                   {isExpanded && (
@@ -222,7 +237,7 @@ const NodePalette: React.FC = () => {
                         />
                       ))}
                       {entries.length === 0 && (
-                        <div style={{ fontSize: 11, color: '#556', padding: '4px 8px' }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '4px 8px' }}>
                           No nodes
                         </div>
                       )}

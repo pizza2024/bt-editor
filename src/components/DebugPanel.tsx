@@ -59,24 +59,24 @@ const Groot2ConnectionPanel: React.FC = () => {
 
   return (
     <div style={{
-      background: '#0f0f1e',
-      border: '1px solid #223',
+      background: 'var(--bg-primary)',
+      border: '1px solid var(--border-color)',
       borderRadius: 6,
       padding: 10,
       marginBottom: 10,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: '#8899bb', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
           Live Debug
         </span>
         {/* Status dot */}
         <span style={{
           width: 8, height: 8, borderRadius: '50%',
-          background: connected ? '#4caf50' : connecting ? '#ff9800' : '#556',
+          background: connected ? '#3ea86a' : connecting ? '#e39a2f' : 'var(--text-muted)',
           boxShadow: connected ? '0 0 6px #4caf50' : 'none',
           flexShrink: 0,
         }} />
-        <span style={{ fontSize: 10, color: connected ? '#4caf50' : '#556' }}>
+        <span style={{ fontSize: 10, color: connected ? '#3ea86a' : 'var(--text-muted)' }}>
           {connected ? `Connected${groot2State.treeId ? ` (tree: ${groot2State.treeId})` : ''}` :
            connecting ? 'Connecting...' : 'Disconnected'}
         </span>
@@ -92,10 +92,10 @@ const Groot2ConnectionPanel: React.FC = () => {
           disabled={connected || connecting}
           style={{
             flex: 1,
-            background: '#1a1a2e',
-            border: '1px solid #334',
+            background: 'var(--bg-tertiary)',
+            border: '1px solid var(--border-light)',
             borderRadius: 4,
-            color: '#aabbd0',
+            color: 'var(--text-secondary)',
             padding: '4px 8px',
             fontSize: 11,
             fontFamily: 'monospace',
@@ -125,9 +125,9 @@ const Groot2ConnectionPanel: React.FC = () => {
       {(connectError || error) && (
         <div style={{
           fontSize: 10,
-          color: '#ef5350',
-          background: '#1a0a0a',
-          border: '1px solid #3d1515',
+          color: '#c03f3f',
+          background: 'rgba(224, 64, 64, 0.1)',
+          border: '1px solid rgba(224, 64, 64, 0.4)',
           borderRadius: 4,
           padding: '4px 8px',
         }}>
@@ -137,17 +137,17 @@ const Groot2ConnectionPanel: React.FC = () => {
 
       {/* Info about what this does */}
       {!connected && !connecting && (
-        <div style={{ fontSize: 10, color: '#556', marginTop: 4 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
           Connect to a running BT.CPP runtime via the Groot2 bridge service.
-          Requires <code style={{ color: '#7a9ccc' }}>npm run dev</code> in{' '}
-          <code style={{ color: '#7a9ccc' }}>packages/btcpp-groot2-bridge/</code>.
+          Requires <code style={{ color: 'var(--text-link)' }}>npm run dev</code> in{' '}
+          <code style={{ color: 'var(--text-link)' }}>packages/btcpp-groot2-bridge/</code>.
         </div>
       )}
 
       {/* Live statuses preview */}
       {connected && groot2State.liveStatuses.size > 0 && (
         <div style={{ marginTop: 6 }}>
-          <div style={{ fontSize: 10, color: '#556', marginBottom: 4 }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
             Live node statuses ({groot2State.liveStatuses.size} nodes):
           </div>
           <div style={{
@@ -163,15 +163,15 @@ const Groot2ConnectionPanel: React.FC = () => {
                 fontFamily: 'monospace',
                 padding: '1px 5px',
                 borderRadius: 3,
-                background: '#1a1a2e',
-                color: STATUS_COLORS[status] ?? '#8899bb',
+                background: 'var(--bg-tertiary)',
+                color: STATUS_COLORS[status] ?? 'var(--text-muted)',
                 border: `1px solid ${STATUS_COLORS[status] ?? '#334'}33`,
               }}>
                 {uid}: {status}
               </span>
             ))}
             {groot2State.liveStatuses.size > 20 && (
-              <span style={{ fontSize: 10, color: '#556' }}>+{groot2State.liveStatuses.size - 20} more</span>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>+{groot2State.liveStatuses.size - 20} more</span>
             )}
           </div>
         </div>
@@ -244,9 +244,9 @@ const LogReplayPanel: React.FC = () => {
             rows={6}
             style={{
               width: '100%',
-              background: '#0f0f1e',
-              border: '1px solid #334',
-              color: '#aabbd0',
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border-light)',
+              color: 'var(--text-secondary)',
               borderRadius: 4,
               padding: 6,
               fontSize: 11,
@@ -271,13 +271,13 @@ const LogReplayPanel: React.FC = () => {
             <button className="btn-secondary" onClick={() => debugStep('back')} disabled={playIndex <= -1}>◀</button>
             <button className="btn-primary" onClick={debugPlay}>▶ Play</button>
             <button className="btn-secondary" onClick={() => debugStep('forward')} disabled={playIndex >= entries.length - 1}>▶</button>
-            <span style={{ marginLeft: 4, fontSize: 11, color: '#8899bb' }}>
+            <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--text-muted)' }}>
               {playIndex + 1} / {entries.length}
             </span>
           </div>
 
           {/* Progress bar */}
-          <div style={{ background: '#1a1a2e', borderRadius: 4, height: 6, marginBottom: 8, overflow: 'hidden' }}>
+          <div style={{ background: 'var(--bg-tertiary)', borderRadius: 4, height: 6, marginBottom: 8, overflow: 'hidden' }}>
             <div
               style={{
                 background: '#4a80d0',
@@ -291,7 +291,7 @@ const LogReplayPanel: React.FC = () => {
           {/* Current entry info */}
           {currentEntry && (
             <div style={{
-              background: '#1a1a2e',
+              background: 'var(--bg-tertiary)',
               border: `1px solid ${STATUS_COLORS[currentEntry.status]}`,
               borderRadius: 4,
               padding: '6px 8px',
@@ -299,15 +299,15 @@ const LogReplayPanel: React.FC = () => {
               marginBottom: 8,
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                <span style={{ color: '#8899bb' }}>t={currentEntry.timestamp}ms</span>
+                <span style={{ color: 'var(--text-muted)' }}>t={currentEntry.timestamp}ms</span>
                 <span style={{ color: STATUS_COLORS[currentEntry.status], fontWeight: 700 }}>
                   {currentEntry.status}
                 </span>
               </div>
-              <div style={{ fontWeight: 600, color: '#ccd' }}>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                 {currentEntry.nodeType} <span style={{ opacity: 0.7 }}>"{currentEntry.nodeName}"</span>
               </div>
-              <div style={{ fontSize: 10, color: '#667' }}>tree: {currentEntry.treeId}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>tree: {currentEntry.treeId}</div>
             </div>
           )}
 
@@ -317,7 +317,7 @@ const LogReplayPanel: React.FC = () => {
             overflowY: 'auto',
             fontSize: 10,
             fontFamily: 'monospace',
-            background: '#0f0f1e',
+            background: 'var(--bg-primary)',
             borderRadius: 4,
             padding: 4,
           }}>
@@ -326,13 +326,13 @@ const LogReplayPanel: React.FC = () => {
                 key={i}
                 style={{
                   padding: '1px 4px',
-                  background: i === playIndex ? '#1e2a3e' : 'transparent',
-                  color: i <= playIndex ? '#aabbd0' : '#445',
+                  background: i === playIndex ? 'var(--bg-hover)' : 'transparent',
+                  color: i <= playIndex ? 'var(--text-secondary)' : 'var(--text-muted)',
                   cursor: 'default',
                   borderLeft: i === playIndex ? '2px solid #4a80d0' : '2px solid transparent',
                 }}
               >
-                <span style={{ color: '#556' }}>{e.timestamp}ms </span>
+                <span style={{ color: 'var(--text-muted)' }}>{e.timestamp}ms </span>
                 <span>{e.nodeType} </span>
                 <span style={{ opacity: 0.7 }}>"{e.nodeName}" </span>
                 <span style={{ color: STATUS_COLORS[e.status] }}>{e.status}</span>
@@ -343,7 +343,7 @@ const LogReplayPanel: React.FC = () => {
       )}
 
       {!active && (
-        <div style={{ color: '#445', fontSize: 12, textAlign: 'center', padding: '20px 0' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', padding: '20px 0' }}>
           No log loaded. Use a sample log or load a .log file.
         </div>
       )}
@@ -362,11 +362,11 @@ const DebugPanel: React.FC = () => {
       <Groot2ConnectionPanel />
 
       <div style={{
-        borderTop: '1px solid #1e1e30',
+        borderTop: '1px solid var(--border-color)',
         paddingTop: 10,
         marginTop: 4,
       }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#8899bb', marginBottom: 8, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
           Log Replay
         </div>
         <LogReplayPanel />

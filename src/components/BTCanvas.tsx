@@ -372,6 +372,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   const storeApi = useBTStoreApi();
   const {
     project,
+    theme,
     activeTreeId,
     setActiveTree,
     selectNode,
@@ -389,6 +390,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     toggleNodeCollapse,
     expandedSubTreeNodeIds,
   } = useBTStore();
+  const isLightTheme = theme === 'light';
 
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
@@ -2217,11 +2219,26 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         }}
         nodeExtent={[[-5000, -5000], [5000, 5000]]}
         fitView
-        colorMode="dark"
+        colorMode={theme}
+        style={{
+          background: isLightTheme ? '#f7f9fd' : 'var(--bg-primary)',
+        }}
         defaultEdgeOptions={{ type: 'btEdge', style: { stroke: '#6888aa', strokeWidth: 2 } }}
       >
-        <Background variant={BackgroundVariant.Dots} color="#334" gap={20} size={1} />
-        <Controls style={{ background: '#1e2235', border: '1px solid #334' }}>
+        <Background
+          variant={BackgroundVariant.Dots}
+          color={isLightTheme ? '#c6d4ea' : '#334'}
+          gap={20}
+          size={1}
+        />
+        <Controls
+          style={{
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-light)',
+            color: 'var(--text-secondary)',
+            boxShadow: isLightTheme ? '0 2px 10px rgba(44, 73, 118, 0.18)' : 'none',
+          }}
+        >
           <ControlButton
             onClick={onToggleSidePanels}
             title={toggleSidePanelsLabel}
@@ -2234,9 +2251,11 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
                 height: 12,
                 display: 'inline-block',
                 borderRadius: 2,
-                border: '2px solid #7f96c0',
+                border: `2px solid ${isLightTheme ? '#6d89b7' : '#7f96c0'}`,
                 boxSizing: 'border-box',
-                background: sidePanelsCollapsed ? 'rgba(127, 150, 192, 0.28)' : 'transparent',
+                background: sidePanelsCollapsed
+                  ? (isLightTheme ? 'rgba(74, 128, 208, 0.22)' : 'rgba(127, 150, 192, 0.28)')
+                  : 'transparent',
               }}
             />
           </ControlButton>
@@ -2259,13 +2278,14 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         >
           <div
             style={{
-              background: '#1e2235',
-              border: '1px solid #334',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-light)',
               borderRadius: 4,
               padding: '4px 10px',
               fontSize: 12,
-              color: '#8899bb',
+              color: 'var(--text-muted)',
               fontFamily: 'monospace',
+              boxShadow: isLightTheme ? '0 2px 8px rgba(44, 73, 118, 0.14)' : 'none',
             }}
           >
             {Math.round(zoomLevel * 100)}%
@@ -2276,7 +2296,10 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
             const d = n.data as { colors?: { bg: string } };
             return d.colors?.bg ?? '#333';
           }}
-          style={{ background: '#1a1a2e', border: '1px solid #334' }}
+          style={{
+            background: isLightTheme ? '#eef4ff' : '#1a1a2e',
+            border: `1px solid ${isLightTheme ? '#c3d1e6' : '#334'}`,
+          }}
         />
       </ReactFlow>
 

@@ -235,7 +235,7 @@ const PropertiesPanel: React.FC = () => {
     return (
       <div className="panel properties-panel">
         <div className="panel-header">{t('properties.panel')}</div>
-        <div style={{ color: '#667', padding: 12, fontSize: 12 }}>
+        <div className="properties-empty-state">
           {t('properties.selectNode')}
         </div>
       </div>
@@ -248,20 +248,18 @@ const PropertiesPanel: React.FC = () => {
 
       {/* Node identity */}
       <div
+        className="properties-node-card"
         style={{
           background: colors.bg,
           border: `1px solid ${colors.border}`,
-          borderRadius: 6,
-          padding: '8px 10px',
-          marginBottom: 12,
         }}
       >
-        <div style={{ fontSize: 10, color: colors.text, opacity: 0.7, textTransform: 'uppercase' }}>
+        <div className="properties-node-category" style={{ color: colors.text }}>
           {nodeDef?.category ?? 'Unknown'}
         </div>
-        <div style={{ fontWeight: 700, color: colors.text, fontSize: 14 }}>{btNode.type}</div>
+        <div className="properties-node-title" style={{ color: colors.text }}>{btNode.type}</div>
         {nodeDef?.description && (
-          <div style={{ fontSize: 11, color: '#8899bb', marginTop: 4 }}>
+          <div className="properties-node-desc" style={{ color: colors.text }}>
             {nodeDef.description}
           </div>
         )}
@@ -270,7 +268,7 @@ const PropertiesPanel: React.FC = () => {
       {/* Node Name (for Control/Decorator/SubTree) */}
       {(nodeDef || isSubTree) && !isLeaf && (
         <Section title={t('properties.name')}>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div className="properties-inline-actions">
             <input
               value={localName}
               onChange={(e) => setLocalName(e.target.value)}
@@ -289,7 +287,7 @@ const PropertiesPanel: React.FC = () => {
       {/* SubTree Target */}
       {isSubTree && (
         <Section title={t('properties.subtreeTarget')}>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+          <div className="properties-inline-actions" style={{ marginBottom: 8 }}>
             <select
               value={localSubTreeId}
               onChange={(e) => setLocalSubTreeId(e.target.value)}
@@ -308,7 +306,7 @@ const PropertiesPanel: React.FC = () => {
               {t('properties.save')}
             </button>
           </div>
-          <div style={{ fontSize: 10, color: '#556' }}>
+          <div className="properties-hint">
             {t('properties.availableTrees', { trees: project.trees.map((tree) => tree.id).join(', ') })}
           </div>
         </Section>
@@ -318,10 +316,10 @@ const PropertiesPanel: React.FC = () => {
       {allPorts.length > 0 && (
         <Section title={t('properties.portValues')}>
           {allPorts.map((p) => (
-            <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <label style={{ fontSize: 11, color: '#8899bb', minWidth: 80, flexShrink: 0 }}>
+            <div key={p.name} className="properties-field-row">
+              <label className="properties-field-label" style={{ minWidth: 80 }}>
                 {p.name}
-                <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 2 }}>({p.direction})</span>
+                <span className="properties-field-dir">({p.direction})</span>
               </label>
               <input
                 value={localPorts[p.name] ?? ''}
@@ -332,10 +330,10 @@ const PropertiesPanel: React.FC = () => {
               />
             </div>
           ))}
-          <button className="btn-primary" onClick={handleSavePorts} style={{ marginTop: 4 }}>
+          <button className="btn-primary properties-save-btn" onClick={handleSavePorts}>
             {t('properties.apply')}
           </button>
-          <div style={{ fontSize: 10, color: '#556', marginTop: 4 }}>
+          <div className="properties-hint">
             {t('properties.portDescription')}
           </div>
         </Section>
@@ -343,12 +341,12 @@ const PropertiesPanel: React.FC = () => {
 
       {/* Pre-conditions Section */}
       <Section title={t('properties.preconditions')}>
-        <div style={{ fontSize: 10, color: '#556', marginBottom: 6 }}>
+        <div className="properties-hint" style={{ marginBottom: 6 }}>
           {t('properties.preconditionsDescription')}
         </div>
         {PRE_KEYS.map(key => (
-          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <label style={{ fontSize: 11, color: '#8899bb', minWidth: 90, flexShrink: 0 }}>
+          <div key={key} className="properties-field-row">
+            <label className="properties-field-label" style={{ minWidth: 90 }}>
               {t(`conditions.${PRE_I18N_KEYS[key]}`)}
             </label>
             <input
@@ -360,19 +358,19 @@ const PropertiesPanel: React.FC = () => {
             />
           </div>
         ))}
-        <button className="btn-primary" onClick={handleSaveConditions} style={{ marginTop: 4 }}>
+        <button className="btn-primary properties-save-btn" onClick={handleSaveConditions}>
           {t('properties.save')}
         </button>
       </Section>
 
       {/* Post-conditions Section */}
       <Section title={t('properties.postconditions')}>
-        <div style={{ fontSize: 10, color: '#556', marginBottom: 6 }}>
+        <div className="properties-hint" style={{ marginBottom: 6 }}>
           {t('properties.postconditionsDescription')}
         </div>
         {POST_KEYS.map(key => (
-          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <label style={{ fontSize: 11, color: '#8899bb', minWidth: 90, flexShrink: 0 }}>
+          <div key={key} className="properties-field-row">
+            <label className="properties-field-label" style={{ minWidth: 90 }}>
               {t(`conditions.${POST_I18N_KEYS[key]}`)}
             </label>
             <input
@@ -384,20 +382,20 @@ const PropertiesPanel: React.FC = () => {
             />
           </div>
         ))}
-        <button className="btn-primary" onClick={handleSaveConditions} style={{ marginTop: 4 }}>
+        <button className="btn-primary properties-save-btn" onClick={handleSaveConditions}>
           {t('properties.save')}
         </button>
       </Section>
 
       {/* Node ID */}
-      <div style={{ fontSize: 10, color: '#445', marginTop: 12 }}>ID: {btNode.id}</div>
+      <div className="properties-node-id">ID: {btNode.id}</div>
     </div>
   );
 };
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div style={{ marginBottom: 12 }}>
-    <div style={{ fontSize: 11, color: '#6677aa', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+  <div className="properties-section">
+    <div className="properties-section-title">
       {title}
     </div>
     {children}
@@ -405,11 +403,11 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
 );
 
 const inputStyle: React.CSSProperties = {
-  background: '#1a1a2e',
-  border: '1px solid #334',
-  color: '#ccd',
-  borderRadius: 4,
-  padding: '3px 6px',
+  background: 'var(--bg-tertiary)',
+  border: '1px solid var(--border-light)',
+  color: 'var(--text-primary)',
+  borderRadius: 6,
+  padding: '5px 8px',
   fontSize: 12,
   width: '100%',
   boxSizing: 'border-box',
