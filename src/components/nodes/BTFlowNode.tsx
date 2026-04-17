@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
-import { STATUS_COLORS, BUILTIN_NODES } from '../../types/bt-constants';
+import { STATUS_COLORS } from '../../types/bt-constants';
+import type { BTPort } from '../../types/bt';
+import { useTranslation } from 'react-i18next';
 
 interface BTNodeData {
   label: string;
@@ -9,6 +11,7 @@ interface BTNodeData {
   category: string;
   colors: { bg: string; border: string; text: string };
   ports: Record<string, string>;
+  portDefs?: BTPort[];
   preconditions?: Record<string, string>;
   postconditions?: Record<string, string>;
   description?: string;
@@ -16,30 +19,32 @@ interface BTNodeData {
   childrenCount: number;
   isRoot?: boolean;
   isCollapsed?: boolean;
+  isExpandedSubTree?: boolean;
+  isSubTreeUnlinked?: boolean;
+  cdata?: string;
   [key: string]: unknown;
 }
 
 const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId }) => {
+  const { t } = useTranslation();
   const d = data as BTNodeData;
-  const { label, category, colors, ports, preconditions, postconditions, description, status, isRoot, isCollapsed } = d;
+  const { label, category, colors, ports, preconditions, postconditions, description, status, isRoot, isCollapsed, isExpandedSubTree, isSubTreeUnlinked, cdata } = d;
 
   const statusColor = status ? STATUS_COLORS[status] : undefined;
-  const borderColor = statusColor ?? (selected ? '#ffffff' : colors.border);
-  const borderWidth = selected ? 2 : 1.5;
+  const isSubTreeExpanded = isExpandedSubTree === true;
+  const hasSubTreeLinkWarning = isSubTreeUnlinked === true;
+  const borderColor = statusColor ?? (hasSubTreeLinkWarning ? '#ff9153' : (isSubTreeExpanded ? '#4fa0ff' : (selected ? '#ffffff' : colors.border)));
+  const borderWidth = isSubTreeExpanded ? 2.5 : (selected ? 2 : 1.5);
 
-  const isLeaf = category === 'Action' || category === 'Condition';
+  const isLeaf = category === 'Action' || category === 'Condition' || category === 'SubTree';
   const isRootNode = isRoot === true;
-
-  // Memoize node definition lookup
-  const nodeDef = useMemo(
-    () => BUILTIN_NODES.find(n => n.type === d.nodeType),
-    [d.nodeType]
-  );
+  const isSubTreeNode = category === 'SubTree';
+  const subtreeToggleIcon = isSubTreeExpanded ? '▾' : '▸';
 
   // Memoize port entries grouping
   const { inputPorts, outputPorts, inoutPorts, hasPre, hasPost, portEntries, preEntries, postEntries } = useMemo(() => {
     // Group port entries by direction
-    const definedPorts = nodeDef?.ports ?? [];
+    const definedPorts = d.portDefs ?? [];
     const portEntries: Array<[string, string]> = [];
 
     // First add ports from node data (non-empty values)
@@ -89,7 +94,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
     const hasPost = postEntries.length > 0;
 
     return { inputPorts, outputPorts, inoutPorts, hasPre, hasPost, portEntries, preEntries, postEntries };
-  }, [nodeDef, ports, preconditions, postconditions]);
+  }, [d.portDefs, ports, preconditions, postconditions]);
 
   // Memoize handle list
   const handles = useMemo(() => {
@@ -107,8 +112,8 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
       );
     }
 
-    // Source handle (output) - only for nodes that can have children
-    if (!isLeaf) {
+    // Source handle (output) - only for nodes that can have children, or expanded SubTree nodes
+    if (!isLeaf || isSubTreeExpanded) {
       result.push(
         <Handle
           key="source"
@@ -120,13 +125,36 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
     }
 
     return result;
-  }, [isRootNode, isLeaf]);
+  }, [isRootNode, isLeaf, isSubTreeExpanded]);
 
-  // Double click opens edit modal (disabled for ROOT)
+  // Double click opens referenced subtree for SubTree nodes, edit modal for others.
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (isRootNode) return;
     e.stopPropagation();
+
+    if (isSubTreeNode) {
+      window.dispatchEvent(new CustomEvent('bt-open-subtree', {
+        detail: { nodeId }
+      }));
+      return;
+    }
+
     window.dispatchEvent(new CustomEvent('bt-node-edit', {
+      detail: { nodeId }
+    }));
+  };
+
+  const handleOpenSubTreeClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.dispatchEvent(new CustomEvent('bt-open-subtree', {
+      detail: { nodeId }
+    }));
+  };
+
+  // Toggle SubTree expansion (inline preview)
+  const handleToggleExpandSubTree = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.dispatchEvent(new CustomEvent('bt-toggle-expand-subtree', {
       detail: { nodeId }
     }));
   };
@@ -244,10 +272,96 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
         </div>
       )}
 
+      {/* Expanded SubTree indicator */}
+      {isSubTreeExpanded && (
+        <div
+          style={{
+            position: 'absolute',
+            top: -8,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#4fa0ff',
+            borderRadius: '50%',
+            width: 16,
+            height: 16,
+            border: '2px solid var(--bg-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 10,
+            color: '#000',
+            zIndex: 10,
+          }}
+          title="SubTree is expanded"
+        >
+          ⬇
+        </div>
+      )}
+
       {/* Category badge */}
       <div style={{ fontSize: 9, opacity: 0.7, marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        {isLeaf ? 'Action' : category}
+        {category === 'SubTree' ? 'SubTree' : (isLeaf ? 'Action' : category)}
       </div>
+
+      {hasSubTreeLinkWarning && (
+        <div
+          title={t('nodeWarnings.subtreeUnlinkedHint')}
+          style={{
+            marginBottom: 6,
+            background: 'rgba(255, 145, 83, 0.18)',
+            border: '1px solid rgba(255, 145, 83, 0.65)',
+            borderRadius: 4,
+            padding: '2px 6px',
+            fontSize: 10,
+            fontWeight: 700,
+            color: '#ffd2b6',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {t('nodeWarnings.subtreeUnlinked')}
+        </div>
+      )}
+
+      {isSubTreeNode && (
+        <div style={{ display: 'flex', gap: 4, position: 'absolute', top: 6, right: 6 }}>
+          <button
+            type="button"
+            onClick={handleToggleExpandSubTree}
+            title={isSubTreeExpanded ? 'Collapse SubTree preview in canvas' : 'Expand SubTree preview in canvas'}
+            aria-label={isSubTreeExpanded ? 'Collapse SubTree preview' : 'Expand SubTree preview'}
+            style={{
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.18)',
+              color: colors.text,
+              borderRadius: 4,
+              padding: '1px 5px',
+              fontSize: 10,
+              cursor: 'pointer',
+              lineHeight: 1.2,
+            }}
+          >
+            {subtreeToggleIcon}
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenSubTreeClick}
+            title={`${t('contextMenu.openReferencedTree')} (Ctrl/Cmd+Double Click)`}
+            aria-label={t('contextMenu.openReferencedTree')}
+            style={{
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.18)',
+              color: colors.text,
+              borderRadius: 4,
+              padding: '1px 5px',
+              fontSize: 10,
+              cursor: 'pointer',
+              lineHeight: 1.2,
+            }}
+          >
+            ↗
+          </button>
+        </div>
+      )}
 
       {hasPre && (
         <div style={{ marginBottom: 6 }}>
@@ -393,11 +507,12 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
       )}
 
       {/* Pre/Post condition indicators */}
-      {(hasPre || hasPost || description) && (
+      {(hasPre || hasPost || description || cdata) && (
         <div style={{ marginTop: 3, fontSize: 8, opacity: 0.6 }}>
           {hasPre && <span title="Has pre-conditions">⏱</span>}
           {hasPost && <span title="Has post-conditions">↩</span>}
           {description && <span title={description}>📝</span>}
+          {cdata && <span title={`CDATA: ${cdata.slice(0, 30)}${cdata.length > 30 ? '…' : ''}`}>📦</span>}
         </div>
       )}
 
@@ -433,7 +548,10 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
     prev.colors.bg === next.colors.bg &&
     prev.colors.border === next.colors.border &&
     prev.isRoot === next.isRoot &&
-    prev.isCollapsed === next.isCollapsed
+    prev.isCollapsed === next.isCollapsed &&
+    prev.isExpandedSubTree === next.isExpandedSubTree &&
+    prev.isSubTreeUnlinked === next.isSubTreeUnlinked &&
+    prev.cdata === next.cdata
   );
 });
 

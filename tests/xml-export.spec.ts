@@ -69,4 +69,54 @@ test.describe('XML Export', () => {
 
     expect(download.suggestedFilename()).toBe('MainTree.xml');
   });
+
+  test('切换到 v3 格式导出生成兼容 XML', async ({ page }) => {
+    await page.goto('/');
+    await loadSampleTree(page);
+
+    // Switch to v3 format
+    await page.locator('input[name="xml-format"][value="3"]').check();
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: '⬇ Export XML' }).click(),
+    ]);
+
+    const downloadPath = await download.path();
+    const xmlContent = fs.readFileSync(downloadPath!, 'utf8');
+
+    // Verify v3 format
+    expect(xmlContent).toContain('BTCPP_format="3"');
+    // v3 should have TreeNodesModel directly (not wrapped in TreeConfiguration)
+    expect(xmlContent).not.toContain('<TreeConfiguration>');
+  });
+
+  test('v3 导出使用 Action/Condition 标签含 ID 属性', async ({ page }) => {
+    await page.goto('/');
+    await loadSampleTree(page);
+
+    // Switch to v3 format
+    await page.locator('input[name="xml-format"][value="3"]').check();
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: '⬇ Export XML' }).click(),
+    ]);
+
+    const downloadPath = await download.path();
+    const xmlContent = fs.readFileSync(downloadPath!, 'utf8');
+
+    // v3 should use <Action ID="..."> format for leaf nodes
+    expect(xmlContent).toContain('<Action ID=');
+    expect(xmlContent).toContain('<Condition ID=');
+  });
+
+  test('已有树内容时不允许切换 v3 v4 版本', async ({ page }) => {
+    await page.goto('/');
+    await loadSampleTree(page);
+
+    await expect(page.locator('input[name="xml-format"][value="3"]')).toBeDisabled();
+    await expect(page.locator('input[name="xml-format"][value="4"]')).toBeDisabled();
+    await expect(page.getByText('Locked')).toBeVisible();
+  });
 });

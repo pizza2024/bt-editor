@@ -1,5 +1,11 @@
 import type { BTProject, BTTree, BTTreeNode, BTNodeDefinition, BTNodeCategory, BTPort } from '../types/bt';
-import { BUILTIN_NODES, EDITOR_ROOT_TYPE } from '../types/bt-constants';
+import {
+  EDITOR_ROOT_TYPE,
+  createNodeModelsForFormat,
+  getBuiltinNodesForFormat,
+  isBuiltinNodeType,
+  normalizeNodeTypeForV3,
+} from '../types/bt-constants';
 
 // ─── XML → Project ─────────────────────────────────────────────────────────
 
@@ -8,6 +14,9 @@ const LEAF_CATEGORY_TAGS = new Set(['Action', 'Condition']);
 const PRE_KEYS = ['_failureIf', '_successIf', '_skipIf', '_while'];
 const POST_KEYS = ['_onSuccess', '_onFailure', '_onHalted', '_post'];
 
+// XML format versions supported
+export type XMLFormat = 3 | 4;
+
 export interface MissingNodeModelCandidate {
   type: string;
   category: BTNodeCategory;
@@ -15,14 +24,28 @@ export interface MissingNodeModelCandidate {
   ports: BTPort[];
 }
 
-function parseTreeNode(el: Element, createNodeId: () => string, depth = 0): BTTreeNode {
+function detectXmlFormat(root: Element): XMLFormat {
+  const raw = root.getAttribute('BTCPP_format')?.trim();
+  return raw === '3' ? 3 : 4;
+}
+
+function parseTreeNode(
+  el: Element,
+  createNodeId: () => string,
+  format: XMLFormat,
+  depth = 0
+): BTTreeNode {
   const xmlTag = el.tagName;
   const id = createNodeId();
   const idAttr = el.getAttribute('ID');
 
   // For Action/Condition elements, the actual node type is the ID attribute
   const isLeafCategory = LEAF_CATEGORY_TAGS.has(xmlTag);
-  const type = isLeafCategory && idAttr ? idAttr : xmlTag;
+  if (isLeafCategory && !idAttr) {
+    throw new Error(`<${xmlTag}> node is missing required ID attribute`);
+  }
+  const rawType = isLeafCategory && idAttr ? idAttr : xmlTag;
+  const type = format === 3 ? normalizeNodeTypeForV3(rawType) : rawType;
 
   const ports: Record<string, string> = {};
   const preconditions: Record<string, string> = {};
@@ -58,9 +81,15 @@ function parseTreeNode(el: Element, createNodeId: () => string, depth = 0): BTTr
   }
 
   const children: BTTreeNode[] = [];
-  Array.from(el.children).forEach((child) => {
-    children.push(parseTreeNode(child as Element, createNodeId, depth + 1));
+  const cdataParts: string[] = [];
+  Array.from(el.childNodes).forEach((child) => {
+    if (child.nodeType === Node.CDATA_SECTION_NODE) {
+      cdataParts.push(child.textContent ?? '');
+    } else if (child.nodeType === Node.ELEMENT_NODE) {
+      children.push(parseTreeNode(child as Element, createNodeId, format, depth + 1));
+    }
   });
+  const cdata = cdataParts.length > 0 ? cdataParts.join('') : undefined;
 
   return {
     id,
@@ -71,6 +100,7 @@ function parseTreeNode(el: Element, createNodeId: () => string, depth = 0): BTTr
     ...(Object.keys(preconditions).length > 0 && { preconditions }),
     ...(Object.keys(postconditions).length > 0 && { postconditions }),
     ...(portRemap && Object.keys(portRemap).length > 0 && { portRemap }),
+    ...(cdata !== undefined && { cdata }),
   };
 }
 
@@ -82,7 +112,7 @@ function createNodeIdFactory(): () => string {
   };
 }
 
-export function analyzeMissingNodeModels(xmlText: string): MissingNodeModelCandidate[] {
+export function analyzeMissingNodeModels(xmlText: string, format?: XMLFormat): MissingNodeModelCandidate[] {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
 
@@ -92,6 +122,7 @@ export function analyzeMissingNodeModels(xmlText: string): MissingNodeModelCandi
   }
 
   const root = doc.documentElement;
+  const detectedFormat: XMLFormat = format ?? detectXmlFormat(root);
   const declaredTypes = new Set<string>();
   const modelEl = root.querySelector(':scope > TreeNodesModel')
     ?? root.querySelector(':scope > TreeConfiguration > TreeNodesModel');
@@ -101,14 +132,15 @@ export function analyzeMissingNodeModels(xmlText: string): MissingNodeModelCandi
     });
   }
 
-  const builtinTypes = new Set(BUILTIN_NODES.map((node) => node.type));
+  const builtinTypes = new Set(getBuiltinNodesForFormat(detectedFormat).map((node) => node.type));
   const records = new Map<string, { xmlTags: Set<string>; maxChildren: number; ports: Map<string, BTPort> }>();
 
   const visit = (el: Element) => {
     const xmlTag = el.tagName;
     const idAttr = el.getAttribute('ID');
     const isLeafCategory = LEAF_CATEGORY_TAGS.has(xmlTag);
-    const type = isLeafCategory && idAttr ? idAttr : xmlTag;
+    const rawType = isLeafCategory && idAttr ? idAttr : xmlTag;
+    const type = detectedFormat === 3 ? normalizeNodeTypeForV3(rawType) : rawType;
 
     if (!builtinTypes.has(type) && !declaredTypes.has(type)) {
       const existing = records.get(type) ?? {
@@ -174,6 +206,8 @@ export function parseXML(xmlText: string): BTProject {
   }
 
   const root = doc.documentElement;
+  const detectedFormat: XMLFormat = detectXmlFormat(root);
+  const builtinNodes = getBuiltinNodesForFormat(detectedFormat);
 
   // Parse trees
   const trees: BTTree[] = [];
@@ -182,7 +216,7 @@ export function parseXML(xmlText: string): BTProject {
     const treeId = btEl.getAttribute('ID') || `Tree_${trees.length + 1}`;
     const rootEl = btEl.firstElementChild;
     if (!rootEl) return;
-    const parsedRoot = parseTreeNode(rootEl, createNodeId);
+    const parsedRoot = parseTreeNode(rootEl, createNodeId, detectedFormat);
     const editorRoot: BTTreeNode = {
       id: createNodeId(),
       type: EDITOR_ROOT_TYPE,
@@ -206,7 +240,8 @@ export function parseXML(xmlText: string): BTProject {
       const xmlCat = catEl.tagName;
       const category: BTNodeDefinition['category'] =
         xmlCat as BTNodeDefinition['category'];
-      const type = catEl.getAttribute('ID') || catEl.tagName;
+      const rawType = catEl.getAttribute('ID') || catEl.tagName;
+      const type = detectedFormat === 3 ? normalizeNodeTypeForV3(rawType) : rawType;
       const ports = Array.from(catEl.querySelectorAll('input_port, output_port, inout_port')).map(
         (p) => ({
           name: p.getAttribute('name') || '',
@@ -231,10 +266,12 @@ export function parseXML(xmlText: string): BTProject {
   // Add missing leaf nodes (not in TreeNodesModel, not builtins)
   // Any unknown type is treated as a custom Action node
   const existingTypes = new Set([
-    ...BUILTIN_NODES.map((n) => n.type),
+    ...builtinNodes.map((n) => n.type),
     ...nodeModels.map((m) => m.type),
   ]);
-  const missingCandidates = new Map(analyzeMissingNodeModels(xmlText).map((candidate) => [candidate.type, candidate]));
+  const missingCandidates = new Map(
+    analyzeMissingNodeModels(xmlText, detectedFormat).map((candidate) => [candidate.type, candidate])
+  );
   const missingLeafModels: BTNodeDefinition[] = [];
   discoveredTypes.forEach((type) => {
     if (!existingTypes.has(type)) {
@@ -248,18 +285,13 @@ export function parseXML(xmlText: string): BTProject {
   });
 
   // Merge with builtins (builtin wins)
-  const builtinTypes = new Set(BUILTIN_NODES.map((n) => n.type));
-  const mergedModels: BTNodeDefinition[] = [
-    ...BUILTIN_NODES,
-    ...nodeModels.filter((m) => !builtinTypes.has(m.type)),
-    ...missingLeafModels,
-  ];
+  const mergedModels = createNodeModelsForFormat([...nodeModels, ...missingLeafModels], detectedFormat);
 
   const mainTreeId =
     root.getAttribute('main_tree_to_execute') ||
     trees[0].id;
 
-  return { trees, nodeModels: mergedModels, mainTreeId };
+  return { trees, nodeModels: mergedModels, mainTreeId, exportFormat: detectedFormat };
 }
 
 // ─── Project → XML ─────────────────────────────────────────────────────────
@@ -267,29 +299,36 @@ export function parseXML(xmlText: string): BTProject {
 function serializeNode(
   node: BTTreeNode,
   indent: number,
-  nodeModels: BTNodeDefinition[]
+  nodeModels: BTNodeDefinition[],
+  format: XMLFormat = 4
 ): string {
   // ROOT is a visual-only editor node — skip it and serialize its children directly
   if (node.type === EDITOR_ROOT_TYPE) {
-    return node.children.map((c) => serializeNode(c, indent, nodeModels)).join('\n');
+    return node.children.map((c) => serializeNode(c, indent, nodeModels, format)).join('\n');
   }
 
   const pad = '  '.repeat(indent);
   const attrs: string[] = [];
 
   // Determine node category
-  const builtinNode = BUILTIN_NODES.find((n) => n.type === node.type);
-  const modelNode = nodeModels.find((n) => n.type === node.type);
-  const nodeDefinition = builtinNode ?? modelNode;
+  const nodeDefinition = nodeModels.find((n) => n.type === node.type);
   const category = nodeDefinition?.category ?? 'Action';
 
   let tagName: string;
   if (category === 'Action' || category === 'Condition') {
-    // Groot2 instance XML uses concrete node tags for leaf nodes instead of
-    // generic <Action ID="..."> wrappers.
-    tagName = node.type;
-    if (node.name && node.name !== node.type) {
-      attrs.push(`name="${escapeXml(node.name)}"`);
+    // Format 4: use concrete node type tags (e.g., <MoveToGoal ... />)
+    // Format 3: use generic category tags with ID attribute (e.g., <Action ID="MoveToGoal" ... />)
+    if (format === 3) {
+      tagName = category;
+      attrs.push(`ID="${escapeXml(node.type)}"`);
+      if (node.name && node.name !== node.type) {
+        attrs.push(`name="${escapeXml(node.name)}"`);
+      }
+    } else {
+      tagName = node.type;
+      if (node.name && node.name !== node.type) {
+        attrs.push(`name="${escapeXml(node.name)}"`);
+      }
     }
   } else if (category === 'SubTree') {
     tagName = 'SubTree';
@@ -325,12 +364,18 @@ function serializeNode(
 
   const attrStr = attrs.length ? ' ' + attrs.join(' ') : '';
 
-  if (node.children.length === 0) {
+  if (node.children.length === 0 && !node.cdata) {
     return `${pad}<${tagName}${attrStr}/>`;
   }
 
-  const childLines = node.children.map((c) => serializeNode(c, indent + 1, nodeModels)).join('\n');
-  return `${pad}<${tagName}${attrStr}>\n${childLines}\n${pad}</${tagName}>`;
+  const childLines = node.children.map((c) => serializeNode(c, indent + 1, nodeModels, format)).join('\n');
+  const cdataLine = node.cdata ? `\n${pad}  ${wrapCdata(node.cdata)}` : '';
+  return `${pad}<${tagName}${attrStr}>${cdataLine}\n${childLines}\n${pad}</${tagName}>`;
+}
+
+function wrapCdata(content: string): string {
+  // XML forbids "]]>" inside a single CDATA section, so split safely.
+  return `<![CDATA[${content.replace(/\]\]>/g, ']]]]><![CDATA[>')}]]>`;
 }
 
 function getSerializedPortEntries(
@@ -359,38 +404,59 @@ function getSerializedPortEntries(
   return orderedEntries;
 }
 
-export function serializeXML(project: BTProject): string {
+export function serializeXML(project: BTProject, format?: XMLFormat): string {
+  // Use format from parameter, fall back to project.exportFormat, default to 4
+  const targetFormat: XMLFormat = format ?? project.exportFormat ?? 4;
+
   const lines: string[] = ['<?xml version="1.0" encoding="UTF-8"?>'];
-  lines.push(`<root BTCPP_format="4" main_tree_to_execute="${escapeXml(project.mainTreeId)}">`);
+  lines.push(`<root BTCPP_format="${targetFormat}" main_tree_to_execute="${escapeXml(project.mainTreeId)}">`);
 
   project.trees.forEach((tree) => {
     lines.push(`  <BehaviorTree ID="${escapeXml(tree.id)}">`);
-    lines.push(serializeNode(tree.root, 2, project.nodeModels));
+    lines.push(serializeNode(tree.root, 2, project.nodeModels, targetFormat));
     lines.push('  </BehaviorTree>');
   });
 
-  // TreeNodesModel — only custom (non-builtin) nodes, wrapped in TreeConfiguration
-  const builtinTypes = new Set(BUILTIN_NODES.map((n) => n.type));
+  // TreeNodesModel — only custom (non-builtin) nodes
+  const builtinTypes = new Set(getBuiltinNodesForFormat(targetFormat).map((n) => n.type));
   const customModels = project.nodeModels.filter((m) => !builtinTypes.has(m.type));
 
   if (customModels.length > 0) {
-    lines.push('  <TreeConfiguration>');
-    lines.push('    <TreeNodesModel>');
-    customModels.forEach((m) => {
-      // Use category directly; 'Action'/'Condition' are valid XML tags
-      const cat = m.category;
-      if (!m.ports || m.ports.length === 0) {
-        lines.push(`      <${cat} ID="${escapeXml(m.type)}"/>`);
-      } else {
-        lines.push(`      <${cat} ID="${escapeXml(m.type)}">`);
-        m.ports.forEach((p) => {
-          lines.push(`        <${p.direction}_port name="${escapeXml(p.name)}">${escapeXml(p.description || '')}</${p.direction}_port>`);
-        });
-        lines.push(`      </${cat}>`);
-      }
-    });
-    lines.push('    </TreeNodesModel>');
-    lines.push('  </TreeConfiguration>');
+    if (targetFormat === 3) {
+      // Format 3: TreeNodesModel directly under root (no TreeConfiguration wrapper)
+      lines.push('  <TreeNodesModel>');
+      customModels.forEach((m) => {
+        const cat = m.category;
+        if (!m.ports || m.ports.length === 0) {
+          lines.push(`    <${cat} ID="${escapeXml(m.type)}"/>`);
+        } else {
+          lines.push(`    <${cat} ID="${escapeXml(m.type)}">`);
+          m.ports.forEach((p) => {
+            lines.push(`      <${p.direction}_port name="${escapeXml(p.name)}">${escapeXml(p.description || '')}</${p.direction}_port>`);
+          });
+          lines.push(`    </${cat}>`);
+        }
+      });
+      lines.push('  </TreeNodesModel>');
+    } else {
+      // Format 4: TreeNodesModel wrapped in TreeConfiguration
+      lines.push('  <TreeConfiguration>');
+      lines.push('    <TreeNodesModel>');
+      customModels.forEach((m) => {
+        const cat = m.category;
+        if (!m.ports || m.ports.length === 0) {
+          lines.push(`      <${cat} ID="${escapeXml(m.type)}"/>`);
+        } else {
+          lines.push(`      <${cat} ID="${escapeXml(m.type)}">`);
+          m.ports.forEach((p) => {
+            lines.push(`        <${p.direction}_port name="${escapeXml(p.name)}">${escapeXml(p.description || '')}</${p.direction}_port>`);
+          });
+          lines.push(`      </${cat}>`);
+        }
+      });
+      lines.push('    </TreeNodesModel>');
+      lines.push('  </TreeConfiguration>');
+    }
   }
 
   lines.push('</root>');
@@ -418,8 +484,9 @@ export function defaultProject(): BTProject {
   };
   return {
     trees: [{ id: 'MainTree', root }],
-    nodeModels: [...BUILTIN_NODES],
+    nodeModels: [...getBuiltinNodesForFormat(4)],
     mainTreeId: 'MainTree',
+    exportFormat: 4,
   };
 }
 
@@ -427,6 +494,43 @@ export function defaultProject(): BTProject {
 
 export const SAMPLE_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Sequence name="Root">
+      <Condition ID="CheckBattery"/>
+      <Fallback>
+        <Condition ID="IsAtGoal"/>
+        <Action ID="MoveToGoal" goal="{target_pose}"/>
+      </Fallback>
+      <SubTree ID="GraspPipeline"/>
+    </Sequence>
+  </BehaviorTree>
+  <BehaviorTree ID="GraspPipeline">
+    <Sequence>
+      <Action ID="OpenGripper"/>
+      <Action ID="ApproachObject" distance="0.05"/>
+      <RetryUntilSuccessful num_attempts="3">
+        <Action ID="CloseGripper"/>
+      </RetryUntilSuccessful>
+    </Sequence>
+  </BehaviorTree>
+  <TreeNodesModel>
+    <Action ID="MoveToGoal">
+      <input_port name="goal">Target pose</input_port>
+    </Action>
+    <Action ID="OpenGripper"/>
+    <Action ID="ApproachObject">
+      <input_port name="distance">Approach distance (m)</input_port>
+    </Action>
+    <Action ID="CloseGripper"/>
+    <Condition ID="CheckBattery"/>
+    <Condition ID="IsAtGoal"/>
+  </TreeNodesModel>
+</root>`;
+
+// ─── Sample v3 project (for backward compatibility testing) ────────────────────
+
+export const SAMPLE_XML_V3 = `<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="3" main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
     <Sequence name="Root">
       <Condition ID="CheckBattery"/>
@@ -527,9 +631,8 @@ export function validateNode(
   const issues: ValidationIssue[] = [];
   
   // Find model definition
-  const builtin = BUILTIN_NODES.find(n => n.type === node.type);
   const model = nodeModels.find(n => n.type === node.type);
-  const ports = builtin?.ports ?? model?.ports;
+  const ports = model?.ports;
   
   if (!ports || ports.length === 0) return issues; // No ports to validate
 
@@ -764,8 +867,13 @@ export function validateNodeModel(
       issues.push({ severity: 'error', nodeType: def.type, message: `Node type "${trimmedType}" already exists` });
     }
 
-    // Check for built-in node type collision
-    const builtin = BUILTIN_NODES.find(n => n.type === trimmedType);
+    // Check for built-in node type collision.
+    // Prefer builtins discovered from existingModels (mode-aware); fall back to v4 for standalone validation.
+    const builtin =
+      existingModels.find(m => m.type === trimmedType && m.builtin)
+      ?? (existingModels.length === 0 && isBuiltinNodeType(trimmedType, 4)
+        ? { type: trimmedType, builtin: true }
+        : undefined);
     if (builtin && !def.builtin) {
       issues.push({ severity: 'error', nodeType: def.type, message: `Node type "${trimmedType}" conflicts with a built-in node` });
     }

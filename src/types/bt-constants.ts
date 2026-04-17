@@ -3,8 +3,243 @@ import type { BTNodeDefinition } from './bt';
 // GRoot2 编辑器专用虚拟根节点（不导出到 XML）
 export const EDITOR_ROOT_TYPE = 'ROOT' as const;
 
+export type BTXmlFormat = 3 | 4;
+
+// v3 内置节点（根据需求清单）
+export const BUILTIN_NODES_V3: BTNodeDefinition[] = [
+  // ─── Action ─────────────────────────────────────────────────────────────
+  {
+    type: 'AlwaysFailure',
+    category: 'Action',
+    builtin: true,
+    description: 'Always return FAILURE',
+  },
+  {
+    type: 'AlwaysSuccess',
+    category: 'Action',
+    builtin: true,
+    description: 'Always return SUCCESS',
+  },
+  {
+    type: 'SetBlackboard',
+    category: 'Action',
+    builtin: true,
+    description: 'Set a blackboard value',
+    ports: [
+      { name: 'value', direction: 'input', description: 'Value to set' },
+      { name: 'output_key', direction: 'output', description: 'Blackboard key to set' },
+    ],
+  },
+
+  // ─── Control ────────────────────────────────────────────────────────────
+  {
+    type: 'Fallback',
+    category: 'Control',
+    builtin: true,
+    description: 'First success wins (?)',
+  },
+  {
+    type: 'IfThenElse',
+    category: 'Control',
+    builtin: true,
+    description: 'If[0] then[1] else[2]',
+  },
+  {
+    type: 'ManualSelector',
+    category: 'Control',
+    builtin: true,
+    description: 'Manually select which child to run',
+    ports: [
+      { name: 'repeat_last_selection', direction: 'input', description: 'Repeat last selected child', defaultValue: 'false' },
+    ],
+  },
+  {
+    type: 'Parallel',
+    category: 'Control',
+    builtin: true,
+    description: 'Run children in parallel',
+    ports: [
+      { name: 'success_count', direction: 'input', description: 'Required successes (-1=all)', defaultValue: '-1' },
+      { name: 'failure_count', direction: 'input', description: 'Required failures', defaultValue: '1' },
+    ],
+  },
+  {
+    type: 'ReactiveFallback',
+    category: 'Control',
+    builtin: true,
+    description: 'Re-checks previous on RUNNING',
+  },
+  {
+    type: 'ReactiveSequence',
+    category: 'Control',
+    builtin: true,
+    description: 'Re-checks previous on RUNNING',
+  },
+  {
+    type: 'Sequence',
+    category: 'Control',
+    builtin: true,
+    description: 'All children must succeed (→)',
+  },
+  {
+    type: 'SequenceStar',
+    category: 'Control',
+    builtin: true,
+    description: 'Sequence with memory semantics',
+  },
+  {
+    type: 'Switch2',
+    category: 'Control',
+    builtin: true,
+    description: 'Switch on variable (2 cases)',
+  },
+  {
+    type: 'Switch3',
+    category: 'Control',
+    builtin: true,
+    description: 'Switch on variable (3 cases)',
+  },
+  {
+    type: 'Switch4',
+    category: 'Control',
+    builtin: true,
+    description: 'Switch on variable (4 cases)',
+  },
+  {
+    type: 'Switch5',
+    category: 'Control',
+    builtin: true,
+    description: 'Switch on variable (5 cases)',
+  },
+  {
+    type: 'Switch6',
+    category: 'Control',
+    builtin: true,
+    description: 'Switch on variable (6 cases)',
+  },
+  {
+    type: 'WhileDoElse',
+    category: 'Control',
+    builtin: true,
+    description: 'While[0] do[1] else[2]',
+  },
+
+  // ─── Decorator ──────────────────────────────────────────────────────────
+  {
+    type: 'BlackboardCheckBool',
+    category: 'Decorator',
+    builtin: true,
+    description: 'Check bool blackboard value before ticking child',
+    ports: [
+      { name: 'value', direction: 'input', description: 'Blackboard key or value' },
+      { name: 'expected', direction: 'input', description: 'Expected value' },
+    ],
+  },
+  {
+    type: 'BlackboardCheckDouble',
+    category: 'Decorator',
+    builtin: true,
+    description: 'Check double blackboard value before ticking child',
+    ports: [
+      { name: 'value', direction: 'input', description: 'Blackboard key or value' },
+      { name: 'expected', direction: 'input', description: 'Expected value' },
+    ],
+  },
+  {
+    type: 'BlackboardCheckInt',
+    category: 'Decorator',
+    builtin: true,
+    description: 'Check int blackboard value before ticking child',
+    ports: [
+      { name: 'value', direction: 'input', description: 'Blackboard key or value' },
+      { name: 'expected', direction: 'input', description: 'Expected value' },
+    ],
+  },
+  {
+    type: 'BlackboardCheckString',
+    category: 'Decorator',
+    builtin: true,
+    description: 'Check string blackboard value before ticking child',
+    ports: [
+      { name: 'value', direction: 'input', description: 'Blackboard key or value' },
+      { name: 'expected', direction: 'input', description: 'Expected value' },
+    ],
+  },
+  {
+    type: 'Delay',
+    category: 'Decorator',
+    builtin: true,
+    description: 'Delay before ticking child',
+    ports: [
+      { name: 'delay_msec', direction: 'input', description: 'Delay in milliseconds', defaultValue: '100' },
+    ],
+  },
+  {
+    type: 'ForceFailure',
+    category: 'Decorator',
+    builtin: true,
+    description: 'Always FAILURE',
+  },
+  {
+    type: 'ForceSuccess',
+    category: 'Decorator',
+    builtin: true,
+    description: 'Always SUCCESS',
+  },
+  {
+    type: 'Inverter',
+    category: 'Decorator',
+    builtin: true,
+    description: 'Invert child result',
+  },
+  {
+    type: 'KeepRunningUntilFailure',
+    category: 'Decorator',
+    builtin: true,
+    description: 'Loop until FAILURE',
+  },
+  {
+    type: 'Repeat',
+    category: 'Decorator',
+    builtin: true,
+    description: 'Repeat successful child N times',
+    ports: [
+      { name: 'num_cycles', direction: 'input', description: 'Number of cycles (-1=infinite)', defaultValue: '-1' },
+    ],
+  },
+  {
+    type: 'RetryUntilSuccessful',
+    category: 'Decorator',
+    builtin: true,
+    description: 'Retry until SUCCESS',
+    ports: [
+      { name: 'num_attempts', direction: 'input', description: 'Max attempts (-1=infinite)', defaultValue: '-1' },
+    ],
+  },
+  {
+    type: 'Timeout',
+    category: 'Decorator',
+    builtin: true,
+    description: 'Cancel child after timeout',
+    ports: [
+      { name: 'msec', direction: 'input', description: 'Timeout in milliseconds', defaultValue: '1000' },
+    ],
+  },
+
+  // ─── SubTree ────────────────────────────────────────────────────────────
+  {
+    type: 'SubTree',
+    category: 'SubTree',
+    builtin: true,
+    description: 'Reference to another behavior tree',
+    ports: [
+      { name: '__autoremap', direction: 'input', description: 'Auto-remap ports by name', defaultValue: 'false' },
+    ],
+  },
+];
+
 // BT.CPP 内置节点清单 (参考 GRoot2 / BT.NODES_XML_REFERENCE_CN.md)
-export const BUILTIN_NODES: BTNodeDefinition[] = [
+export const BUILTIN_NODES_V4: BTNodeDefinition[] = [
   // ─── Control 节点 ─────────────────────────────────────────────────────────
   {
     type: 'Sequence',
@@ -408,6 +643,51 @@ export const BUILTIN_NODES: BTNodeDefinition[] = [
     ],
   },
 ];
+
+// 兼容旧代码：默认视为 v4 builtins
+export const BUILTIN_NODES: BTNodeDefinition[] = BUILTIN_NODES_V4;
+
+export function getBuiltinNodesForFormat(format: BTXmlFormat): BTNodeDefinition[] {
+  return format === 3 ? BUILTIN_NODES_V3 : BUILTIN_NODES_V4;
+}
+
+export function isBuiltinNodeType(type: string, format: BTXmlFormat): boolean {
+  return getBuiltinNodesForFormat(format).some((node) => node.type === type);
+}
+
+export function createNodeModelsForFormat(
+  existingModels: BTNodeDefinition[],
+  format: BTXmlFormat
+): BTNodeDefinition[] {
+  const builtins = getBuiltinNodesForFormat(format);
+  const targetBuiltinTypes = new Set(builtins.map((node) => node.type));
+  // Important: drop builtin nodes from ANY format before rebuilding the target format list.
+  const allBuiltinTypes = new Set([
+    ...BUILTIN_NODES_V3.map((node) => node.type),
+    ...BUILTIN_NODES_V4.map((node) => node.type),
+  ]);
+
+  const customByType = new Map<string, BTNodeDefinition>();
+  existingModels.forEach((model) => {
+    if (targetBuiltinTypes.has(model.type)) return;
+    if (allBuiltinTypes.has(model.type)) return;
+    customByType.set(model.type, { ...model, builtin: false });
+  });
+
+  return [...builtins, ...Array.from(customByType.values())];
+}
+
+// v3 常见名称别名兼容（含大小写和空格错误）
+export function normalizeNodeTypeForV3(type: string): string {
+  const aliasMap: Record<string, string> = {
+    lfThenElse: 'IfThenElse',
+    'If Then Else': 'IfThenElse',
+    'While DoElse': 'WhileDoElse',
+    'Force Failure': 'ForceFailure',
+    BlackboardCheckint: 'BlackboardCheckInt',
+  };
+  return aliasMap[type] ?? type;
+}
 
 // 分类颜色配置
 export const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string }> = {

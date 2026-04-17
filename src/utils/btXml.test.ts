@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultProject, parseXML, SAMPLE_XML, serializeXML, isBlackboardRef, extractBlackboardKey, parseBlackboardExpression, isValidBlackboardKey, validatePortConnection, getPortDirectionLabel, validateNode, validateProject, validateNodeModel, validateAllNodeModels } from './btXml';
+import { defaultProject, parseXML, SAMPLE_XML, SAMPLE_XML_V3, serializeXML, isBlackboardRef, extractBlackboardKey, parseBlackboardExpression, isValidBlackboardKey, validatePortConnection, getPortDirectionLabel, validateNode, validateProject, validateNodeModel, validateAllNodeModels } from './btXml';
 
 describe('parseXML', () => {
   it('parses sample XML and extracts trees and main tree id', () => {
@@ -43,6 +43,75 @@ describe('parseXML', () => {
   it('throws when XML has no BehaviorTree', () => {
     const xml = '<?xml version="1.0"?><root BTCPP_format="4"></root>';
     expect(() => parseXML(xml)).toThrow('No <BehaviorTree> elements found in XML');
+  });
+
+  it('parses v3 format XML and detects version correctly', () => {
+    const project = parseXML(SAMPLE_XML_V3);
+    
+    expect(project.mainTreeId).toBe('MainTree');
+    expect(project.exportFormat).toBe(3);
+    expect(project.trees).toHaveLength(2);
+    expect(project.trees[0].root.children[0].type).toBe('Sequence');
+
+    // v3 builtins should be loaded; v4-only builtins should not
+    expect(project.nodeModels.some((m) => m.type === 'SequenceStar' && m.builtin)).toBe(true);
+    expect(project.nodeModels.some((m) => m.type === 'Script' && m.builtin)).toBe(false);
+  });
+
+  it('normalizes common v3 legacy aliases during import', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="3" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <lfThenElse>
+      <Action ID="AlwaysSuccess"/>
+      <Action ID="AlwaysFailure"/>
+      <Action ID="AlwaysSuccess"/>
+    </lfThenElse>
+  </BehaviorTree>
+</root>`;
+
+    const project = parseXML(xml);
+    const rootChild = project.trees[0].root.children[0];
+
+    expect(rootChild.type).toBe('IfThenElse');
+    expect(project.exportFormat).toBe(3);
+  });
+
+  it('detects v3 even when BTCPP_format contains whitespace', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format=" 3 " main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Sequence>
+      <Action ID="AlwaysSuccess"/>
+    </Sequence>
+  </BehaviorTree>
+</root>`;
+
+    const project = parseXML(xml);
+    expect(project.exportFormat).toBe(3);
+  });
+
+  it('falls back to v4 when BTCPP_format is missing or invalid', () => {
+    const xmlMissing = `<?xml version="1.0" encoding="UTF-8"?>
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Sequence>
+      <AlwaysSuccess/>
+    </Sequence>
+  </BehaviorTree>
+</root>`;
+
+    const xmlInvalid = `<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="5" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Sequence>
+      <AlwaysSuccess/>
+    </Sequence>
+  </BehaviorTree>
+</root>`;
+
+    expect(parseXML(xmlMissing).exportFormat).toBe(4);
+    expect(parseXML(xmlInvalid).exportFormat).toBe(4);
   });
 });
 
@@ -113,6 +182,108 @@ describe('serializeXML', () => {
     expect(reparsed.mainTreeId).toBe(parsed.mainTreeId);
     expect(reparsed.trees).toHaveLength(parsed.trees.length);
     expect(reparsed.trees[0].root.type).toBe(parsed.trees[0].root.type);
+  });
+
+  it('exports v4 format with concrete node type tags', () => {
+    const project = defaultProject();
+    project.exportFormat = 4;
+    project.trees[0].root.children.push({
+      id: 'n1',
+      type: 'MoveToGoal',
+      ports: { goal: '{target}' },
+      children: [],
+    });
+    project.nodeModels.push({
+      type: 'MoveToGoal',
+      category: 'Action',
+      ports: [{ name: 'goal', direction: 'input' }],
+    });
+
+    const xml = serializeXML(project, 4);
+
+    expect(xml).toContain('BTCPP_format="4"');
+    expect(xml).toContain('<MoveToGoal goal=');
+    expect(xml).toContain('<TreeConfiguration>');
+  });
+
+  it('exports v3 format with generic Action/Condition tags and ID attributes', () => {
+    const project = defaultProject();
+    project.exportFormat = 3;
+    project.trees[0].root.children.push({
+      id: 'n1',
+      type: 'MoveToGoal',
+      ports: { goal: '{target}' },
+      children: [],
+    });
+    project.nodeModels.push({
+      type: 'MoveToGoal',
+      category: 'Action',
+      ports: [{ name: 'goal', direction: 'input' }],
+    });
+
+    const xml = serializeXML(project, 3);
+
+    expect(xml).toContain('BTCPP_format="3"');
+    expect(xml).toContain('<Action ID="MoveToGoal"');
+    expect(xml).toContain('goal=');
+    expect(xml).not.toContain('<TreeConfiguration>');
+    expect(xml).toContain('<TreeNodesModel>');
+  });
+
+  it('v3 export uses condition nodes with ID attributes', () => {
+    const project = defaultProject();
+    project.trees[0].root.children.push({
+      id: 'n1',
+      type: 'CheckBattery',
+      ports: {},
+      children: [],
+    });
+    project.nodeModels.push({
+      type: 'CheckBattery',
+      category: 'Condition',
+    });
+
+    const xml = serializeXML(project, 3);
+
+    expect(xml).toContain('<Condition ID="CheckBattery"');
+    expect(xml).not.toContain('<CheckBattery');
+  });
+
+  it('serializes and parses CDATA content on nodes', () => {
+    const project = defaultProject();
+    project.trees[0].root.children.push({
+      id: 'n1',
+      type: 'Script',
+      ports: { code: '' },
+      cdata: 'if (x < 10 && y > 3) { return "ok"; }',
+      children: [],
+    });
+
+    const xml = serializeXML(project);
+    expect(xml).toContain('<![CDATA[if (x < 10 && y > 3) { return "ok"; }]]>');
+
+    const reparsed = parseXML(xml);
+    const scriptNode = reparsed.trees[0].root.children[0];
+    expect(scriptNode.cdata).toBe('if (x < 10 && y > 3) { return "ok"; }');
+  });
+
+  it('splits CDATA safely when content includes ]]> sequence', () => {
+    const project = defaultProject();
+    const payload = 'alpha ]]> beta';
+    project.trees[0].root.children.push({
+      id: 'n1',
+      type: 'Script',
+      ports: { code: '' },
+      cdata: payload,
+      children: [],
+    });
+
+    const xml = serializeXML(project);
+    expect(xml).toContain(']]]]><![CDATA[>');
+
+    const reparsed = parseXML(xml);
+    const scriptNode = reparsed.trees[0].root.children[0];
+    expect(scriptNode.cdata).toBe(payload);
   });
 });
 

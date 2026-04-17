@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { BTProject, BTNodeDefinition, NodeStatus } from '../types/bt';
 import type { Node, Edge } from '@xyflow/react';
 import { defaultProject, parseXML, serializeXML } from '../utils/btXml';
-import { BUILTIN_NODES } from '../types/bt-constants';
+import { createNodeModelsForFormat, isBuiltinNodeType } from '../types/bt-constants';
 
 export interface DebugState {
   active: boolean;
@@ -51,6 +51,31 @@ export interface FavoriteTemplate {
   ports?: Record<string, string>;
   preconditions?: Record<string, string>;
   postconditions?: Record<string, string>;
+  subtree?: {
+    rootId: string;
+    nodes: Array<{
+      id: string;
+      position: { x: number; y: number };
+      data: {
+        label?: string;
+        nodeType: string;
+        category: string;
+        colors?: { bg: string; border: string; text: string };
+        ports?: Record<string, string>;
+        preconditions?: Record<string, string>;
+        postconditions?: Record<string, string>;
+        childrenCount?: number;
+        description?: string;
+        cdata?: string;
+      };
+    }>;
+    edges: Array<{
+      source: string;
+      target: string;
+      sourceHandle?: string | null;
+      targetHandle?: string | null;
+    }>;
+  };
   category: string;
   createdAt: number;
 }
@@ -58,6 +83,7 @@ export interface FavoriteTemplate {
 export interface BTStore {
   project: BTProject;
   activeTreeId: string;
+  openedTreeIds: string[];
   selectedNodeId: string | null;
   debugState: DebugState;
   groot2State: Groot2State;
@@ -68,6 +94,8 @@ export interface BTStore {
   localEdges: Edge[];
   // Collapsed nodes (hidden in canvas)
   collapsedNodeIds: Set<string>;
+  // Expanded SubTree nodes (showing their content inline in canvas)
+  expandedSubTreeNodeIds: Set<string>;
 
   // Groot2 real-time debugging
   connectGroot2: (url?: string) => Promise<void>;
@@ -80,11 +108,16 @@ export interface BTStore {
   // Project actions
   loadXML: (xml: string) => BTProject | null;
   exportXML: () => string;
+  setExportFormat: (format: 3 | 4) => void;
   setProject: (p: BTProject) => void;
   setLocalCanvas: (nodes: Node[], edges: Edge[]) => void;
 
   // Tree actions
   setActiveTree: (id: string) => void;
+  openTreeTab: (id: string) => void;
+  closeTreeTab: (id: string) => void;
+  closeOtherTreeTabs: (id: string) => void;
+  closeTreeTabsToRight: (id: string) => void;
   addTree: (id: string) => void;
   renameTree: (oldId: string, newId: string) => void;
   deleteTree: (id: string) => void;
@@ -105,8 +138,13 @@ export interface BTStore {
     postconditions?: Record<string, string>
   ) => void;
   updateNodePortRemap: (nodeId: string, portRemap?: Record<string, string>) => void;
+  updateNodeCdata: (nodeId: string, cdata: string | undefined) => void;
   toggleNodeCollapse: (nodeId: string) => void;
   isNodeCollapsed: (nodeId: string) => boolean;
+  // SubTree expand/collapse (for inline preview)
+  toggleExpandSubTree: (nodeId: string) => void;
+  isSubTreeExpanded: (nodeId: string) => boolean;
+  clearExpandedSubTrees: () => void;
 
   // Selection
   selectNode: (id: string | null) => void;
@@ -161,11 +199,13 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
     (set, get) => ({
   project: defaultProject(),
   activeTreeId: 'MainTree',
+  openedTreeIds: ['MainTree'],
   selectedNodeId: null,
   debugState: defaultDebug,
   localNodes: [],
   localEdges: [],
   collapsedNodeIds: new Set<string>(),
+  expandedSubTreeNodeIds: new Set<string>(),
   // Undo/Redo history
   _undoStack: [] as BTProject[],
   _redoStack: [] as BTProject[],
@@ -247,7 +287,15 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
   loadXML(xml) {
     try {
       const project = parseXML(xml);
-      set({ project, activeTreeId: project.mainTreeId, selectedNodeId: null, debugState: defaultDebug, localNodes: [], localEdges: [] });
+      set({
+        project,
+        activeTreeId: project.mainTreeId,
+        openedTreeIds: [project.mainTreeId],
+        selectedNodeId: null,
+        debugState: defaultDebug,
+        localNodes: [],
+        localEdges: [],
+      });
       return project;
     } catch (e) {
       alert('Failed to parse XML:\n' + (e as Error).message);
@@ -259,12 +307,85 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
     return serializeXML(get().project);
   },
 
+  setExportFormat(format: 3 | 4) {
+    const { project } = get();
+    set({
+      project: {
+        ...project,
+        exportFormat: format,
+        nodeModels: createNodeModelsForFormat(project.nodeModels, format),
+      },
+    });
+  },
+
   setProject(p) {
-    set({ project: p, localNodes: [], localEdges: [] });
+    set({
+      project: p,
+      activeTreeId: p.mainTreeId,
+      openedTreeIds: [p.mainTreeId],
+      selectedNodeId: null,
+      localNodes: [],
+      localEdges: [],
+    });
   },
 
   setActiveTree(id) {
-    set({ activeTreeId: id, selectedNodeId: null });
+    const { project, openedTreeIds } = get();
+    if (!project.trees.some((tree) => tree.id === id)) return;
+    const nextOpened = openedTreeIds.includes(id)
+      ? openedTreeIds
+      : [...openedTreeIds, id];
+    set({ 
+      activeTreeId: id, 
+      openedTreeIds: nextOpened, 
+      selectedNodeId: null,
+      expandedSubTreeNodeIds: new Set(), // Clear expanded SubTrees when switching trees
+    });
+  },
+
+  openTreeTab(id) {
+    const { project, openedTreeIds } = get();
+    if (!project.trees.some((tree) => tree.id === id)) return;
+    const nextOpened = openedTreeIds.includes(id)
+      ? openedTreeIds
+      : [...openedTreeIds, id];
+    set({ openedTreeIds: nextOpened, activeTreeId: id, selectedNodeId: null });
+  },
+
+  closeTreeTab(id) {
+    const { openedTreeIds, activeTreeId, project } = get();
+    if (openedTreeIds.length <= 1) return;
+    if (!openedTreeIds.includes(id)) return;
+
+    const existingTreeIds = new Set(project.trees.map((tree) => tree.id));
+    const filtered = openedTreeIds.filter((treeId) => treeId !== id && existingTreeIds.has(treeId));
+    const nextOpened = filtered.length > 0 ? filtered : [project.mainTreeId];
+
+    let nextActive = activeTreeId;
+    if (activeTreeId === id) {
+      const closedIndex = openedTreeIds.indexOf(id);
+      nextActive = nextOpened[Math.min(closedIndex, nextOpened.length - 1)] ?? project.mainTreeId;
+    }
+
+    set({ openedTreeIds: nextOpened, activeTreeId: nextActive, selectedNodeId: null });
+  },
+
+  closeOtherTreeTabs(id) {
+    const { project, openedTreeIds } = get();
+    if (!openedTreeIds.includes(id)) return;
+    const nextActive = project.trees.some((tree) => tree.id === id) ? id : project.mainTreeId;
+    set({ openedTreeIds: [nextActive], activeTreeId: nextActive, selectedNodeId: null });
+  },
+
+  closeTreeTabsToRight(id) {
+    const { openedTreeIds, activeTreeId, project } = get();
+    const tabIndex = openedTreeIds.indexOf(id);
+    if (tabIndex === -1) return;
+
+    const nextOpened = openedTreeIds.slice(0, tabIndex + 1);
+    const nextActive = nextOpened.includes(activeTreeId) ? activeTreeId : id;
+    const ensuredActive = project.trees.some((tree) => tree.id === nextActive) ? nextActive : project.mainTreeId;
+    set({ openedTreeIds: nextOpened, activeTreeId: ensuredActive, selectedNodeId: null });
   },
 
   addTree(id) {
@@ -285,31 +406,57 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
     set({
       project: { ...project, trees: [...project.trees, newTree] },
       activeTreeId: id,
+      openedTreeIds: [...get().openedTreeIds, id],
     });
   },
 
   renameTree(oldId, newId) {
-    const { project } = get();
+    const { project, openedTreeIds } = get();
     if (project.trees.find((t) => t.id === newId)) {
       alert(`Tree "${newId}" already exists`);
       return;
     }
-    const trees = project.trees.map((t) => (t.id === oldId ? { ...t, id: newId } : t));
+    const trees = project.trees.map((t) => {
+      const renamedTree = t.id === oldId ? { ...t, id: newId } : t;
+      return {
+        ...renamedTree,
+        root: remapSubTreeTargetRecursive(renamedTree.root, oldId, newId),
+      };
+    });
     const mainTreeId = project.mainTreeId === oldId ? newId : project.mainTreeId;
-    set({ project: { ...project, trees, mainTreeId }, activeTreeId: newId });
+    const nextOpened = openedTreeIds.map((treeId) => (treeId === oldId ? newId : treeId));
+    set({ project: { ...project, trees, mainTreeId }, activeTreeId: newId, openedTreeIds: nextOpened });
   },
 
   deleteTree(id) {
-    const { project } = get();
+    const { project, openedTreeIds, activeTreeId } = get();
     if (project.trees.length <= 1) {
       alert('Cannot delete the only tree');
       return;
     }
+
+    const referencedByTrees = project.trees
+      .filter((tree) => tree.id !== id)
+      .filter((tree) => treeReferencesTarget(tree.root, id))
+      .map((tree) => tree.id);
+    if (referencedByTrees.length > 0) {
+      alert(
+        `Cannot delete tree "${id}" because it is referenced by SubTree nodes in: ${referencedByTrees.join(', ')}`
+      );
+      return;
+    }
+
     const trees = project.trees.filter((t) => t.id !== id);
     const mainTreeId = project.mainTreeId === id ? trees[0].id : project.mainTreeId;
+    const remainingOpened = openedTreeIds.filter((treeId) => treeId !== id);
+    const openedTreeIdsNext = remainingOpened.length > 0 ? remainingOpened : [mainTreeId];
+    const activeTreeIdNext = activeTreeId === id
+      ? (openedTreeIdsNext[openedTreeIdsNext.length - 1] ?? mainTreeId)
+      : activeTreeId;
     set({
       project: { ...project, trees, mainTreeId },
-      activeTreeId: mainTreeId,
+      activeTreeId: activeTreeIdNext,
+      openedTreeIds: openedTreeIdsNext,
     });
   },
 
@@ -355,7 +502,7 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
 
   deleteNodeModel(type) {
     const { project } = get();
-    if (BUILTIN_NODES.find((n) => n.type === type)) {
+    if (isBuiltinNodeType(type, project.exportFormat ?? 4)) {
       alert('Cannot delete built-in node types');
       return;
     }
@@ -400,7 +547,8 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
     }
   },
 
-  deleteSelectedNodes(_nodes: Node[]) {
+  deleteSelectedNodes(nodes: Node[]) {
+    void nodes;
     const { selectedNodeIds } = get();
     const idsToDelete = new Set(selectedNodeIds);
 
@@ -424,6 +572,28 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
   // Check if node is collapsed
   isNodeCollapsed(nodeId: string): boolean {
     return get().collapsedNodeIds.has(nodeId);
+  },
+
+  // Toggle SubTree node expansion (for inline preview)
+  toggleExpandSubTree(nodeId: string) {
+    const { expandedSubTreeNodeIds } = get();
+    const newSet = new Set(expandedSubTreeNodeIds);
+    if (newSet.has(nodeId)) {
+      newSet.delete(nodeId);
+    } else {
+      newSet.add(nodeId);
+    }
+    set({ expandedSubTreeNodeIds: newSet });
+  },
+
+  // Check if SubTree node is expanded
+  isSubTreeExpanded(nodeId: string): boolean {
+    return get().expandedSubTreeNodeIds.has(nodeId);
+  },
+
+  // Clear all expanded SubTrees (e.g., when switching trees)
+  clearExpandedSubTrees() {
+    set({ expandedSubTreeNodeIds: new Set() });
   },
 
   clipboard: null,
@@ -511,6 +681,15 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
     const trees = project.trees.map((tree) => {
       if (tree.id !== activeTreeId) return tree;
       return { ...tree, root: updateNodePortRemapRecursive(tree.root, nodeId, portRemap) };
+    });
+    set({ project: { ...project, trees } });
+  },
+
+  updateNodeCdata(nodeId, cdata) {
+    const { project, activeTreeId } = get();
+    const trees = project.trees.map((tree) => {
+      if (tree.id !== activeTreeId) return tree;
+      return { ...tree, root: updateNodeCdataRecursive(tree.root, nodeId, cdata) };
     });
     set({ project: { ...project, trees } });
   },
@@ -703,6 +882,7 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
       partialize: (state) => ({
         project: state.project,
         activeTreeId: state.activeTreeId,
+        openedTreeIds: state.openedTreeIds,
       }),
     }
   )
@@ -795,6 +975,21 @@ function updateNodePortRemapRecursive(
   };
 }
 
+function updateNodeCdataRecursive(
+  node: import('../types/bt').BTTreeNode,
+  nodeId: string,
+  cdata: string | undefined
+): import('../types/bt').BTTreeNode {
+  if (node.id === nodeId) {
+    return { ...node, cdata };
+  }
+  if (node.children.length === 0) return node;
+  return {
+    ...node,
+    children: node.children.map((c) => updateNodeCdataRecursive(c, nodeId, cdata)),
+  };
+}
+
 function replaceNodeTypeRecursive(
   node: import('../types/bt').BTTreeNode,
   oldType: string,
@@ -813,4 +1008,28 @@ function replaceNodeTypeRecursive(
     ...nextNode,
     children: nextNode.children.map((child) => replaceNodeTypeRecursive(child, oldType, newType)),
   };
+}
+
+function remapSubTreeTargetRecursive(
+  node: import('../types/bt').BTTreeNode,
+  oldTreeId: string,
+  newTreeId: string
+): import('../types/bt').BTTreeNode {
+  const shouldRetarget = node.type === 'SubTree' && node.name === oldTreeId;
+  const nextNode = shouldRetarget ? { ...node, name: newTreeId } : node;
+  if (nextNode.children.length === 0) return nextNode;
+  return {
+    ...nextNode,
+    children: nextNode.children.map((child) => remapSubTreeTargetRecursive(child, oldTreeId, newTreeId)),
+  };
+}
+
+function treeReferencesTarget(
+  node: import('../types/bt').BTTreeNode,
+  targetTreeId: string
+): boolean {
+  if (node.type === 'SubTree' && node.name === targetTreeId) {
+    return true;
+  }
+  return node.children.some((child) => treeReferencesTarget(child, targetTreeId));
 }

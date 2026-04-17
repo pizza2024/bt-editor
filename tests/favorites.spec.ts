@@ -29,4 +29,16 @@ test.describe('Favorites / Templates', () => {
     const saveTemplateOption = page.getByText('Save as Template', { exact: false });
     await expect(saveTemplateOption).toBeVisible();
   });
+
+  test('save as template adds node to favorites panel', async ({ page }) => {
+    await page.getByRole('button', { name: '📂 Sample' }).click();
+    await page.waitForTimeout(500);
+
+    const targetNode = page.locator('.react-flow__node').filter({ hasText: 'CheckBattery' }).first();
+    await targetNode.click({ button: 'right' });
+    await page.getByText('Save as Template', { exact: false }).click();
+
+    await expect(page.locator('text=Favorites (1)')).toBeVisible();
+    await expect(page.locator('text=CheckBattery')).toBeVisible();
+  });
 });

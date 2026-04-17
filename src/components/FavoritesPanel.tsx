@@ -9,6 +9,31 @@ interface FavoriteTemplate {
   ports?: Record<string, string>;
   preconditions?: Record<string, string>;
   postconditions?: Record<string, string>;
+  subtree?: {
+    rootId: string;
+    nodes: Array<{
+      id: string;
+      position: { x: number; y: number };
+      data: {
+        label?: string;
+        nodeType: string;
+        category: string;
+        colors?: { bg: string; border: string; text: string };
+        ports?: Record<string, string>;
+        preconditions?: Record<string, string>;
+        postconditions?: Record<string, string>;
+        childrenCount?: number;
+        description?: string;
+        cdata?: string;
+      };
+    }>;
+    edges: Array<{
+      source: string;
+      target: string;
+      sourceHandle?: string | null;
+      targetHandle?: string | null;
+    }>;
+  };
   category: string;
   createdAt: number;
 }
@@ -26,7 +51,10 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
   const [editName, setEditName] = useState('');
 
   const handleDragStart = (e: React.DragEvent, template: FavoriteTemplate) => {
-    e.dataTransfer.setData('application/bt-template', JSON.stringify(template));
+    const payload = JSON.stringify(template);
+    e.dataTransfer.setData('application/bt-template', payload);
+    // Fallback payload improves DnD interoperability in some browsers/webviews.
+    e.dataTransfer.setData('text/plain', payload);
     e.dataTransfer.effectAllowed = 'copy';
     onDragStart?.(template, e);
   };

@@ -3,6 +3,7 @@ import type { Edge, Node } from '@xyflow/react';
 /**
  * Validate outgoing connection count by source node category.
  * - Action/Condition cannot have children
+ * - SubTree cannot have children (it references another tree)
  * - ROOT can only have one child
  * - Decorator can only have one child
  */
@@ -10,7 +11,7 @@ export function isSourceNodeConnectionAllowed(sourceNode: Node, existingEdges: E
   const sourceCategory = (sourceNode.data as { category?: string }).category;
 
   // Leaf nodes cannot have outgoing connections
-  if (sourceCategory === 'Action' || sourceCategory === 'Condition') {
+  if (sourceCategory === 'Action' || sourceCategory === 'Condition' || sourceCategory === 'SubTree') {
     return false;
   }
 

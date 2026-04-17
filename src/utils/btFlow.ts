@@ -1,7 +1,8 @@
 import type { BTTree, BTTreeNode, BTNodeDefinition } from '../types/bt';
 import type { Node, Edge } from '@xyflow/react';
-import { BUILTIN_NODES, EDITOR_ROOT_TYPE } from '../types/bt-constants';
+import { EDITOR_ROOT_TYPE, getBuiltinNodesForFormat } from '../types/bt-constants';
 import { CATEGORY_COLORS } from '../types/bt-constants';
+import type { BTPort } from '../types/bt';
 
 let _edgeCounter = 0;
 
@@ -12,11 +13,13 @@ export interface BTFlowNodeData {
   category: string;
   colors: { bg: string; border: string; text: string };
   ports: Record<string, string>;
+  portDefs?: BTPort[];
   preconditions?: Record<string, string>;
   postconditions?: Record<string, string>;
   description?: string;
   childIndex?: number;
   childrenCount: number;
+  cdata?: string;
   [key: string]: unknown;
 }
 
@@ -24,6 +27,11 @@ export function treeToFlow(
   tree: BTTree,
   nodeModels: BTNodeDefinition[] = []
 ): { nodes: Node[]; edges: Edge[] } {
+  const builtinFallback = getBuiltinNodesForFormat(4);
+  const customOnly = nodeModels.filter(
+    (model) => !builtinFallback.some((builtin) => builtin.type === model.type)
+  );
+  const effectiveNodeModels = [...builtinFallback, ...customOnly];
   const nodes: Node[] = [];
   const edges: Edge[] = [];
   _edgeCounter = 0;
@@ -34,9 +42,8 @@ export function treeToFlow(
   }
 
   function walk(btNode: BTTreeNode, childIndex?: number) {
-    const builtinDef = BUILTIN_NODES.find((n) => n.type === btNode.type);
-    const customDef = nodeModels.find((n) => n.type === btNode.type);
-    const category = builtinDef?.category ?? customDef?.category ?? 'Action';
+    const nodeDef = effectiveNodeModels.find((n) => n.type === btNode.type);
+    const category = nodeDef?.category ?? 'Action';
     const colors = CATEGORY_COLORS[category] ?? CATEGORY_COLORS['Action'];
     const childrenCount = countChildren(btNode);
 
@@ -50,11 +57,13 @@ export function treeToFlow(
         category: btNode.type === EDITOR_ROOT_TYPE ? 'ROOT' : category,
         colors: btNode.type === EDITOR_ROOT_TYPE ? CATEGORY_COLORS['ROOT'] : colors,
         ports: btNode.ports,
+        portDefs: nodeDef?.ports,
         preconditions: btNode.preconditions,
         postconditions: btNode.postconditions,
         childIndex,
         childrenCount,
         isRoot: btNode.type === EDITOR_ROOT_TYPE,
+        cdata: btNode.cdata,
       } as BTFlowNodeData,
     });
 
@@ -140,6 +149,7 @@ export function flowToTree(treeId: string, nodes: Node[], edges: Edge[]): BTTree
       preconditions?: Record<string, string>;
       postconditions?: Record<string, string>;
       description?: string;
+      cdata?: string;
     };
     const childIds = (children.get(nodeId) ?? []).map((child) => child.targetId);
     return {
@@ -150,6 +160,7 @@ export function flowToTree(treeId: string, nodes: Node[], edges: Edge[]): BTTree
       preconditions: data.preconditions,
       postconditions: data.postconditions,
       description: data.description,
+      cdata: data.cdata,
       children: childIds.map(buildNode),
     };
   }

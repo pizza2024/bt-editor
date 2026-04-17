@@ -12,6 +12,11 @@ const zh = {
     dark: '深色',
     light: '浅色',
     help: '帮助',
+    xmlFormat: '格式',
+    xmlFormatV3: 'v3',
+    xmlFormatV4: 'v4',
+    formatLocked: '已锁定',
+    formatLockedHint: '当前工程已有树内容时，不允许切换版本。',
   },
   // Context menu
   contextMenu: {
@@ -22,6 +27,7 @@ const zh = {
     copy: '复制',
     paste: '粘贴',
     convertToSubtree: '转换为子树',
+    openReferencedTree: '打开引用树',
   },
   // Properties panel
   properties: {
@@ -129,6 +135,16 @@ const zh = {
     panel: '行为树',
     delete: '删除',
     newTreePlaceholder: '新树名称',
+    filterPlaceholder: '过滤树...',
+    openInTab: '在标签页打开',
+    noTreesFound: '未找到匹配的树',
+    projectGroup: 'Project',
+  },
+  treeTabs: {
+    panel: '已打开的树',
+    close: '关闭标签页',
+    closeOthers: '关闭其它标签页',
+    closeToRight: '关闭右侧标签页',
   },
   // Node palette
   palette: {
@@ -187,6 +203,10 @@ const zh = {
   xmlPreview: {
     title: 'XML 预览',
     description: '实时预览当前工程导出的 XML。',
+    modeLabel: '模式',
+    modeSwitch: '切换 XML 预览模式',
+    modeLocal: '分 Tab',
+    modeMain: '主树整体',
     copy: '复制',
     copied: '已复制',
     edit: '编辑',
@@ -199,7 +219,12 @@ const zh = {
     collapse: '折叠 XML 预览',
     expand: '展开 XML 预览',
     activeTree: '当前树: {{tree}}',
+    previewMainMeta: '主树整体 XML（全工程）: {{tree}}',
     empty: '暂无 XML 内容',
+  },
+  nodeWarnings: {
+    subtreeUnlinked: '子树未关联',
+    subtreeUnlinkedHint: '该 SubTree 节点尚未关联目标树，请编辑节点后选择目标树。',
   },
 };
 

@@ -12,6 +12,11 @@ const en = {
     dark: 'Dark',
     light: 'Light',
     help: 'Help',
+    xmlFormat: 'Format',
+    xmlFormatV3: 'v3',
+    xmlFormatV4: 'v4',
+    formatLocked: 'Locked',
+    formatLockedHint: 'Version switching is locked once the current project has tree content.',
   },
   // Context menu
   contextMenu: {
@@ -22,6 +27,7 @@ const en = {
     copy: 'Copy',
     paste: 'Paste',
     convertToSubtree: 'Convert to Subtree',
+    openReferencedTree: 'Open Referenced Tree',
   },
   // Properties panel
   properties: {
@@ -129,6 +135,16 @@ const en = {
     panel: 'Behavior Trees',
     delete: 'Delete',
     newTreePlaceholder: 'NewTreeName',
+    filterPlaceholder: 'Filter trees...',
+    openInTab: 'Open in Tab',
+    noTreesFound: 'No trees found',
+    projectGroup: 'Project',
+  },
+  treeTabs: {
+    panel: 'Opened Trees',
+    close: 'Close Tab',
+    closeOthers: 'Close Others',
+    closeToRight: 'Close Tabs To The Right',
   },
   // Node palette
   palette: {
@@ -187,6 +203,10 @@ const en = {
   xmlPreview: {
     title: 'Live XML',
     description: 'Real-time preview of the exported project XML.',
+    modeLabel: 'Mode',
+    modeSwitch: 'Switch Live XML preview mode',
+    modeLocal: 'Per tab',
+    modeMain: 'Main tree',
     copy: 'Copy',
     copied: 'Copied',
     edit: 'Edit',
@@ -199,7 +219,12 @@ const en = {
     collapse: 'Collapse XML preview',
     expand: 'Expand XML preview',
     activeTree: 'Active tree: {{tree}}',
+    previewMainMeta: 'Main tree XML (full project): {{tree}}',
     empty: 'No XML available',
+  },
+  nodeWarnings: {
+    subtreeUnlinked: 'UNLINKED SUBTREE',
+    subtreeUnlinkedHint: 'This SubTree node is not linked to a target tree. Edit node and select a tree.',
   },
 };
 
