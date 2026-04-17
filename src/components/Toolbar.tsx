@@ -3,6 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { useBTStore } from '../store/BTStoreProvider';
 import { SAMPLE_XML, analyzeMissingNodeModels, type MissingNodeModelCandidate } from '../utils/btXml';
 import MissingNodeModelsImporterModal from './MissingNodeModelsImporterModal';
+import { useBTEditorIntegration, isIntegrationReadonly } from '../integration/context';
+import { writeStoredLocale } from '../integration/defaultAdapters';
+import { dispatchEditorWindowEvent } from '../integration/editorEvents';
 
 function isProjectModeSwitchLocked(project: { trees: Array<{ root: { children: unknown[] } }>; mainTreeId: string }): boolean {
   return project.trees.some((tree) => tree.root.children.length > 0);
@@ -10,6 +13,7 @@ function isProjectModeSwitchLocked(project: { trees: Array<{ root: { children: u
 
 const Toolbar: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const integration = useBTEditorIntegration();
   
   // Separate selectors for each value to maintain proper reactivity
   // Use arrow functions to ensure they return the same reference for same values
@@ -28,21 +32,19 @@ const Toolbar: React.FC = () => {
   const xmlFormat: 3 | 4 = project.exportFormat ?? 4;
   const formatSwitchLocked = isProjectModeSwitchLocked(project);
 
-  // Debug: Log whenever the project changes
-  useEffect(() => {
-    console.log('=== Toolbar: project object changed ===');
-    console.log('project.exportFormat:', project.exportFormat);
-    console.log('xmlFormat:', xmlFormat);
-  }, [project]);
-
   const toggleLanguage = () => {
+    if (!integration || integration.localeControlled) {
+      return;
+    }
+
     const newLang = i18n.language === 'en' ? 'zh' : 'en';
     i18n.changeLanguage(newLang);
-    localStorage.setItem('bt-language', newLang);
+    writeStoredLocale(newLang, integration.adapters.storageAdapter);
   };
 
   const handleExport = useCallback(() => {
-    const xml = exportXML();
+    const result = integration?.exportXml('user');
+    const xml = result?.ok ? result.data : exportXML();
     const blob = new Blob([xml], { type: 'application/xml' });
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -76,15 +78,9 @@ const Toolbar: React.FC = () => {
       } catch {
         candidates = [];
       }
-      console.log('=== About to load XML ===');
-      console.log('XML content preview:', xml.substring(0, 300));
-      const importedProject = loadXML(xml);
-      if (importedProject) {
-        console.log('=== Import completed ===');
-        console.log('importedProject.exportFormat:', importedProject.exportFormat);
-        console.log('project in store:', project);
-      }
-      if (!importedProject) return;
+      const importedProject = integration?.importXml(xml, 'import');
+      const nextProject = importedProject?.ok ? importedProject.data : loadXML(xml);
+      if (!nextProject) return;
       setMissingModelCandidates(candidates);
     };
     reader.readAsText(file);
@@ -92,12 +88,23 @@ const Toolbar: React.FC = () => {
   };
 
   const handleExportPNG = () => {
-    window.dispatchEvent(new CustomEvent('bt-export-png'));
+    dispatchEditorWindowEvent('bt-export-png');
   };
 
   const handleLoadSample = () => {
+    if (integration) {
+      integration.importXml(SAMPLE_XML, 'api');
+      return;
+    }
+
     loadXML(SAMPLE_XML);
   };
+
+  const readonly = isIntegrationReadonly(integration);
+  const features = integration?.features;
+  const canImportExport = features?.importExport ?? true;
+  const canExportPng = features?.pngExport ?? true;
+  const canShowShortcuts = features?.shortcutsHelp ?? true;
 
   return (
     <div className="toolbar">
@@ -109,15 +116,19 @@ const Toolbar: React.FC = () => {
       <div className="toolbar-divider" />
 
       {/* File operations */}
-      <button className="toolbar-btn" onClick={handleLoadSample} title={t('toolbar.sample')}>
-        📂 {t('toolbar.sample')}
-      </button>
-      <button className="toolbar-btn" onClick={() => fileInputRef.current?.click()} title={t('toolbar.importXml')}>
-        ⬆ {t('toolbar.importXml')}
-      </button>
-      <button className="toolbar-btn" onClick={handleExport} title={t('toolbar.exportXml')}>
-        ⬇ {t('toolbar.exportXml')}
-      </button>
+      {canImportExport && (
+        <>
+          <button className="toolbar-btn" onClick={handleLoadSample} title={t('toolbar.sample')} disabled={readonly}>
+            📂 {t('toolbar.sample')}
+          </button>
+          <button className="toolbar-btn" onClick={() => fileInputRef.current?.click()} title={t('toolbar.importXml')} disabled={readonly}>
+            ⬆ {t('toolbar.importXml')}
+          </button>
+          <button className="toolbar-btn" onClick={handleExport} title={t('toolbar.exportXml')}>
+            ⬇ {t('toolbar.exportXml')}
+          </button>
+        </>
+      )}
       {/* XML Format selector */}
       <div className="toolbar-format-group">
         <span className="toolbar-format-label">
@@ -125,10 +136,9 @@ const Toolbar: React.FC = () => {
         </span>
         <button
           onClick={() => {
-            console.log('Clicked V3, current xmlFormat:', xmlFormat);
             setExportFormat(3);
           }}
-          disabled={formatSwitchLocked}
+          disabled={formatSwitchLocked || readonly}
           className={`toolbar-format-btn${xmlFormat === 3 ? ' active' : ''}`}
           title={formatSwitchLocked ? t('toolbar.formatLockedHint') : 'Select BehaviorTree.CPP v3 format'}
         >
@@ -136,27 +146,30 @@ const Toolbar: React.FC = () => {
         </button>
         <button
           onClick={() => {
-            console.log('Clicked V4, current xmlFormat:', xmlFormat);
             setExportFormat(4);
           }}
-          disabled={formatSwitchLocked}
+          disabled={formatSwitchLocked || readonly}
           className={`toolbar-format-btn${xmlFormat === 4 ? ' active' : ''}`}
           title={formatSwitchLocked ? t('toolbar.formatLockedHint') : 'Select BehaviorTree.CPP v4 format'}
         >
           v4
         </button>
       </div>
-      <button className="toolbar-btn" onClick={handleExportPNG} title={t('toolbar.exportPng')}>
-        🖼️ {t('toolbar.exportPng')}
-      </button>
+      {canExportPng && (
+        <button className="toolbar-btn" onClick={handleExportPNG} title={t('toolbar.exportPng')}>
+          🖼️ {t('toolbar.exportPng')}
+        </button>
+      )}
       {/* Keyboard shortcuts help */}
-      <button
-        className="toolbar-btn"
-        onClick={() => window.dispatchEvent(new CustomEvent('bt-toggle-shortcuts-help'))}
-        title={t('toolbar.help')}
-      >
-        ?
-      </button>
+      {canShowShortcuts && (
+        <button
+          className="toolbar-btn"
+          onClick={() => dispatchEditorWindowEvent('bt-toggle-shortcuts-help')}
+          title={t('toolbar.help')}
+        >
+          ?
+        </button>
+      )}
       <input ref={fileInputRef} type="file" accept=".xml" style={{ display: 'none' }} onChange={handleImport} />
 
       <div className="toolbar-divider" />
@@ -177,6 +190,7 @@ const Toolbar: React.FC = () => {
         onClick={toggleLanguage}
         title={t('language.switch')}
         style={{ minWidth: 60 }}
+        disabled={integration?.localeControlled}
       >
         {i18n.language === 'en' ? '🇺🇸 EN' : '🇨🇳 中文'}
       </button>
@@ -187,6 +201,7 @@ const Toolbar: React.FC = () => {
         onClick={toggleTheme}
         title={t('toolbar.theme')}
         style={{ minWidth: 70 }}
+        disabled={integration?.themeControlled}
       >
         {theme === 'dark' ? '🌙 ' + t('toolbar.dark') : '☀️ ' + t('toolbar.light')}
       </button>

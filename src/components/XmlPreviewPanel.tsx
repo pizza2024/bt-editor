@@ -4,6 +4,7 @@ import xmlFormatter from 'xml-formatter';
 import { useBTStore, useBTStoreApi } from '../store/BTStoreProvider';
 import type { BTProject } from '../types/bt';
 import { parseXML, serializeXML } from '../utils/btXml';
+import { useBTEditorIntegration, isIntegrationReadonly } from '../integration/context';
 
 const XML_PANEL_MIN_WIDTH = 240;
 type XmlPreviewMode = 'local' | 'main';
@@ -43,6 +44,7 @@ function formatXmlForPreview(source: string): string {
 
 const XmlPreviewPanel: React.FC = () => {
   const { t } = useTranslation();
+  const integration = useBTEditorIntegration();
   const storeApi = useBTStoreApi();
   const project = useBTStore((state) => state.project);
   const activeTreeId = useBTStore((state) => state.activeTreeId);
@@ -68,6 +70,7 @@ const XmlPreviewPanel: React.FC = () => {
   const previewMeta = previewMode === 'main'
     ? t('xmlPreview.previewMainMeta', { tree: project.mainTreeId })
     : t('xmlPreview.activeTree', { tree: activeTreeId });
+  const readonly = isIntegrationReadonly(integration);
 
   useEffect(() => {
     return () => {
@@ -107,6 +110,7 @@ const XmlPreviewPanel: React.FC = () => {
   };
 
   const handleEditClick = () => {
+    if (readonly) return;
     setIsEditing(true);
     setEditedXml(xml);
     setTimeout(() => textareaRef.current?.focus(), 0);
@@ -144,7 +148,8 @@ const XmlPreviewPanel: React.FC = () => {
 
     try {
       if (previewMode === 'main') {
-        const newProject = loadXML(editedXml);
+        const result = integration?.importXml(editedXml, 'import');
+        const newProject = result?.ok ? result.data : loadXML(editedXml);
         if (!newProject) {
           setXmlError(t('xmlPreview.invalidXml'));
           return;
@@ -202,7 +207,11 @@ const XmlPreviewPanel: React.FC = () => {
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(xml);
+      const clipboardAdapter = integration?.adapters.clipboardAdapter;
+      if (!clipboardAdapter) {
+        throw new Error('Clipboard adapter unavailable');
+      }
+      await clipboardAdapter.writeText(xml);
       setCopied(true);
       if (copyResetRef.current !== null) {
         window.clearTimeout(copyResetRef.current);
@@ -211,8 +220,13 @@ const XmlPreviewPanel: React.FC = () => {
         setCopied(false);
         copyResetRef.current = null;
       }, 1200);
-    } catch {
-      window.alert(t('xmlPreview.copyFailed'));
+    } catch (error) {
+      integration?.reportError(
+        { code: 'clipboard-write-failed', message: t('xmlPreview.copyFailed'), cause: error },
+        'user',
+        'copy-xml'
+      );
+      integration?.adapters.notifyAdapter.alert(t('xmlPreview.copyFailed'));
     }
   };
 
@@ -270,6 +284,7 @@ const XmlPreviewPanel: React.FC = () => {
                 onClick={handleEditClick}
                 title={t('xmlPreview.edit')}
                 aria-label={t('xmlPreview.edit')}
+                disabled={readonly}
               >
                 ✎
               </button>
@@ -317,7 +332,7 @@ const XmlPreviewPanel: React.FC = () => {
               type="checkbox"
               checked={previewMode === 'main'}
               onChange={(event) => setPreviewMode(event.target.checked ? 'main' : 'local')}
-              disabled={isEditing}
+              disabled={isEditing || readonly}
               aria-label={t('xmlPreview.modeSwitch')}
             />
             <span className="xml-preview-switch-track" aria-hidden="true">
@@ -338,6 +353,7 @@ const XmlPreviewPanel: React.FC = () => {
               onChange={(e) => handleXmlChange(e.target.value)}
               spellCheck="false"
               wrap="off"
+              readOnly={readonly}
             />
             {xmlError && (
               <div className="xml-error-banner">

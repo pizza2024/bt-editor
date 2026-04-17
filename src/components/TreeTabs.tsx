@@ -1,9 +1,11 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useBTStore } from '../store/BTStoreProvider';
+import { useBTEditorIntegration } from '../integration/context';
 
 const TreeTabs: React.FC = () => {
   const { t } = useTranslation();
+  const integration = useBTEditorIntegration();
   const {
     project,
     activeTreeId,
@@ -35,6 +37,10 @@ const TreeTabs: React.FC = () => {
   const canCloseSingle = visibleTabs.length > 1;
   const canCloseOthers = visibleTabs.length > 1;
   const canCloseRight = menuIndex >= 0 && menuIndex < visibleTabs.length - 1;
+
+  if (integration && !integration.features.treeTabs) {
+    return null;
+  }
 
   return (
     <div className="tree-tabs" role="tablist" aria-label={t('treeTabs.panel')}>

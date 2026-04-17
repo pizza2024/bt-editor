@@ -131,6 +131,77 @@ Notes:
 - `storageKey` isolates persisted editor state between instances
 - Library output externalizes `react`, `react-dom`, and `react/jsx-runtime`
 
+### Integration API (MVP)
+
+`BTEditor` now supports controlled/uncontrolled project state, readonly mode, feature flags, adapter injection, callbacks, and an imperative ref API.
+
+```tsx
+import { useRef, useState } from 'react';
+import { BTEditor, type BTEditorRef, type BTProject } from 'bt-editor';
+
+export function Host() {
+  const editorRef = useRef<BTEditorRef>(null);
+  const [project, setProject] = useState<BTProject | undefined>(undefined);
+
+  return (
+    <div style={{ width: 1100, height: 700 }}>
+      <BTEditor
+        ref={editorRef}
+        value={project}
+        mode="edit"
+        features={{ treeTabs: true, importExport: true, pngExport: true }}
+        onChange={(next, ctx) => {
+          // ctx.origin: 'user' | 'api' | 'import' | 'system'
+          setProject(next);
+        }}
+        onTreeChange={(action, ctx) => {
+          // action.type includes add-tree / rename-tree / set-main-tree / tab actions
+          console.log(action.type, action.treeId, ctx.origin);
+        }}
+        onReady={(api) => {
+          // Imperative APIs: getProject/setProject/importXml/exportXml/undo/redo/getState
+          editorRef.current = api;
+        }}
+      />
+    </div>
+  );
+}
+```
+
+### Adapters
+
+Use `adapters` to integrate host-side storage, notifications, clipboard, and logging behavior.
+
+```tsx
+<BTEditor
+  adapters={{
+    storageAdapter: {
+      getItem: (k) => sessionStorage.getItem(k),
+      setItem: (k, v) => sessionStorage.setItem(k, v),
+      removeItem: (k) => sessionStorage.removeItem(k),
+    },
+    notifyAdapter: {
+      alert: (msg) => myToast.error(msg),
+      confirm: (msg) => window.confirm(msg),
+    },
+    clipboardAdapter: {
+      writeText: (text) => navigator.clipboard.writeText(text),
+    },
+    loggerAdapter: {
+      info: (msg, ...args) => console.info(msg, ...args),
+      warn: (msg, ...args) => console.warn(msg, ...args),
+      error: (msg, ...args) => console.error(msg, ...args),
+    },
+  }}
+/>
+```
+
+### Readonly Behavior
+
+- In `mode="readonly"`, model/tree/canvas mutations are blocked.
+- Navigation behavior remains available (for example, opening referenced SubTrees).
+- Child components receive readonly state through integration context for consistent UI disabling.
+
 ## Debug Log Format
 
 One entry per line:

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useBTStore } from '../store/BTStoreProvider';
+import { useBTEditorIntegration, isIntegrationReadonly } from '../integration/context';
 
 const TreeManager: React.FC = () => {
   const { t } = useTranslation();
+  const integration = useBTEditorIntegration();
   const { project, activeTreeId, setActiveTree, openTreeTab, addTree, renameTree, deleteTree, setMainTree } =
     useBTStore();
   const [newTreeId, setNewTreeId] = useState('');
@@ -11,6 +13,7 @@ const TreeManager: React.FC = () => {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [projectExpanded, setProjectExpanded] = useState(true);
+  const readonly = isIntegrationReadonly(integration);
 
   const normalizedFilter = filterText.trim().toLowerCase();
   const visibleTrees = project.trees.filter((tree) => {
@@ -19,6 +22,7 @@ const TreeManager: React.FC = () => {
   });
 
   const handleAdd = () => {
+    if (readonly) return;
     const id = newTreeId.trim();
     if (!id) return;
     addTree(id);
@@ -26,11 +30,16 @@ const TreeManager: React.FC = () => {
   };
 
   const startRename = (id: string) => {
+    if (readonly) return;
     setRenaming(id);
     setRenameValue(id);
   };
 
   const commitRename = (oldId: string) => {
+    if (readonly) {
+      setRenaming(null);
+      return;
+    }
     const newId = renameValue.trim();
     if (newId && newId !== oldId) renameTree(oldId, newId);
     setRenaming(null);
@@ -120,17 +129,20 @@ const TreeManager: React.FC = () => {
                           <button
                             className="tree-btn"
                             title="Set as main tree"
+                            disabled={readonly}
                             onClick={(e) => { e.stopPropagation(); setMainTree(tree.id); }}
                           >★</button>
                         )}
                         <button
                           className="tree-btn"
                           title="Rename"
+                          disabled={readonly}
                           onClick={(e) => { e.stopPropagation(); startRename(tree.id); }}
                         >✎</button>
                         <button
                           className="tree-btn danger"
                           title={t('treeManager.delete')}
+                          disabled={readonly}
                           onClick={(e) => { e.stopPropagation(); deleteTree(tree.id); }}
                         >✕</button>
                       </div>
@@ -153,6 +165,7 @@ const TreeManager: React.FC = () => {
             onChange={(e) => setNewTreeId(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             placeholder={t('treeManager.newTreePlaceholder')}
+            disabled={readonly}
             style={{
               flex: 1,
               background: 'var(--bg-tertiary)',
@@ -163,7 +176,7 @@ const TreeManager: React.FC = () => {
               fontSize: 12,
             }}
           />
-          <button className="btn-primary" onClick={handleAdd}>+</button>
+          <button className="btn-primary" onClick={handleAdd} disabled={readonly}>+</button>
         </div>
       </div>
     </div>

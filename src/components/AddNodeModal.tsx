@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CATEGORY_COLORS, PORT_DIRECTIONS } from '../types/bt-constants';
 import type { BTNodeCategory, BTNodeDefinition, BTPort, PortDirection } from '../types/bt';
+import { useBTEditorIntegration } from '../integration/context';
 
 interface PortFormState {
   name: string;
@@ -22,6 +23,7 @@ interface AddNodeModalProps {
 }
 
 const AddNodeModal: React.FC<AddNodeModalProps> = ({ onSave, onClose }) => {
+  const integration = useBTEditorIntegration();
   const [nodeType, setNodeType] = useState('');
   const [category, setCategory] = useState<BTNodeCategory>('Action');
   const [description, setDescription] = useState('');
@@ -52,7 +54,7 @@ const AddNodeModal: React.FC<AddNodeModalProps> = ({ onSave, onClose }) => {
   const handleSave = () => {
     const trimmed = nodeType.trim();
     if (!trimmed) {
-      alert('Please enter a node type name');
+      integration?.adapters.notifyAdapter.alert('Please enter a node type name');
       return;
     }
 

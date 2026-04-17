@@ -5,6 +5,8 @@ import { STATUS_COLORS } from '../../types/bt-constants';
 import type { BTPort } from '../../types/bt';
 import { useTranslation } from 'react-i18next';
 import { useBTStore } from '../../store/BTStoreProvider';
+import { useBTEditorIntegration, isIntegrationReadonly } from '../../integration/context';
+import { dispatchEditorWindowEvent } from '../../integration/editorEvents';
 
 interface BTNodeData {
   label: string;
@@ -28,8 +30,10 @@ interface BTNodeData {
 
 const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId }) => {
   const { t } = useTranslation();
+  const integration = useBTEditorIntegration();
   const { theme } = useBTStore();
   const isLightTheme = theme === 'light';
+  const readonly = isIntegrationReadonly(integration);
   const d = data as BTNodeData;
   const { label, category, colors, ports, preconditions, postconditions, description, status, isRoot, isCollapsed, isExpandedSubTree, isSubTreeUnlinked, cdata } = d;
 
@@ -140,38 +144,31 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
     e.stopPropagation();
 
     if (isSubTreeNode) {
-      window.dispatchEvent(new CustomEvent('bt-open-subtree', {
-        detail: { nodeId }
-      }));
+      dispatchEditorWindowEvent('bt-open-subtree', { nodeId });
       return;
     }
 
-    window.dispatchEvent(new CustomEvent('bt-node-edit', {
-      detail: { nodeId }
-    }));
+    if (!readonly) {
+      dispatchEditorWindowEvent('bt-node-edit', { nodeId });
+    }
   };
 
   const handleOpenSubTreeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    window.dispatchEvent(new CustomEvent('bt-open-subtree', {
-      detail: { nodeId }
-    }));
+    dispatchEditorWindowEvent('bt-open-subtree', { nodeId });
   };
 
   // Toggle SubTree expansion (inline preview)
   const handleToggleExpandSubTree = (e: React.MouseEvent) => {
     e.stopPropagation();
-    window.dispatchEvent(new CustomEvent('bt-toggle-expand-subtree', {
-      detail: { nodeId }
-    }));
+    dispatchEditorWindowEvent('bt-toggle-expand-subtree', { nodeId });
   };
 
   // Handle port double-click to edit
   const handlePortDoubleClick = (e: React.MouseEvent, portName: string, portDirection: string) => {
+    if (readonly) return;
     e.stopPropagation();
-    window.dispatchEvent(new CustomEvent('bt-node-edit', {
-      detail: { nodeId, portName, portDirection }
-    }));
+    dispatchEditorWindowEvent('bt-node-edit', { nodeId, portName, portDirection });
   };
 
   const renderConditionBlock = (entries: Array<[string, string]>, marginBottom: number = 0) => (
@@ -248,7 +245,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
         transition: 'box-shadow 0.2s',
         userSelect: 'none',
         position: 'relative',
-        cursor: 'pointer',
+        cursor: readonly ? 'default' : 'pointer',
       }}
     >
       {handles}
@@ -410,7 +407,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
                     background: 'rgba(0,0,0,0.2)',
                     borderRadius: 3,
                     padding: '2px 6px',
-                    cursor: 'pointer'
+                    cursor: readonly ? 'default' : 'pointer',
                   }}
                   onDoubleClick={(e) => handlePortDoubleClick(e, k, 'input')}
                   title={`Double-click to edit: ${k}`}

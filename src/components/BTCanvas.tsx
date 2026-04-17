@@ -39,6 +39,8 @@ import CdataEditModal from './CdataEditModal';
 import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
 import NodeSearchModal from './NodeSearchModal';
 import TreeTabs from './TreeTabs';
+import { useBTEditorIntegration, isIntegrationReadonly } from '../integration/context';
+import { addEditorWindowEventListener } from '../integration/editorEvents';
 
 const nodeTypes = { btNode: BTFlowNode };
 const edgeTypes = { btEdge: BTFlowEdge };
@@ -343,9 +345,14 @@ function ensureUniqueEdgeIds(edges: Edge[]): Edge[] {
 const SUBTREE_TARGET_CACHE_KEY = 'bt-editor:last-subtree-target';
 const SUBTREE_LOOP_WARNING_MESSAGE = 'One or more SubTrees in this tree reference this SubTree, which may cause an infinite loop. Please check the SubTree references.';
 
-function readCachedSubTreeTarget(activeTreeId: string, project: BTProject): string | null {
+function readCachedSubTreeTarget(
+  activeTreeId: string,
+  project: BTProject,
+  storageAdapter?: { getItem: (key: string) => string | null }
+): string | null {
+  if (!storageAdapter) return null;
   try {
-    const cached = window.localStorage.getItem(SUBTREE_TARGET_CACHE_KEY);
+    const cached = storageAdapter.getItem(SUBTREE_TARGET_CACHE_KEY);
     if (!cached) return null;
     const exists = project.trees.some((tree) => tree.id === cached);
     if (!exists || cached === activeTreeId) return null;
@@ -355,10 +362,13 @@ function readCachedSubTreeTarget(activeTreeId: string, project: BTProject): stri
   }
 }
 
-function writeCachedSubTreeTarget(treeId?: string): void {
-  if (!treeId) return;
+function writeCachedSubTreeTarget(
+  treeId: string | undefined,
+  storageAdapter?: { setItem: (key: string, value: string) => void }
+): void {
+  if (!treeId || !storageAdapter) return;
   try {
-    window.localStorage.setItem(SUBTREE_TARGET_CACHE_KEY, treeId);
+    storageAdapter.setItem(SUBTREE_TARGET_CACHE_KEY, treeId);
   } catch {
     // Ignore localStorage failures (private mode/quota)
   }
@@ -369,6 +379,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   onToggleSidePanels,
   toggleSidePanelsLabel,
 }) => {
+  const integration = useBTEditorIntegration();
   const storeApi = useBTStoreApi();
   const {
     project,
@@ -380,7 +391,6 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     clearSelection,
     toggleSelection,
     debugState,
-    addNodeModel,
     updateNodeName,
     setLocalCanvas,
     copyNode,
@@ -391,6 +401,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     expandedSubTreeNodeIds,
   } = useBTStore();
   const isLightTheme = theme === 'light';
+  const readonly = isIntegrationReadonly(integration);
+  const treeTabsEnabled = integration?.features.treeTabs ?? true;
+  const shortcutsHelpEnabled = integration?.features.shortcutsHelp ?? true;
 
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
@@ -537,6 +550,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
   const onNodeDragStart = useCallback(
     (event: React.MouseEvent, node: Node) => {
+      if (readonly) return;
       const useSubtreeDrag = ctrlKeyRef.current || event.altKey;
       if (!useSubtreeDrag) return;
       const descendantIds = getDescendantIds(node.id, edges);
@@ -566,7 +580,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         startPositions,
       };
     },
-    [edges]
+    [edges, readonly]
   );
 
   const onNodeDragStop = useCallback(() => {
@@ -585,6 +599,10 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   // Intercept position changes to apply Ctrl+drag subtree delta
   const handleNodesChange = useCallback(
     (changes: Parameters<typeof onNodesChange>[0]) => {
+      if (readonly) {
+        return;
+      }
+
       const { isCtrlDragging, draggedNodeId, startPositions } = ctrlDragRef.current;
 
       if (!isCtrlDragging || !draggedNodeId) {
@@ -633,7 +651,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       // Also let ReactFlow process the original change for the dragged node
       onNodesChange(changes);
     },
-    [onNodesChange, setNodes]
+    [onNodesChange, readonly, setNodes]
   );
 
   // Sync: responds to tree switch and external project changes (like XML load)
@@ -808,6 +826,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   // Handle picker selection (create node and connect)
   const handlePickerSelect = useCallback(
     (nodeType: string, category: BTNodeCategory) => {
+      if (readonly) return;
       if (!nodePickerPosition) return;
 
       // Find the source node that was being connected from
@@ -842,7 +861,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       const colors = CATEGORY_COLORS[validCategory] ?? CATEGORY_COLORS.Control;
       const isLeaf = category === 'Action' || category === 'Condition' || category === 'SubTree';
       const isSubTreeNode = nodeType === 'SubTree';
-      const cachedSubTreeTarget = isSubTreeNode ? readCachedSubTreeTarget(activeTreeId, project) : null;
+      const cachedSubTreeTarget = isSubTreeNode
+        ? readCachedSubTreeTarget(activeTreeId, project, integration?.adapters.storageAdapter)
+        : null;
       const resolvedLabel = cachedSubTreeTarget ?? nodeType;
 
       const newNode: Node = {
@@ -877,7 +898,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       setNodePickerPosition(null);
       setPendingConnection(null);
     },
-    [activeTreeId, project, nodePickerPosition, pendingConnection, setNodes, setEdges, deleteEdge, nodes, edges]
+    [activeTreeId, project, nodePickerPosition, pendingConnection, readonly, setNodes, setEdges, deleteEdge, nodes, edges]
   );
 
   // Validate connection based on BT rules
@@ -890,6 +911,10 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
   const onConnect = useCallback(
     (params: Connection) => {
+      if (readonly) {
+        return;
+      }
+
       // Validate connection
       const sourceNode = nodes.find((n) => n.id === params.source);
       const targetNode = nodes.find((n) => n.id === params.target);
@@ -978,7 +1003,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         deleteEdge
       ));
     },
-    [deleteEdge, setEdges, nodes, edges, isValidConnection, project.nodeModels, debugState.nodeStatuses]
+    [deleteEdge, setEdges, nodes, edges, isValidConnection, project.nodeModels, debugState.nodeStatuses, readonly]
   );
 
   // Handle incomplete connection (drag ended without connecting to target)
@@ -1055,6 +1080,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
   const pasteClipboardNode = useCallback(
     (clientPosition?: { x: number; y: number }) => {
+      if (readonly) return null;
       const newNode = pasteNode(getPasteFlowPosition(clientPosition));
       if (!newNode) return null;
 
@@ -1064,7 +1090,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       selectNode(newNode.id);
       return newNode;
     },
-    [getPasteFlowPosition, pasteNode, pushHistory, selectNode, setNodes]
+    [getPasteFlowPosition, pasteNode, pushHistory, readonly, selectNode, setNodes]
   );
 
   const syncZoomLevel = useCallback((nextZoom: number) => {
@@ -1073,6 +1099,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
   }, []);
 
   const beautifyLayout = useCallback(() => {
+    if (readonly) return;
     storeApi.getState().pushHistory();
     const currentNodes = nodesRef.current;
     const attachedIds = getAttachedNodeIds(currentNodes, edges);
@@ -1124,7 +1151,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         zoom: viewport.zoom,
       }, { duration: 250 });
     });
-  }, [edges, setNodes, storeApi]);
+  }, [edges, readonly, setNodes, storeApi]);
 
   const onMove = useCallback((_: MouseEvent | TouchEvent | null, viewport: { zoom: number }) => {
     syncZoomLevel(viewport.zoom);
@@ -1325,24 +1352,20 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       }
     };
 
-    window.addEventListener('bt-nodes-updated', handleNodesUpdated);
-    return () => window.removeEventListener('bt-nodes-updated', handleNodesUpdated);
+    return addEditorWindowEventListener('bt-nodes-updated', handleNodesUpdated);
   }, [setNodes]);
 
   // Handle node edit modal trigger
   React.useEffect(() => {
-    const handleNodeEdit = (e: Event) => {
-      const customEvent = e as CustomEvent<{ nodeId: string }>;
+    const handleNodeEdit = (customEvent: CustomEvent<{ nodeId: string }>) => {
       setEditingNodeId(customEvent.detail.nodeId);
     };
 
-    window.addEventListener('bt-node-edit', handleNodeEdit);
-    return () => window.removeEventListener('bt-node-edit', handleNodeEdit);
+    return addEditorWindowEventListener('bt-node-edit', handleNodeEdit);
   }, []);
 
   React.useEffect(() => {
-    const handleToggleExpandSubTree = (e: Event) => {
-      const customEvent = e as CustomEvent<{ nodeId: string }>;
+    const handleToggleExpandSubTree = (customEvent: CustomEvent<{ nodeId: string }>) => {
       const node = nodes.find((item) => item.id === customEvent.detail.nodeId);
       if (!node) return;
 
@@ -1353,8 +1376,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       storeApi.getState().toggleExpandSubTree(customEvent.detail.nodeId);
     };
 
-    const handleOpenSubTree = (e: Event) => {
-      const customEvent = e as CustomEvent<{ nodeId: string }>;
+    const handleOpenSubTree = (customEvent: CustomEvent<{ nodeId: string }>) => {
       const node = nodes.find((item) => item.id === customEvent.detail.nodeId);
       if (!node) return;
 
@@ -1370,11 +1392,11 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       hideMenu();
     };
 
-    window.addEventListener('bt-toggle-expand-subtree', handleToggleExpandSubTree);
-    window.addEventListener('bt-open-subtree', handleOpenSubTree);
+    const disposeToggle = addEditorWindowEventListener('bt-toggle-expand-subtree', handleToggleExpandSubTree);
+    const disposeOpen = addEditorWindowEventListener('bt-open-subtree', handleOpenSubTree);
     return () => {
-      window.removeEventListener('bt-toggle-expand-subtree', handleToggleExpandSubTree);
-      window.removeEventListener('bt-open-subtree', handleOpenSubTree);
+      disposeToggle();
+      disposeOpen();
     };
   }, [nodes, project, project.trees, activeTreeId, setActiveTree, clearSelection, hideMenu]);
 
@@ -1398,12 +1420,11 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         link.href = dataUrl;
         link.click();
       } catch (err) {
-        console.error('Failed to export PNG:', err);
+        integration?.adapters.loggerAdapter.error('Failed to export PNG:', err);
       }
     };
 
-    window.addEventListener('bt-export-png', handleExportPNG);
-    return () => window.removeEventListener('bt-export-png', handleExportPNG);
+    return addEditorWindowEventListener('bt-export-png', handleExportPNG);
   }, []);
 
   // Handle edit modal save (for editing node instances on canvas)
@@ -1415,6 +1436,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     description?: string;
     portRemap?: Record<string, string>;
   }) => {
+    if (readonly) return;
     if (!editingNodeId) return;
 
     // Get current node data for SubTree autoremap check
@@ -1489,7 +1511,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
     if (data.name !== undefined) {
       updateNodeName(editingNodeId, data.name);
       if (editingNodeData?.nodeType === 'SubTree' && data.name && data.name !== 'SubTree') {
-        writeCachedSubTreeTarget(data.name);
+        writeCachedSubTreeTarget(data.name, integration?.adapters.storageAdapter);
       }
     }
     if (data.ports !== undefined) {
@@ -1504,10 +1526,11 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       const { updateNodePortRemap } = storeApi.getState();
       updateNodePortRemap(editingNodeId, computedPortRemap);
     }
-  }, [editingNodeId, setNodes, updateNodeName, nodes]);
+  }, [editingNodeId, readonly, setNodes, updateNodeName, nodes]);
 
   // Handle CDATA edit modal save
   const handleCdataSave = useCallback((cdata: string | undefined) => {
+    if (readonly) return;
     if (!editingCdataNodeId) return;
     storeApi.getState().pushHistory();
     storeApi.getState().updateNodeCdata(editingCdataNodeId, cdata);
@@ -1521,7 +1544,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       })
     );
     setEditingCdataNodeId(null);
-  }, [editingCdataNodeId, setNodes]);
+  }, [editingCdataNodeId, readonly, setNodes]);
 
   // Navigate to and select a node from search
   const handleNodeSearchSelect = useCallback(
@@ -1562,6 +1585,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
       // Delete/Backspace to delete selected node(s) or edge
       if (event.key === 'Delete' || event.key === 'Backspace') {
+        if (readonly) return;
         event.preventDefault();
         if (selectedNodeIds.size > 0) {
           // Protect ROOT: never allow ROOT to be deleted via keyboard
@@ -1586,6 +1610,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
       // Ctrl+Z: Undo
       if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+        if (readonly) return;
         event.preventDefault();
         storeApi.getState().undo();
         return;
@@ -1593,6 +1618,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
       // Ctrl+Y or Ctrl+Shift+Z: Redo
       if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || (event.key === 'z' && event.shiftKey))) {
+        if (readonly) return;
         event.preventDefault();
         storeApi.getState().redo();
         return;
@@ -1629,6 +1655,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
       // ?: Show keyboard shortcuts help
       if (event.key === '?' || event.key === 'F1') {
+        if (!shortcutsHelpEnabled) return;
         event.preventDefault();
         setShowHelp((prev) => !prev);
         return;
@@ -1645,6 +1672,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
       // Arrow keys: nudge selected nodes
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) && selectedNodeIds.size > 0) {
+        if (readonly) return;
         // Only nudge when not in an input field and no modifier keys (except shift for larger nudge)
         if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
         event.preventDefault();
@@ -1677,6 +1705,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
       // Ctrl+V: Paste copied node
       if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
+        if (readonly) return;
         event.preventDefault();
         pasteClipboardNode();
         return;
@@ -1685,14 +1714,16 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [deleteEdge, selectNode, clearSelection, selectedEdgeId, selectedNodeIds, nodes, copyNode, pasteClipboardNode, pushHistory, showHelp, setShowHelp, showNodeSearch, setShowNodeSearch]);
+  }, [deleteEdge, selectNode, clearSelection, selectedEdgeId, selectedNodeIds, nodes, copyNode, pasteClipboardNode, pushHistory, showHelp, setShowHelp, showNodeSearch, setShowNodeSearch, readonly, shortcutsHelpEnabled]);
 
   // Handle toolbar help button
   React.useEffect(() => {
+    if (!shortcutsHelpEnabled) {
+      return;
+    }
     const handleToggleHelp = () => setShowHelp((prev) => !prev);
-    window.addEventListener('bt-toggle-shortcuts-help', handleToggleHelp);
-    return () => window.removeEventListener('bt-toggle-shortcuts-help', handleToggleHelp);
-  }, []);
+    return addEditorWindowEventListener('bt-toggle-shortcuts-help', handleToggleHelp);
+  }, [shortcutsHelpEnabled]);
 
   // Drag-over handler for dropping from palette
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -1704,6 +1735,10 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
+      if (readonly) {
+        return;
+      }
+
       event.preventDefault();
 
       // Check for favorite template drop first
@@ -1830,7 +1865,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           setSelectedEdgeId(null);
           return;
         } catch (error) {
-          console.error('Failed to parse favorite template:', error);
+          integration?.adapters.loggerAdapter.error('Failed to parse favorite template:', error);
           // Fall through to handle as regular node type
         }
       }
@@ -1849,7 +1884,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       const category = def?.category ?? 'Action';
       const colors = CATEGORY_COLORS[category] ?? CATEGORY_COLORS['Action'];
       const isSubTreeNode = nodeType === 'SubTree';
-      const cachedSubTreeTarget = isSubTreeNode ? readCachedSubTreeTarget(activeTreeId, project) : null;
+      const cachedSubTreeTarget = isSubTreeNode
+        ? readCachedSubTreeTarget(activeTreeId, project, integration?.adapters.storageAdapter)
+        : null;
       const resolvedLabel = subtreeTarget ?? cachedSubTreeTarget ?? nodeType;
 
       const newNode: Node = {
@@ -1870,7 +1907,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       // If it's a custom leaf node not yet in node models, auto-add
       if (!project.nodeModels.find((m) => m.type === nodeType)) {
         storeApi.getState().pushHistory();
-        addNodeModel({ type: nodeType, category });
+        integration?.modelActions.addNodeModel({ type: nodeType, category }, 'user');
       } else {
         storeApi.getState().pushHistory();
       }
@@ -1878,7 +1915,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       setNodes((nds) => [...nds, newNode]);
       setSelectedEdgeId(null);
     },
-    [activeTreeId, project, addNodeModel, setNodes]
+    [activeTreeId, integration, project, readonly, setNodes]
   );
 
   // Check for nodes that should trigger disconnected warning.
@@ -1954,7 +1991,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           label: 'Delete Edge',
           icon: '🗑️',
           danger: true,
+          disabled: readonly,
           action: () => {
+            if (readonly) return;
             storeApi.getState().pushHistory();
             deleteEdge(menuState.targetId!);
           },
@@ -1981,7 +2020,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           label: 'Delete Node',
           icon: '🗑️',
           danger: true,
+          disabled: readonly,
           action: () => {
+            if (readonly) return;
             if (!menuState.targetId) return;
             storeApi.getState().pushHistory();
             const deletedId = menuState.targetId;
@@ -1998,7 +2039,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           label: 'Delete Subtree',
           icon: '🗑️',
           danger: true,
+          disabled: readonly,
           action: () => {
+            if (readonly) return;
             if (!menuState.targetId) return;
             // Get all descendant node IDs (subtree)
             const subtreeNodeIds = new Set<string>();
@@ -2116,7 +2159,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           id: 'set-cdata',
           label: 'Set CDATA Block',
           icon: '📦',
+          disabled: readonly,
           action: () => {
+            if (readonly) return;
             if (menuState.targetId) {
               setEditingCdataNodeId(menuState.targetId);
             }
@@ -2129,7 +2174,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           label: `Delete Selected (${selectedNodeIds.size})`,
           icon: '🗑️',
           danger: true,
+          disabled: readonly,
           action: () => {
+            if (readonly) return;
             const idsToDelete = new Set(selectedNodeIds);
             storeApi.getState().pushHistory();
             setNodes((prev) => prev.filter((n) => !idsToDelete.has(n.id)));
@@ -2144,7 +2191,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           id: 'paste',
           label: 'Paste Node',
           icon: '📋',
+          disabled: readonly,
           action: () => {
+            if (readonly) return;
             pasteClipboardNode(menuState.position);
           },
         }] : []),
@@ -2152,7 +2201,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           id: 'add',
           label: 'Add Node',
           icon: '➕',
+          disabled: readonly,
           action: () => {
+            if (readonly) return;
             // Open node picker at center of viewport
             const rf = rfInstanceRef.current;
             if (rf) {
@@ -2187,15 +2238,16 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           id: 'beautify-layout',
           label: 'Beautify Layout',
           icon: '✨',
+          disabled: readonly,
           action: () => beautifyLayout(),
         },
       ] : [],
     };
-  }, [menuState, nodes, edges, selectedNodeIds, deleteEdge, copyNode, pasteClipboardNode, clearSelection, toggleNodeCollapse, beautifyLayout, project.trees, activeTreeId, setActiveTree]);
+  }, [menuState, nodes, edges, selectedNodeIds, deleteEdge, copyNode, pasteClipboardNode, clearSelection, toggleNodeCollapse, beautifyLayout, project.trees, activeTreeId, setActiveTree, readonly]);
 
   return (
     <div ref={canvasContainerRef} onMouseMove={handleCanvasMouseMove} onContextMenu={onCanvasContextMenu} style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <TreeTabs />
+      {treeTabsEnabled && <TreeTabs />}
       <div style={{ width: '100%', height: '100%', minHeight: 0, position: 'relative' }}>
       <ReactFlow
         nodes={nodes}
@@ -2232,6 +2284,9 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         }}
         nodeExtent={[[-5000, -5000], [5000, 5000]]}
         fitView
+        nodesDraggable={!readonly}
+        nodesConnectable={!readonly}
+        connectOnClick={!readonly}
         colorMode={theme}
         style={{
           background: isLightTheme ? '#f7f9fd' : 'var(--bg-primary)',

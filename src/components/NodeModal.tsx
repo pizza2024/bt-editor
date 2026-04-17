@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { CATEGORY_COLORS, PORT_DIRECTIONS } from '../types/bt-constants';
 import type { BTNodeCategory, BTNodeDefinition, BTPort, PortDirection } from '../types/bt';
 import { useBTStore } from '../store/BTStoreProvider';
+import { useBTEditorIntegration } from '../integration/context';
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ function isNumericPort(name: string): boolean {
 // ─── Component ─────────────────────────────────────────────────────────────
 
 const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
+  const integration = useBTEditorIntegration();
   const nodeModels = useBTStore((state) => state.project.nodeModels);
   const isCreate = data.mode === 'create';
   const isEditInstance = data.mode === 'edit-instance';
@@ -175,7 +177,7 @@ const NodeModal: React.FC<NodeModalProps> = ({ data, onSave, onClose }) => {
   const handleSave = () => {
     if (isCreate) {
       if (!nodeType.trim()) {
-        alert('Please enter a node type name');
+        integration?.adapters.notifyAdapter.alert('Please enter a node type name');
         return;
       }
       const validPorts: BTPort[] = ports

@@ -4,6 +4,8 @@ import { useBTStore, useBTStoreApi } from '../store/BTStoreProvider';
 import type { BTNodeDefinition } from '../types/bt';
 import { CATEGORY_COLORS } from '../types/bt-constants';
 import type { Node } from '@xyflow/react';
+import { useBTEditorIntegration, isIntegrationReadonly } from '../integration/context';
+import { dispatchEditorWindowEvent } from '../integration/editorEvents';
 
 // Pre/post condition attribute keys (matching NodeEditModal)
 const PRE_KEYS = ['_failureIf', '_successIf', '_skipIf', '_while'] as const;
@@ -26,8 +28,10 @@ const POST_I18N_KEYS: Record<string, string> = {
 
 const PropertiesPanel: React.FC = () => {
   const { t } = useTranslation();
+  const integration = useBTEditorIntegration();
   const storeApi = useBTStoreApi();
   const { project, activeTreeId, selectedNodeId, updateNodePorts, updateNodeName, updateNodeConditions, localNodes, setLocalCanvas } = useBTStore();
+  const readonly = isIntegrationReadonly(integration);
 
   // Use refs to always get current values in callbacks (avoid stale closure)
   const selectedNodeIdRef = useRef(selectedNodeId);
@@ -117,6 +121,7 @@ const PropertiesPanel: React.FC = () => {
   // For nodes already in the tree, update both tree and localNodes.
   // For nodes only in localNodes (not yet synced), only update localNodes.
   const handleSavePorts = useCallback(() => {
+    if (readonly) return;
     if (!btNode) return;
     const { localEdges } = storeApi.getState();
     const currentLocalNodes = localNodesRef.current;
@@ -138,11 +143,12 @@ const PropertiesPanel: React.FC = () => {
       setLocalCanvas(updated, localEdges);
     }
     // Notify ReactFlow canvas to refresh nodes from localNodes
-    window.dispatchEvent(new Event('bt-nodes-updated'));
-  }, [btNode, localPorts, updateNodePorts, setLocalCanvas, project.trees, activeTreeId]);
+    dispatchEditorWindowEvent('bt-nodes-updated');
+  }, [btNode, localPorts, updateNodePorts, setLocalCanvas, project.trees, activeTreeId, readonly]);
 
   // Save handler for name
   const handleSaveName = useCallback(() => {
+    if (readonly) return;
     if (!btNode) return;
     const { localEdges } = storeApi.getState();
     const currentLocalNodes = localNodesRef.current;
@@ -159,11 +165,12 @@ const PropertiesPanel: React.FC = () => {
     } else {
       setLocalCanvas(updated, localEdges);
     }
-    window.dispatchEvent(new Event('bt-nodes-updated'));
-  }, [btNode, localName, updateNodeName, setLocalCanvas, project.trees, activeTreeId]);
+    dispatchEditorWindowEvent('bt-nodes-updated');
+  }, [btNode, localName, updateNodeName, setLocalCanvas, project.trees, activeTreeId, readonly]);
 
   // Save handler for SubTree target
   const handleSaveSubTree = useCallback(() => {
+    if (readonly) return;
     if (!btNode) return;
     const { localEdges } = storeApi.getState();
     const currentLocalNodes = localNodesRef.current;
@@ -180,11 +187,12 @@ const PropertiesPanel: React.FC = () => {
     } else {
       setLocalCanvas(updated, localEdges);
     }
-    window.dispatchEvent(new Event('bt-nodes-updated'));
-  }, [btNode, localSubTreeId, updateNodeName, setLocalCanvas, project.trees, activeTreeId]);
+    dispatchEditorWindowEvent('bt-nodes-updated');
+  }, [btNode, localSubTreeId, updateNodeName, setLocalCanvas, project.trees, activeTreeId, readonly]);
 
   // Save handler for pre/post conditions
   const handleSaveConditions = useCallback(() => {
+    if (readonly) return;
     if (!btNode) return;
     const { localEdges } = storeApi.getState();
     const currentLocalNodes = localNodesRef.current;
@@ -224,8 +232,8 @@ const PropertiesPanel: React.FC = () => {
       // Node only in localNodes (not yet synced to tree) - only update localNodes
       setLocalCanvas(updated, localEdges);
     }
-    window.dispatchEvent(new Event('bt-nodes-updated'));
-  }, [btNode, localPreconditions, localPostconditions, updateNodeConditions, setLocalCanvas, project.trees, activeTreeId]);
+    dispatchEditorWindowEvent('bt-nodes-updated');
+  }, [btNode, localPreconditions, localPostconditions, updateNodeConditions, setLocalCanvas, project.trees, activeTreeId, readonly]);
 
   const updatePort = (name: string, value: string) => {
     setLocalPorts((prev) => ({ ...prev, [name]: value }));
@@ -273,10 +281,11 @@ const PropertiesPanel: React.FC = () => {
               value={localName}
               onChange={(e) => setLocalName(e.target.value)}
               placeholder={t('properties.optionalAlias')}
+              disabled={readonly}
               style={inputStyle}
             />
             {(nodeDef || isSubTree) && (
-              <button className="btn-primary" onClick={handleSaveName} style={{ flexShrink: 0 }}>
+              <button className="btn-primary" onClick={handleSaveName} style={{ flexShrink: 0 }} disabled={readonly}>
                 {t('properties.save')}
               </button>
             )}
@@ -291,6 +300,7 @@ const PropertiesPanel: React.FC = () => {
             <select
               value={localSubTreeId}
               onChange={(e) => setLocalSubTreeId(e.target.value)}
+              disabled={readonly}
               style={{ ...inputStyle, flex: 1 }}
             >
               <option value="">{t('properties.selectTree')}</option>
@@ -302,7 +312,7 @@ const PropertiesPanel: React.FC = () => {
                   </option>
                 ))}
             </select>
-            <button className="btn-primary" onClick={handleSaveSubTree} style={{ flexShrink: 0 }}>
+            <button className="btn-primary" onClick={handleSaveSubTree} style={{ flexShrink: 0 }} disabled={readonly}>
               {t('properties.save')}
             </button>
           </div>
@@ -325,12 +335,13 @@ const PropertiesPanel: React.FC = () => {
                 value={localPorts[p.name] ?? ''}
                 onChange={(e) => updatePort(p.name, e.target.value)}
                 placeholder="{}"
+                disabled={readonly}
                 style={inputStyle}
                 title={p.description}
               />
             </div>
           ))}
-          <button className="btn-primary properties-save-btn" onClick={handleSavePorts}>
+          <button className="btn-primary properties-save-btn" onClick={handleSavePorts} disabled={readonly}>
             {t('properties.apply')}
           </button>
           <div className="properties-hint">
@@ -353,12 +364,13 @@ const PropertiesPanel: React.FC = () => {
               type="text"
               value={localPreconditions[key] ?? ''}
               onChange={(e) => setLocalPreconditions(prev => ({ ...prev, [key]: e.target.value }))}
+              disabled={readonly}
               placeholder={key === '_while' ? '{key} == value' : '{expression}'}
               style={inputStyle}
             />
           </div>
         ))}
-        <button className="btn-primary properties-save-btn" onClick={handleSaveConditions}>
+        <button className="btn-primary properties-save-btn" onClick={handleSaveConditions} disabled={readonly}>
           {t('properties.save')}
         </button>
       </Section>
@@ -377,12 +389,13 @@ const PropertiesPanel: React.FC = () => {
               type="text"
               value={localPostconditions[key] ?? ''}
               onChange={(e) => setLocalPostconditions(prev => ({ ...prev, [key]: e.target.value }))}
+              disabled={readonly}
               placeholder="{expression}"
               style={inputStyle}
             />
           </div>
         ))}
-        <button className="btn-primary properties-save-btn" onClick={handleSaveConditions}>
+        <button className="btn-primary properties-save-btn" onClick={handleSaveConditions} disabled={readonly}>
           {t('properties.save')}
         </button>
       </Section>

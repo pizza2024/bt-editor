@@ -4,6 +4,7 @@ import { useBTStore } from '../store/BTStoreProvider';
 import type { BTNodeCategory, BTNodeDefinition, BTPort, PortDirection } from '../types/bt';
 import { validateNodeModel } from '../utils/btXml';
 import type { MissingNodeModelCandidate } from '../utils/btXml';
+import { useBTEditorIntegration, isIntegrationReadonly } from '../integration/context';
 
 interface MissingNodeModelsImporterModalProps {
   candidates: MissingNodeModelCandidate[];
@@ -17,7 +18,9 @@ interface PortFormState {
 
 const MissingNodeModelsImporterModal: React.FC<MissingNodeModelsImporterModalProps> = ({ candidates, onClose }) => {
   const { t } = useTranslation();
-  const { project, replaceNodeModel } = useBTStore();
+  const integration = useBTEditorIntegration();
+  const { project } = useBTStore();
+  const readonly = isIntegrationReadonly(integration);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [nodeType, setNodeType] = useState('');
   const [category, setCategory] = useState<BTNodeCategory>('Action');
@@ -53,6 +56,7 @@ const MissingNodeModelsImporterModal: React.FC<MissingNodeModelsImporterModalPro
   };
 
   const handleSave = () => {
+    if (readonly) return;
     if (!currentCandidate) return;
 
     const validPorts: BTPort[] = ports
@@ -73,7 +77,7 @@ const MissingNodeModelsImporterModal: React.FC<MissingNodeModelsImporterModalPro
     }
 
     setValidationErrors([]);
-    replaceNodeModel(currentCandidate.type, def);
+    integration?.modelActions.replaceNodeModel(currentCandidate.type, def, 'import');
     advance();
   };
 
@@ -116,6 +120,7 @@ const MissingNodeModelsImporterModal: React.FC<MissingNodeModelsImporterModalPro
                 value={nodeType}
                 onChange={(e) => setNodeType(e.target.value)}
                 autoFocus
+                disabled={readonly}
               />
             </div>
           </div>
@@ -131,6 +136,7 @@ const MissingNodeModelsImporterModal: React.FC<MissingNodeModelsImporterModalPro
                       name="missing-model-category"
                       checked={category === option}
                       onChange={() => setCategory(option)}
+                      disabled={readonly}
                     />
                     <span>{option}</span>
                   </label>
@@ -156,6 +162,7 @@ const MissingNodeModelsImporterModal: React.FC<MissingNodeModelsImporterModalPro
                             <select
                               value={port.direction}
                               onChange={(e) => handlePortChange(index, 'direction', e.target.value)}
+                              disabled={readonly}
                             >
                               <option value="input">Input</option>
                               <option value="output">Output</option>
@@ -167,6 +174,7 @@ const MissingNodeModelsImporterModal: React.FC<MissingNodeModelsImporterModalPro
                               type="text"
                               value={port.name}
                               onChange={(e) => handlePortChange(index, 'name', e.target.value)}
+                              disabled={readonly}
                             />
                           </td>
                         </tr>
@@ -192,7 +200,7 @@ const MissingNodeModelsImporterModal: React.FC<MissingNodeModelsImporterModalPro
         <div className="modal-footer">
           <div className="importer-progress">{t('importedModels.progress', { current: currentIndex + 1, total: candidates.length })}</div>
           <button className="btn-secondary" onClick={handleSkip}>{t('importedModels.skip')}</button>
-          <button className="btn-primary" onClick={handleSave}>
+          <button className="btn-primary" onClick={handleSave} disabled={readonly}>
             {isLastCandidate ? t('importedModels.save') : t('importedModels.saveAndNext')}
           </button>
         </div>
