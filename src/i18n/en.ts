@@ -203,6 +203,10 @@ const en = {
   xmlPreview: {
     title: 'Live XML',
     description: 'Real-time preview of the exported project XML.',
+    modeLabel: 'Mode',
+    modeSwitch: 'Switch Live XML preview mode',
+    modeLocal: 'Per tab',
+    modeMain: 'Main tree',
     copy: 'Copy',
     copied: 'Copied',
     edit: 'Edit',
@@ -215,6 +219,7 @@ const en = {
     collapse: 'Collapse XML preview',
     expand: 'Expand XML preview',
     activeTree: 'Active tree: {{tree}}',
+    previewMainMeta: 'Main tree XML (full project): {{tree}}',
     empty: 'No XML available',
   },
   nodeWarnings: {

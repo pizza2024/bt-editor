@@ -203,6 +203,10 @@ const zh = {
   xmlPreview: {
     title: 'XML 预览',
     description: '实时预览当前工程导出的 XML。',
+    modeLabel: '模式',
+    modeSwitch: '切换 XML 预览模式',
+    modeLocal: '分 Tab',
+    modeMain: '主树整体',
     copy: '复制',
     copied: '已复制',
     edit: '编辑',
@@ -215,6 +219,7 @@ const zh = {
     collapse: '折叠 XML 预览',
     expand: '展开 XML 预览',
     activeTree: '当前树: {{tree}}',
+    previewMainMeta: '主树整体 XML（全工程）: {{tree}}',
     empty: '暂无 XML 内容',
   },
   nodeWarnings: {

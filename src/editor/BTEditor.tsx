@@ -8,6 +8,13 @@ import { BTStoreProvider, useBTStoreApi } from '../store/BTStoreProvider';
 import '../i18n';
 import '../App.css';
 
+const LEFT_SIDEBAR_DEFAULT_WIDTH = 238;
+const LEFT_SIDEBAR_MIN_WIDTH = 180;
+const LEFT_SIDEBAR_COLLAPSED_WIDTH = 26;
+const RIGHT_SIDEBAR_DEFAULT_WIDTH = 240;
+const RIGHT_SIDEBAR_MIN_WIDTH = 220;
+const SIDEBAR_RESIZER_WIDTH = 8;
+
 const PropertiesPanel = React.lazy(() => import('../components/PropertiesPanel'));
 const DebugPanel = React.lazy(() => import('../components/DebugPanel'));
 const FavoritesPanel = React.lazy(() => import('../components/FavoritesPanel'));
@@ -24,8 +31,15 @@ const BTEditorContent: React.FC<Pick<BTEditorProps, 'className'>> = ({ className
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
   const [leftTopPaneRatio, setLeftTopPaneRatio] = useState(0.42);
+  const [leftSidebarWidth, setLeftSidebarWidth] = useState(LEFT_SIDEBAR_DEFAULT_WIDTH);
+  const [rightSidebarWidth, setRightSidebarWidth] = useState(RIGHT_SIDEBAR_DEFAULT_WIDTH);
+  const mainAreaRef = useRef<HTMLDivElement | null>(null);
+  const leftSidebarAreaRef = useRef<HTMLDivElement | null>(null);
   const leftSidebarRef = useRef<HTMLDivElement | null>(null);
+  const rightSidebarAreaRef = useRef<HTMLDivElement | null>(null);
+  const rightSidebarRef = useRef<HTMLDivElement | null>(null);
   const bothSidebarsCollapsed = leftSidebarCollapsed && rightSidebarCollapsed;
+  const effectiveLeftSidebarWidth = leftSidebarCollapsed ? LEFT_SIDEBAR_COLLAPSED_WIDTH : leftSidebarWidth;
 
   const toggleBothSidebars = () => {
     if (bothSidebarsCollapsed) {
@@ -43,8 +57,54 @@ const BTEditorContent: React.FC<Pick<BTEditorProps, 'className'>> = ({ className
   }, [storeApi]);
 
   useEffect(() => {
+    const mainAreaElement = mainAreaRef.current;
+    const rightSidebarAreaElement = rightSidebarAreaRef.current;
+    const rightSidebarElement = rightSidebarRef.current;
+    if (!mainAreaElement || !rightSidebarAreaElement || !rightSidebarElement) return;
+
+    const syncSidebarWidths = () => {
+      const mainAreaWidth = mainAreaElement.getBoundingClientRect().width;
+      const rightSidebarAreaWidth = rightSidebarAreaElement.getBoundingClientRect().width;
+      const nextLeftMaxWidth = Math.max(
+        LEFT_SIDEBAR_MIN_WIDTH,
+        mainAreaWidth - rightSidebarAreaWidth - SIDEBAR_RESIZER_WIDTH * 2
+      );
+
+      setLeftSidebarWidth((width) => Math.min(width, nextLeftMaxWidth));
+
+      if (rightSidebarCollapsed) {
+        return;
+      }
+
+      const rightSidebarWidthBounds = rightSidebarElement.getBoundingClientRect().width;
+      const fixedRightAreaWidth = rightSidebarAreaWidth - rightSidebarWidthBounds;
+      const effectiveLeftWidth = leftSidebarCollapsed
+        ? LEFT_SIDEBAR_COLLAPSED_WIDTH
+        : Math.min(leftSidebarWidth, nextLeftMaxWidth);
+      const nextRightMaxWidth = Math.max(
+        RIGHT_SIDEBAR_MIN_WIDTH,
+        mainAreaWidth - effectiveLeftWidth - fixedRightAreaWidth - SIDEBAR_RESIZER_WIDTH * 2
+      );
+
+      setRightSidebarWidth((width) => Math.min(width, nextRightMaxWidth));
+    };
+
+    syncSidebarWidths();
+
+    const resizeObserver = new ResizeObserver(() => {
+      syncSidebarWidths();
+    });
+
+    resizeObserver.observe(mainAreaElement);
+    resizeObserver.observe(rightSidebarAreaElement);
+
+    return () => resizeObserver.disconnect();
+  }, [leftSidebarCollapsed, leftSidebarWidth, rightSidebarCollapsed]);
+
+  useEffect(() => {
     const handlePointerUp = () => {
       document.body.classList.remove('is-resizing-panels');
+      document.body.classList.remove('is-resizing-columns');
     };
 
     window.addEventListener('mouseup', handlePointerUp);
@@ -83,11 +143,91 @@ const BTEditorContent: React.FC<Pick<BTEditorProps, 'className'>> = ({ className
     window.addEventListener('mouseup', handlePointerUp);
   };
 
+  const startLeftSidebarWidthResize = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    const mainAreaElement = mainAreaRef.current;
+    const rightSidebarAreaElement = rightSidebarAreaRef.current;
+    if (!mainAreaElement || !rightSidebarAreaElement) return;
+
+    const mainAreaBounds = mainAreaElement.getBoundingClientRect();
+    const rightSidebarAreaWidth = rightSidebarAreaElement.getBoundingClientRect().width;
+    const maxWidth = Math.max(
+      LEFT_SIDEBAR_MIN_WIDTH,
+      mainAreaBounds.width - rightSidebarAreaWidth - SIDEBAR_RESIZER_WIDTH * 2
+    );
+
+    document.body.classList.add('is-resizing-columns');
+
+    const handlePointerMove = (moveEvent: MouseEvent) => {
+      const nextWidth = moveEvent.clientX - mainAreaBounds.left;
+      const clampedWidth = Math.min(maxWidth, Math.max(LEFT_SIDEBAR_MIN_WIDTH, nextWidth));
+      setLeftSidebarCollapsed(false);
+      setLeftSidebarWidth(clampedWidth);
+    };
+
+    const handlePointerUp = () => {
+      document.body.classList.remove('is-resizing-columns');
+      window.removeEventListener('mousemove', handlePointerMove);
+      window.removeEventListener('mouseup', handlePointerUp);
+    };
+
+    window.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerUp);
+  };
+
+  const startRightSidebarWidthResize = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    const mainAreaElement = mainAreaRef.current;
+    const leftSidebarAreaElement = leftSidebarAreaRef.current;
+    const rightSidebarAreaElement = rightSidebarAreaRef.current;
+    const rightSidebarElement = rightSidebarRef.current;
+    if (!mainAreaElement || !leftSidebarAreaElement || !rightSidebarAreaElement || !rightSidebarElement) return;
+
+    const mainAreaBounds = mainAreaElement.getBoundingClientRect();
+    const leftSidebarAreaWidth = leftSidebarAreaElement.getBoundingClientRect().width;
+    const rightSidebarAreaWidth = rightSidebarAreaElement.getBoundingClientRect().width;
+    const rightSidebarBounds = rightSidebarElement.getBoundingClientRect();
+    const fixedRightAreaWidth = rightSidebarAreaWidth - rightSidebarBounds.width;
+    const maxWidth = Math.max(
+      RIGHT_SIDEBAR_MIN_WIDTH,
+      mainAreaBounds.width - leftSidebarAreaWidth - fixedRightAreaWidth - SIDEBAR_RESIZER_WIDTH * 2
+    );
+
+    document.body.classList.add('is-resizing-columns');
+
+    const handlePointerMove = (moveEvent: MouseEvent) => {
+      const nextAreaWidth = mainAreaBounds.right - moveEvent.clientX;
+      const nextWidth = nextAreaWidth - fixedRightAreaWidth;
+      const clampedWidth = Math.min(maxWidth, Math.max(RIGHT_SIDEBAR_MIN_WIDTH, nextWidth));
+      setRightSidebarCollapsed(false);
+      setRightSidebarWidth(clampedWidth);
+    };
+
+    const handlePointerUp = () => {
+      document.body.classList.remove('is-resizing-columns');
+      window.removeEventListener('mousemove', handlePointerMove);
+      window.removeEventListener('mouseup', handlePointerUp);
+    };
+
+    window.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerUp);
+  };
+
   return (
     <div className={`app-layout ${className}`.trim()}>
       <Toolbar />
-      <div className="main-area">
-        <div className={`left-sidebar-area${leftSidebarCollapsed ? ' collapsed' : ''}`}>
+      <div className="main-area" ref={mainAreaRef}>
+        <div
+          className={`left-sidebar-area${leftSidebarCollapsed ? ' collapsed' : ''}`}
+          ref={leftSidebarAreaRef}
+          style={{
+            width: effectiveLeftSidebarWidth,
+            minWidth: effectiveLeftSidebarWidth,
+            maxWidth: effectiveLeftSidebarWidth,
+          }}
+        >
           <div className="left-sidebar" ref={leftSidebarRef}>
             <div className="left-sidebar-split">
               <div
@@ -121,6 +261,14 @@ const BTEditorContent: React.FC<Pick<BTEditorProps, 'className'>> = ({ className
           </button>
         </div>
 
+        <div
+          className="sidebar-width-resizer"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize left sidebar width"
+          onMouseDown={startLeftSidebarWidthResize}
+        />
+
         <div className="canvas-area">
           <BTCanvas
             sidePanelsCollapsed={bothSidebarsCollapsed}
@@ -132,7 +280,18 @@ const BTEditorContent: React.FC<Pick<BTEditorProps, 'className'>> = ({ className
           </Suspense>
         </div>
 
-        <div className={`right-sidebar-area${rightSidebarCollapsed ? ' collapsed' : ''}`}>
+        <div
+          className={`sidebar-width-resizer${rightSidebarCollapsed ? ' disabled' : ''}`}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize right sidebar width"
+          onMouseDown={rightSidebarCollapsed ? undefined : startRightSidebarWidthResize}
+        />
+
+        <div
+          className={`right-sidebar-area${rightSidebarCollapsed ? ' collapsed' : ''}`}
+          ref={rightSidebarAreaRef}
+        >
           <button
             type="button"
             className="sidebar-toggle-strip"
@@ -142,7 +301,11 @@ const BTEditorContent: React.FC<Pick<BTEditorProps, 'className'>> = ({ className
           >
             {rightSidebarCollapsed ? '<' : '>'}
           </button>
-          <div className="right-sidebar">
+          <div
+            className="right-sidebar"
+            ref={rightSidebarRef}
+            style={{ width: rightSidebarWidth, minWidth: rightSidebarWidth, maxWidth: rightSidebarWidth }}
+          >
             <Suspense fallback={null}>
               <PropertiesPanel />
             </Suspense>

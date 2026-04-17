@@ -1,11 +1,29 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import xmlFormatter from 'xml-formatter';
-import { useBTStore } from '../store/BTStoreProvider';
-import { serializeXML } from '../utils/btXml';
+import { useBTStore, useBTStoreApi } from '../store/BTStoreProvider';
+import type { BTProject } from '../types/bt';
+import { parseXML, serializeXML } from '../utils/btXml';
 
 const XML_PANEL_MIN_WIDTH = 240;
-const XML_PANEL_MAX_WIDTH = 560;
+type XmlPreviewMode = 'local' | 'main';
+
+function buildPreviewProject(
+  project: BTProject,
+  activeTreeId: string,
+  mode: XmlPreviewMode
+) {
+  if (mode === 'main') {
+    return project;
+  }
+
+  const activeTree = project.trees.find((tree) => tree.id === activeTreeId);
+  return {
+    ...project,
+    mainTreeId: activeTreeId,
+    trees: activeTree ? [activeTree] : [],
+  };
+}
 
 function formatXmlForPreview(source: string): string {
   if (!source.trim()) return source;
@@ -25,6 +43,7 @@ function formatXmlForPreview(source: string): string {
 
 const XmlPreviewPanel: React.FC = () => {
   const { t } = useTranslation();
+  const storeApi = useBTStoreApi();
   const project = useBTStore((state) => state.project);
   const activeTreeId = useBTStore((state) => state.activeTreeId);
   const loadXML = useBTStore((state) => state.loadXML);
@@ -33,22 +52,22 @@ const XmlPreviewPanel: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedXml, setEditedXml] = useState('');
   const [xmlError, setXmlError] = useState<string | null>(null);
+  const [previewMode, setPreviewMode] = useState<XmlPreviewMode>('local');
   const [width, setWidth] = useState(320);
   const [resizing, setResizing] = useState(false);
   const copyResetRef = useRef<number | null>(null);
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const previewProject = useMemo(() => {
-    const activeTree = project.trees.find((tree) => tree.id === activeTreeId);
-    return {
-      ...project,
-      mainTreeId: activeTreeId,
-      trees: activeTree ? [activeTree] : [],
-    };
-  }, [project, activeTreeId]);
+  const previewProject = useMemo(
+    () => buildPreviewProject(project, activeTreeId, previewMode),
+    [project, activeTreeId, previewMode]
+  );
   const xml = useMemo(() => serializeXML(previewProject), [previewProject]);
   const formattedXml = useMemo(() => formatXmlForPreview(xml), [xml]);
+  const previewMeta = previewMode === 'main'
+    ? t('xmlPreview.previewMainMeta', { tree: project.mainTreeId })
+    : t('xmlPreview.activeTree', { tree: activeTreeId });
 
   useEffect(() => {
     return () => {
@@ -64,10 +83,7 @@ const XmlPreviewPanel: React.FC = () => {
   const handleResizeMove = (event: MouseEvent) => {
     if (!resizeStateRef.current) return;
     const delta = resizeStateRef.current.startX - event.clientX;
-    const nextWidth = Math.min(
-      XML_PANEL_MAX_WIDTH,
-      Math.max(XML_PANEL_MIN_WIDTH, resizeStateRef.current.startWidth + delta)
-    );
+    const nextWidth = Math.max(XML_PANEL_MIN_WIDTH, resizeStateRef.current.startWidth + delta);
     setWidth(nextWidth);
   };
 
@@ -125,12 +141,57 @@ const XmlPreviewPanel: React.FC = () => {
     if (xmlError) {
       return; // Don't save with errors
     }
+
     try {
-      const newProject = loadXML(editedXml);
-      if (!newProject) {
-        setXmlError(t('xmlPreview.invalidXml'));
-        return;
+      if (previewMode === 'main') {
+        const newProject = loadXML(editedXml);
+        if (!newProject) {
+          setXmlError(t('xmlPreview.invalidXml'));
+          return;
+        }
+      } else {
+        const parsedProject = parseXML(editedXml);
+        const parsedTreeForActiveTab =
+          parsedProject.trees.find((tree) => tree.id === activeTreeId)
+          ?? parsedProject.trees.find((tree) => tree.id === parsedProject.mainTreeId)
+          ?? parsedProject.trees[0];
+
+        if (!parsedTreeForActiveTab) {
+          setXmlError(t('xmlPreview.invalidXml'));
+          return;
+        }
+
+        storeApi.setState((state) => {
+          const nextTrees = state.project.trees.map((tree) => {
+            if (tree.id !== activeTreeId) return tree;
+            return {
+              ...tree,
+              root: parsedTreeForActiveTab.root,
+            };
+          });
+
+          const nextTreeIds = new Set(nextTrees.map((tree) => tree.id));
+          parsedProject.trees.forEach((tree) => {
+            if (tree.id === activeTreeId || tree.id === parsedTreeForActiveTab.id) return;
+            if (!nextTreeIds.has(tree.id)) {
+              nextTrees.push(tree);
+              nextTreeIds.add(tree.id);
+            }
+          });
+
+          return {
+            ...state,
+            project: {
+              ...state.project,
+              trees: nextTrees,
+            },
+            selectedNodeId: null,
+            localNodes: [],
+            localEdges: [],
+          };
+        });
       }
+
       setIsEditing(false);
       setEditedXml('');
       setXmlError(null);
@@ -176,7 +237,7 @@ const XmlPreviewPanel: React.FC = () => {
     <aside
       className={`xml-preview-sidebar${resizing ? ' resizing' : ''}`}
       aria-label={t('xmlPreview.title')}
-      style={{ width, minWidth: width, maxWidth: width }}
+      style={{ width, minWidth: width }}
     >
       <div
         className="xml-preview-resizer"
@@ -248,7 +309,26 @@ const XmlPreviewPanel: React.FC = () => {
         </div>
       </div>
       <div className="xml-preview-body">
-        <div className="xml-preview-meta">{t('xmlPreview.activeTree', { tree: activeTreeId })}</div>
+        <div className="xml-preview-mode-row">
+          <span className="xml-preview-mode-label">{t('xmlPreview.modeLabel')}</span>
+          <label className="xml-preview-switch" htmlFor="xml-preview-mode-switch">
+            <input
+              id="xml-preview-mode-switch"
+              type="checkbox"
+              checked={previewMode === 'main'}
+              onChange={(event) => setPreviewMode(event.target.checked ? 'main' : 'local')}
+              disabled={isEditing}
+              aria-label={t('xmlPreview.modeSwitch')}
+            />
+            <span className="xml-preview-switch-track" aria-hidden="true">
+              <span className="xml-preview-switch-thumb" />
+            </span>
+            <span className="xml-preview-switch-text">
+              {previewMode === 'main' ? t('xmlPreview.modeMain') : t('xmlPreview.modeLocal')}
+            </span>
+          </label>
+        </div>
+        <div className="xml-preview-meta">{previewMeta}</div>
         {isEditing ? (
           <>
             <textarea
