@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useBTStore } from '../store/BTStoreProvider';
+import { useBTEditorIntegration, isIntegrationReadonly } from '../integration/context';
+import { ChevronDown, ChevronRight, Star, PanelTop, Pencil, X, Plus } from 'lucide-react';
 
 const TreeManager: React.FC = () => {
   const { t } = useTranslation();
+  const integration = useBTEditorIntegration();
   const { project, activeTreeId, setActiveTree, openTreeTab, addTree, renameTree, deleteTree, setMainTree } =
     useBTStore();
   const [newTreeId, setNewTreeId] = useState('');
@@ -11,6 +14,7 @@ const TreeManager: React.FC = () => {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [projectExpanded, setProjectExpanded] = useState(true);
+  const readonly = isIntegrationReadonly(integration);
 
   const normalizedFilter = filterText.trim().toLowerCase();
   const visibleTrees = project.trees.filter((tree) => {
@@ -19,6 +23,7 @@ const TreeManager: React.FC = () => {
   });
 
   const handleAdd = () => {
+    if (readonly) return;
     const id = newTreeId.trim();
     if (!id) return;
     addTree(id);
@@ -26,11 +31,16 @@ const TreeManager: React.FC = () => {
   };
 
   const startRename = (id: string) => {
+    if (readonly) return;
     setRenaming(id);
     setRenameValue(id);
   };
 
   const commitRename = (oldId: string) => {
+    if (readonly) {
+      setRenaming(null);
+      return;
+    }
     const newId = renameValue.trim();
     if (newId && newId !== oldId) renameTree(oldId, newId);
     setRenaming(null);
@@ -62,7 +72,7 @@ const TreeManager: React.FC = () => {
             className="tree-group-header"
             onClick={() => setProjectExpanded((value) => !value)}
           >
-            <span className="tree-group-chevron">{projectExpanded ? '▾' : '▸'}</span>
+            <span className="tree-group-chevron" style={{ display: 'inline-flex' }}>{projectExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>
             <span className="tree-group-label">{t('treeManager.projectGroup')}</span>
             <span className="tree-group-count">{visibleTrees.length}</span>
           </button>
@@ -104,7 +114,7 @@ const TreeManager: React.FC = () => {
                 />
               ) : (
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {isMain && <span style={{ color: '#f0a020', marginRight: 4 }}>★</span>}
+                  {isMain && <span style={{ color: '#f0a020', marginRight: 4, display: 'inline-flex', verticalAlign: 'middle' }}><Star size={11} /></span>}
                   {tree.id}
                 </span>
               )}
@@ -115,24 +125,27 @@ const TreeManager: React.FC = () => {
                           className="tree-btn"
                           title={t('treeManager.openInTab')}
                           onClick={(e) => { e.stopPropagation(); openTreeTab(tree.id); }}
-                        >▣</button>
+                        ><PanelTop size={12} /></button>
                         {!isMain && (
                           <button
                             className="tree-btn"
                             title="Set as main tree"
+                            disabled={readonly}
                             onClick={(e) => { e.stopPropagation(); setMainTree(tree.id); }}
-                          >★</button>
+                          ><Star size={12} /></button>
                         )}
                         <button
                           className="tree-btn"
                           title="Rename"
+                          disabled={readonly}
                           onClick={(e) => { e.stopPropagation(); startRename(tree.id); }}
-                        >✎</button>
+                        ><Pencil size={12} /></button>
                         <button
                           className="tree-btn danger"
                           title={t('treeManager.delete')}
+                          disabled={readonly}
                           onClick={(e) => { e.stopPropagation(); deleteTree(tree.id); }}
-                        >✕</button>
+                        ><X size={12} /></button>
                       </div>
                     )}
                   </div>
@@ -153,6 +166,7 @@ const TreeManager: React.FC = () => {
             onChange={(e) => setNewTreeId(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             placeholder={t('treeManager.newTreePlaceholder')}
+            disabled={readonly}
             style={{
               flex: 1,
               background: 'var(--bg-tertiary)',
@@ -163,7 +177,7 @@ const TreeManager: React.FC = () => {
               fontSize: 12,
             }}
           />
-          <button className="btn-primary" onClick={handleAdd}>+</button>
+          <button className="btn-primary" onClick={handleAdd} disabled={readonly}><Plus size={12} /></button>
         </div>
       </div>
     </div>

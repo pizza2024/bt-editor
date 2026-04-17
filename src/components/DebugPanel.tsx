@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useBTStore } from '../store/BTStoreProvider';
 import { STATUS_COLORS } from '../types/bt-constants';
+import { StepBack, Play, StepForward } from 'lucide-react';
 
 const SAMPLE_LOG = `0 1 Sequence Root RUNNING MainTree
 10 2 Condition CheckBattery RUNNING MainTree
@@ -268,9 +269,9 @@ const LogReplayPanel: React.FC = () => {
       {active && (
         <>
           <div style={{ display: 'flex', gap: 4, marginBottom: 8, alignItems: 'center' }}>
-            <button className="btn-secondary" onClick={() => debugStep('back')} disabled={playIndex <= -1}>◀</button>
-            <button className="btn-primary" onClick={debugPlay}>▶ Play</button>
-            <button className="btn-secondary" onClick={() => debugStep('forward')} disabled={playIndex >= entries.length - 1}>▶</button>
+            <button className="btn-secondary" onClick={() => debugStep('back')} disabled={playIndex <= -1}><StepBack size={12} /></button>
+            <button className="btn-primary" onClick={debugPlay} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Play size={12} />Play</button>
+            <button className="btn-secondary" onClick={() => debugStep('forward')} disabled={playIndex >= entries.length - 1}><StepForward size={12} /></button>
             <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--text-muted)' }}>
               {playIndex + 1} / {entries.length}
             </span>

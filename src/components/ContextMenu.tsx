@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { ChevronRight } from 'lucide-react';
 
 export interface MenuItem {
   id: string;
   label: string;
-  icon?: string;
+  icon?: React.ReactNode;
   disabled?: boolean;
   danger?: boolean;
   /** Separator below this item (not rendered as button) */
@@ -76,7 +77,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ position, targetType, menuCon
         >
           <span className="context-menu-icon">{item.icon}</span>
           <span className="context-menu-label">{item.label}</span>
-          <span className="context-menu-arrow">▶</span>
+          <span className="context-menu-arrow" style={{ display: 'inline-flex' }}><ChevronRight size={14} /></span>
           {submenuId === item.id && (
             <div className="context-menu-submenu">
               {item.submenu.map(sub => renderItem(sub))}

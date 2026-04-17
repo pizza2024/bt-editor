@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useBTStore, useBTStoreApi } from '../store/BTStoreProvider';
 import type { BTNodeDefinition } from '../types/bt';
 import { CATEGORY_COLORS } from '../types/bt-constants';
 import type { Node } from '@xyflow/react';
+import { useBTEditorIntegration, isIntegrationReadonly } from '../integration/context';
+import { dispatchEditorWindowEvent } from '../integration/editorEvents';
 
 // Pre/post condition attribute keys (matching NodeEditModal)
 const PRE_KEYS = ['_failureIf', '_successIf', '_skipIf', '_while'] as const;
@@ -26,8 +29,10 @@ const POST_I18N_KEYS: Record<string, string> = {
 
 const PropertiesPanel: React.FC = () => {
   const { t } = useTranslation();
+  const integration = useBTEditorIntegration();
   const storeApi = useBTStoreApi();
   const { project, activeTreeId, selectedNodeId, updateNodePorts, updateNodeName, updateNodeConditions, localNodes, setLocalCanvas } = useBTStore();
+  const readonly = isIntegrationReadonly(integration);
 
   // Use refs to always get current values in callbacks (avoid stale closure)
   const selectedNodeIdRef = useRef(selectedNodeId);
@@ -75,6 +80,7 @@ const PropertiesPanel: React.FC = () => {
   // Force re-render when node selection changes
   const nodeKey = selectedNodeId ?? 'none';
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   // Local state for edited port values
   const [localPorts, setLocalPorts] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -108,6 +114,7 @@ const PropertiesPanel: React.FC = () => {
     POST_KEYS.forEach(k => { initPost[k] = btNode?.postconditions?.[k] ?? ''; });
     setLocalPostconditions(initPost);
   }, [nodeKey, btNode?.postconditions]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const allPorts = nodeDef?.ports ?? [];
   const isLeaf = nodeCategory === 'Action' || nodeCategory === 'Condition' || nodeCategory === 'SubTree';
@@ -117,6 +124,7 @@ const PropertiesPanel: React.FC = () => {
   // For nodes already in the tree, update both tree and localNodes.
   // For nodes only in localNodes (not yet synced), only update localNodes.
   const handleSavePorts = useCallback(() => {
+    if (readonly) return;
     if (!btNode) return;
     const { localEdges } = storeApi.getState();
     const currentLocalNodes = localNodesRef.current;
@@ -138,11 +146,12 @@ const PropertiesPanel: React.FC = () => {
       setLocalCanvas(updated, localEdges);
     }
     // Notify ReactFlow canvas to refresh nodes from localNodes
-    window.dispatchEvent(new Event('bt-nodes-updated'));
-  }, [btNode, localPorts, updateNodePorts, setLocalCanvas, project.trees, activeTreeId]);
+    dispatchEditorWindowEvent('bt-nodes-updated');
+  }, [btNode, localPorts, updateNodePorts, setLocalCanvas, project.trees, activeTreeId, readonly, storeApi]);
 
   // Save handler for name
   const handleSaveName = useCallback(() => {
+    if (readonly) return;
     if (!btNode) return;
     const { localEdges } = storeApi.getState();
     const currentLocalNodes = localNodesRef.current;
@@ -159,11 +168,12 @@ const PropertiesPanel: React.FC = () => {
     } else {
       setLocalCanvas(updated, localEdges);
     }
-    window.dispatchEvent(new Event('bt-nodes-updated'));
-  }, [btNode, localName, updateNodeName, setLocalCanvas, project.trees, activeTreeId]);
+    dispatchEditorWindowEvent('bt-nodes-updated');
+  }, [btNode, localName, updateNodeName, setLocalCanvas, project.trees, activeTreeId, readonly, storeApi]);
 
   // Save handler for SubTree target
   const handleSaveSubTree = useCallback(() => {
+    if (readonly) return;
     if (!btNode) return;
     const { localEdges } = storeApi.getState();
     const currentLocalNodes = localNodesRef.current;
@@ -180,11 +190,12 @@ const PropertiesPanel: React.FC = () => {
     } else {
       setLocalCanvas(updated, localEdges);
     }
-    window.dispatchEvent(new Event('bt-nodes-updated'));
-  }, [btNode, localSubTreeId, updateNodeName, setLocalCanvas, project.trees, activeTreeId]);
+    dispatchEditorWindowEvent('bt-nodes-updated');
+  }, [btNode, localSubTreeId, updateNodeName, setLocalCanvas, project.trees, activeTreeId, readonly, storeApi]);
 
   // Save handler for pre/post conditions
   const handleSaveConditions = useCallback(() => {
+    if (readonly) return;
     if (!btNode) return;
     const { localEdges } = storeApi.getState();
     const currentLocalNodes = localNodesRef.current;
@@ -203,8 +214,8 @@ const PropertiesPanel: React.FC = () => {
         ...n,
         data: {
           ...n.data,
-          preconditions: Object.keys(cleanPre).length > 0 ? cleanPre : undefined,
-          postconditions: Object.keys(cleanPost).length > 0 ? cleanPost : undefined,
+          preconditions: cleanPre,
+          postconditions: cleanPost,
         },
       };
     });
@@ -216,19 +227,48 @@ const PropertiesPanel: React.FC = () => {
       // Node is in tree - update tree and localNodes
       updateNodeConditions(
         btNode.id,
-        Object.keys(cleanPre).length > 0 ? cleanPre : undefined,
-        Object.keys(cleanPost).length > 0 ? cleanPost : undefined
+        cleanPre,
+        cleanPost
       );
       setLocalCanvas(updated, localEdges);
     } else {
       // Node only in localNodes (not yet synced to tree) - only update localNodes
       setLocalCanvas(updated, localEdges);
     }
-    window.dispatchEvent(new Event('bt-nodes-updated'));
-  }, [btNode, localPreconditions, localPostconditions, updateNodeConditions, setLocalCanvas, project.trees, activeTreeId]);
+    dispatchEditorWindowEvent('bt-nodes-updated');
+  }, [btNode, localPreconditions, localPostconditions, updateNodeConditions, setLocalCanvas, project.trees, activeTreeId, readonly, storeApi]);
 
   const updatePort = (name: string, value: string) => {
     setLocalPorts((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const clearAllPorts = () => {
+    if (readonly) return;
+    setLocalPorts((prev) => {
+      const next = { ...prev };
+      allPorts.forEach((port) => {
+        next[port.name] = '';
+      });
+      return next;
+    });
+  };
+
+  const clearAllPreconditions = () => {
+    if (readonly) return;
+    const next: Record<string, string> = {};
+    PRE_KEYS.forEach((key) => {
+      next[key] = '';
+    });
+    setLocalPreconditions(next);
+  };
+
+  const clearAllPostconditions = () => {
+    if (readonly) return;
+    const next: Record<string, string> = {};
+    POST_KEYS.forEach((key) => {
+      next[key] = '';
+    });
+    setLocalPostconditions(next);
   };
 
   if (!btNode) {
@@ -273,10 +313,11 @@ const PropertiesPanel: React.FC = () => {
               value={localName}
               onChange={(e) => setLocalName(e.target.value)}
               placeholder={t('properties.optionalAlias')}
+              disabled={readonly}
               style={inputStyle}
             />
             {(nodeDef || isSubTree) && (
-              <button className="btn-primary" onClick={handleSaveName} style={{ flexShrink: 0 }}>
+              <button className="btn-primary" onClick={handleSaveName} style={{ flexShrink: 0 }} disabled={readonly}>
                 {t('properties.save')}
               </button>
             )}
@@ -291,6 +332,7 @@ const PropertiesPanel: React.FC = () => {
             <select
               value={localSubTreeId}
               onChange={(e) => setLocalSubTreeId(e.target.value)}
+              disabled={readonly}
               style={{ ...inputStyle, flex: 1 }}
             >
               <option value="">{t('properties.selectTree')}</option>
@@ -302,7 +344,7 @@ const PropertiesPanel: React.FC = () => {
                   </option>
                 ))}
             </select>
-            <button className="btn-primary" onClick={handleSaveSubTree} style={{ flexShrink: 0 }}>
+            <button className="btn-primary" onClick={handleSaveSubTree} style={{ flexShrink: 0 }} disabled={readonly}>
               {t('properties.save')}
             </button>
           </div>
@@ -314,23 +356,51 @@ const PropertiesPanel: React.FC = () => {
 
       {/* Port Values */}
       {allPorts.length > 0 && (
-        <Section title={t('properties.portValues')}>
+        <Section
+          title={t('properties.portValues')}
+          action={(
+            <button
+              type="button"
+              className="btn-small"
+              data-testid="clear-port-all"
+              onClick={clearAllPorts}
+              disabled={readonly}
+            >
+              Clear all
+            </button>
+          )}
+        >
           {allPorts.map((p) => (
             <div key={p.name} className="properties-field-row">
               <label className="properties-field-label" style={{ minWidth: 80 }}>
                 {p.name}
                 <span className="properties-field-dir">({p.direction})</span>
               </label>
-              <input
-                value={localPorts[p.name] ?? ''}
-                onChange={(e) => updatePort(p.name, e.target.value)}
-                placeholder="{}"
-                style={inputStyle}
-                title={p.description}
-              />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
+                <input
+                  value={localPorts[p.name] ?? ''}
+                  onChange={(e) => updatePort(p.name, e.target.value)}
+                  placeholder="{}"
+                  disabled={readonly}
+                  style={{ ...inputStyle, flex: 1 }}
+                  title={p.description}
+                />
+                <button
+                  type="button"
+                  className="btn-small btn-icon"
+                  data-testid={`clear-port-${p.name}`}
+                  title="Clear field"
+                  aria-label={`Clear port ${p.name}`}
+                  disabled={readonly || !(localPorts[p.name] ?? '').length}
+                  onClick={() => updatePort(p.name, '')}
+                  style={clearIconButtonStyle}
+                >
+                  <X size={12} />
+                </button>
+              </div>
             </div>
           ))}
-          <button className="btn-primary properties-save-btn" onClick={handleSavePorts}>
+          <button className="btn-primary properties-save-btn" onClick={handleSavePorts} disabled={readonly}>
             {t('properties.apply')}
           </button>
           <div className="properties-hint">
@@ -340,7 +410,20 @@ const PropertiesPanel: React.FC = () => {
       )}
 
       {/* Pre-conditions Section */}
-      <Section title={t('properties.preconditions')}>
+      <Section
+        title={t('properties.preconditions')}
+        action={(
+          <button
+            type="button"
+            className="btn-small"
+            data-testid="clear-pre-all"
+            onClick={clearAllPreconditions}
+            disabled={readonly}
+          >
+            Clear all
+          </button>
+        )}
+      >
         <div className="properties-hint" style={{ marginBottom: 6 }}>
           {t('properties.preconditionsDescription')}
         </div>
@@ -349,22 +432,50 @@ const PropertiesPanel: React.FC = () => {
             <label className="properties-field-label" style={{ minWidth: 90 }}>
               {t(`conditions.${PRE_I18N_KEYS[key]}`)}
             </label>
-            <input
-              type="text"
-              value={localPreconditions[key] ?? ''}
-              onChange={(e) => setLocalPreconditions(prev => ({ ...prev, [key]: e.target.value }))}
-              placeholder={key === '_while' ? '{key} == value' : '{expression}'}
-              style={inputStyle}
-            />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
+              <input
+                type="text"
+                value={localPreconditions[key] ?? ''}
+                onChange={(e) => setLocalPreconditions(prev => ({ ...prev, [key]: e.target.value }))}
+                disabled={readonly}
+                placeholder={key === '_while' ? '{key} == value' : '{expression}'}
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <button
+                type="button"
+                className="btn-small btn-icon"
+                data-testid={`clear-pre-${key}`}
+                title="Clear field"
+                aria-label={`Clear ${PRE_I18N_KEYS[key]}`}
+                disabled={readonly || !(localPreconditions[key] ?? '').length}
+                onClick={() => setLocalPreconditions((prev) => ({ ...prev, [key]: '' }))}
+                style={clearIconButtonStyle}
+              >
+                <X size={12} />
+              </button>
+            </div>
           </div>
         ))}
-        <button className="btn-primary properties-save-btn" onClick={handleSaveConditions}>
+        <button className="btn-primary properties-save-btn" onClick={handleSaveConditions} disabled={readonly}>
           {t('properties.save')}
         </button>
       </Section>
 
       {/* Post-conditions Section */}
-      <Section title={t('properties.postconditions')}>
+      <Section
+        title={t('properties.postconditions')}
+        action={(
+          <button
+            type="button"
+            className="btn-small"
+            data-testid="clear-post-all"
+            onClick={clearAllPostconditions}
+            disabled={readonly}
+          >
+            Clear all
+          </button>
+        )}
+      >
         <div className="properties-hint" style={{ marginBottom: 6 }}>
           {t('properties.postconditionsDescription')}
         </div>
@@ -373,16 +484,31 @@ const PropertiesPanel: React.FC = () => {
             <label className="properties-field-label" style={{ minWidth: 90 }}>
               {t(`conditions.${POST_I18N_KEYS[key]}`)}
             </label>
-            <input
-              type="text"
-              value={localPostconditions[key] ?? ''}
-              onChange={(e) => setLocalPostconditions(prev => ({ ...prev, [key]: e.target.value }))}
-              placeholder="{expression}"
-              style={inputStyle}
-            />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
+              <input
+                type="text"
+                value={localPostconditions[key] ?? ''}
+                onChange={(e) => setLocalPostconditions(prev => ({ ...prev, [key]: e.target.value }))}
+                disabled={readonly}
+                placeholder="{expression}"
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <button
+                type="button"
+                className="btn-small btn-icon"
+                data-testid={`clear-post-${key}`}
+                title="Clear field"
+                aria-label={`Clear ${POST_I18N_KEYS[key]}`}
+                disabled={readonly || !(localPostconditions[key] ?? '').length}
+                onClick={() => setLocalPostconditions((prev) => ({ ...prev, [key]: '' }))}
+                style={clearIconButtonStyle}
+              >
+                  <X size={12} />
+              </button>
+            </div>
           </div>
         ))}
-        <button className="btn-primary properties-save-btn" onClick={handleSaveConditions}>
+        <button className="btn-primary properties-save-btn" onClick={handleSaveConditions} disabled={readonly}>
           {t('properties.save')}
         </button>
       </Section>
@@ -393,14 +519,25 @@ const PropertiesPanel: React.FC = () => {
   );
 };
 
-const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+const Section: React.FC<{ title: string; action?: React.ReactNode; children: React.ReactNode }> = ({ title, action, children }) => (
   <div className="properties-section">
-    <div className="properties-section-title">
-      {title}
+    <div className="properties-section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+      <span>{title}</span>
+      {action}
     </div>
     {children}
   </div>
 );
+
+const clearIconButtonStyle: React.CSSProperties = {
+  width: 22,
+  height: 22,
+  minWidth: 22,
+  padding: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
 
 const inputStyle: React.CSSProperties = {
   background: 'var(--bg-tertiary)',

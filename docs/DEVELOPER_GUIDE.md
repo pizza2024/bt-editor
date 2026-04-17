@@ -80,6 +80,17 @@ tests/                   # Playwright E2E tests
 docs/                    # Design docs & user-facing docs
 ```
 
+### Integration Layer (External Embedding)
+
+`BTEditor` external integration is organized under `src/integration/`:
+
+- `types.ts`: Public integration contracts (`BTEditorRef`, callbacks, adapters, feature flags)
+- `context.ts`: Runtime integration context consumed by components
+- `defaultAdapters.ts`: Browser default adapter implementations
+- `editorEvents.ts`: Typed window-event bridge for component-to-canvas commands
+
+Prefer importing event helpers from `editorEvents.ts` instead of manually creating `window` custom-event strings.
+
 ---
 
 ## 3. Type System
@@ -158,6 +169,8 @@ interface BTProject {
 ## 4. State Management (Zustand)
 
 The Zustand store in `btStore.ts` is the **single source of truth** for all BT data.
+
+When integrating externally, treat store actions as internal implementation details and use `BTEditor` props/ref callbacks as the stable host API.
 
 ### Store Slices
 
@@ -314,6 +327,49 @@ The app supports **BT.CPP XML v3 and v4** (`BTCPP_format="3"` or `BTCPP_format="
 | SubTree       | `<SubTree ID="OtherTreeID">`     | `ID` = target tree                   | --- |
 
 ## 7. Canvas Events
+
+Canvas/UI command events are typed in `src/integration/editorEvents.ts`.
+
+Use:
+
+```typescript
+import {
+  dispatchEditorWindowEvent,
+  addEditorWindowEventListener,
+} from '../integration/editorEvents';
+```
+
+instead of raw `window.dispatchEvent(new CustomEvent('...'))` and stringly-typed listeners.
+
+Current typed events include:
+
+- `bt-node-edit`
+- `bt-open-subtree`
+- `bt-toggle-expand-subtree`
+- `bt-nodes-updated`
+- `bt-export-png`
+- `bt-toggle-shortcuts-help`
+
+This provides compile-time payload checks and reduces event-name drift.
+
+## 8. Readonly Consistency
+
+Readonly detection should be centralized through integration helpers:
+
+```typescript
+import { isIntegrationReadonly } from '../integration/context';
+
+const integration = useBTEditorIntegration();
+const readonly = isIntegrationReadonly(integration);
+```
+
+Do not mix ad-hoc checks (`mode === 'readonly'` vs `readonly`) across components.
+
+In readonly mode:
+
+- Mutating actions must be blocked at both UI action handlers and event sources.
+- Navigation-only actions remain allowed when intended (for example, opening referenced SubTrees).
+- Tests should assert both blocked mutation and preserved navigation behavior.
 
 ### Drag-and-Drop (Palette → Canvas)
 

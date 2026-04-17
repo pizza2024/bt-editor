@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CATEGORY_COLORS, PORT_DIRECTIONS, PORT_TYPES } from '../types/bt-constants';
 import type { BTNodeCategory, BTNodeDefinition, BTPort, PortDirection } from '../types/bt';
 import { validateNodeModel } from '../utils/btXml';
+import { X, Plus, AlertTriangle } from 'lucide-react';
 
 interface PortFormState {
   name: string;
@@ -156,7 +157,7 @@ const NodeModelModal: React.FC<Props> = (props) => {
           <div className="modal-title">
             <span style={{ color: colors.text }}>{getTitle()}</span>
           </div>
-          <button className="modal-close" onClick={props.onClose}>×</button>
+          <button className="modal-close" onClick={props.onClose}><X size={14} /></button>
         </div>
 
         {/* Body */}
@@ -220,7 +221,7 @@ const NodeModelModal: React.FC<Props> = (props) => {
               </label>
               {!isReadonly && (
                 <button type="button" className="btn-add-port" onClick={handleAddPort}>
-                  + Add Port
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Plus size={12} />Add Port</span>
                 </button>
               )}
             </div>
@@ -237,7 +238,7 @@ const NodeModelModal: React.FC<Props> = (props) => {
                           className="btn-remove-port"
                           onClick={() => handleRemovePort(index)}
                         >
-                          ✕
+                          <X size={12} />
                         </button>
                       )}
                     </div>
@@ -342,7 +343,7 @@ const NodeModelModal: React.FC<Props> = (props) => {
           {validationErrors.length > 0 && (
             <div className="validation-errors">
               {validationErrors.map((err, i) => (
-                <div key={i} className="validation-error-item">⚠ {err}</div>
+                <div key={i} className="validation-error-item"><AlertTriangle size={12} style={{ marginRight: 4 }} />{err}</div>
               ))}
             </div>
           )}

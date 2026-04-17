@@ -5,6 +5,9 @@ import { STATUS_COLORS } from '../../types/bt-constants';
 import type { BTPort } from '../../types/bt';
 import { useTranslation } from 'react-i18next';
 import { useBTStore } from '../../store/BTStoreProvider';
+import { useBTEditorIntegration, isIntegrationReadonly } from '../../integration/context';
+import { dispatchEditorWindowEvent } from '../../integration/editorEvents';
+import { ChevronDown, ChevronRight, ExternalLink, Timer, CornerUpLeft, FileText, Package } from 'lucide-react';
 
 interface BTNodeData {
   label: string;
@@ -28,8 +31,10 @@ interface BTNodeData {
 
 const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId }) => {
   const { t } = useTranslation();
+  const integration = useBTEditorIntegration();
   const { theme } = useBTStore();
   const isLightTheme = theme === 'light';
+  const readonly = isIntegrationReadonly(integration);
   const d = data as BTNodeData;
   const { label, category, colors, ports, preconditions, postconditions, description, status, isRoot, isCollapsed, isExpandedSubTree, isSubTreeUnlinked, cdata } = d;
 
@@ -46,8 +51,6 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
   const isLeaf = category === 'Action' || category === 'Condition' || category === 'SubTree';
   const isRootNode = isRoot === true;
   const isSubTreeNode = category === 'SubTree';
-  const subtreeToggleIcon = isSubTreeExpanded ? '▾' : '▸';
-
   // Memoize port entries grouping
   const { inputPorts, outputPorts, inoutPorts, hasPre, hasPost, portEntries, preEntries, postEntries } = useMemo(() => {
     // Group port entries by direction
@@ -140,38 +143,31 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
     e.stopPropagation();
 
     if (isSubTreeNode) {
-      window.dispatchEvent(new CustomEvent('bt-open-subtree', {
-        detail: { nodeId }
-      }));
+      dispatchEditorWindowEvent('bt-open-subtree', { nodeId });
       return;
     }
 
-    window.dispatchEvent(new CustomEvent('bt-node-edit', {
-      detail: { nodeId }
-    }));
+    if (!readonly) {
+      dispatchEditorWindowEvent('bt-node-edit', { nodeId });
+    }
   };
 
   const handleOpenSubTreeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    window.dispatchEvent(new CustomEvent('bt-open-subtree', {
-      detail: { nodeId }
-    }));
+    dispatchEditorWindowEvent('bt-open-subtree', { nodeId });
   };
 
   // Toggle SubTree expansion (inline preview)
   const handleToggleExpandSubTree = (e: React.MouseEvent) => {
     e.stopPropagation();
-    window.dispatchEvent(new CustomEvent('bt-toggle-expand-subtree', {
-      detail: { nodeId }
-    }));
+    dispatchEditorWindowEvent('bt-toggle-expand-subtree', { nodeId });
   };
 
   // Handle port double-click to edit
   const handlePortDoubleClick = (e: React.MouseEvent, portName: string, portDirection: string) => {
+    if (readonly) return;
     e.stopPropagation();
-    window.dispatchEvent(new CustomEvent('bt-node-edit', {
-      detail: { nodeId, portName, portDirection }
-    }));
+    dispatchEditorWindowEvent('bt-node-edit', { nodeId, portName, portDirection });
   };
 
   const renderConditionBlock = (entries: Array<[string, string]>, marginBottom: number = 0) => (
@@ -215,7 +211,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
           padding: '4px 20px',
           minWidth: 120,
           color: colors.text,
-          fontFamily: 'monospace',
+          fontFamily: 'var(--font-mono)',
           fontSize: 11,
           textAlign: 'center',
           boxShadow: selected ? selectedShadow : baseShadow,
@@ -241,14 +237,14 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
         minWidth: 140,
         maxWidth: 200,
         color: colors.text,
-        fontFamily: 'monospace',
+        fontFamily: 'var(--font-mono)',
         fontSize: 12,
         textAlign: 'center',
         boxShadow: selected ? selectedShadow : baseShadow,
         transition: 'box-shadow 0.2s',
         userSelect: 'none',
         position: 'relative',
-        cursor: 'pointer',
+        cursor: readonly ? 'default' : 'pointer',
       }}
     >
       {handles}
@@ -275,7 +271,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
           }}
           title="Subtree is collapsed"
         >
-          ▶
+          <ChevronRight size={10} strokeWidth={2.5} />
         </div>
       )}
 
@@ -301,7 +297,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
           }}
           title="SubTree is expanded"
         >
-          ⬇
+          <ChevronDown size={10} strokeWidth={2.5} />
         </div>
       )}
 
@@ -330,24 +326,28 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
       )}
 
       {isSubTreeNode && (
-        <div style={{ display: 'flex', gap: 4, position: 'absolute', top: 6, right: 6 }}>
+        <div style={{ display: 'flex', gap: 3, position: 'absolute', top: 5, right: 5 }}>
           <button
             type="button"
             onClick={handleToggleExpandSubTree}
             title={isSubTreeExpanded ? 'Collapse SubTree preview in canvas' : 'Expand SubTree preview in canvas'}
             aria-label={isSubTreeExpanded ? 'Collapse SubTree preview' : 'Expand SubTree preview'}
             style={{
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.18)',
+              background: 'rgba(12,20,34,0.36)',
+              border: '1px solid rgba(255,255,255,0.22)',
               color: colors.text,
-              borderRadius: 4,
-              padding: '1px 5px',
-              fontSize: 10,
+              borderRadius: 5,
+              width: 18,
+              height: 18,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
               cursor: 'pointer',
-              lineHeight: 1.2,
+              lineHeight: 1,
             }}
           >
-            {subtreeToggleIcon}
+            {isSubTreeExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           </button>
           <button
             type="button"
@@ -355,17 +355,21 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
             title={`${t('contextMenu.openReferencedTree')} (Ctrl/Cmd+Double Click)`}
             aria-label={t('contextMenu.openReferencedTree')}
             style={{
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.18)',
+              background: 'rgba(12,20,34,0.36)',
+              border: '1px solid rgba(255,255,255,0.22)',
               color: colors.text,
-              borderRadius: 4,
-              padding: '1px 5px',
-              fontSize: 10,
+              borderRadius: 5,
+              width: 18,
+              height: 18,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
               cursor: 'pointer',
-              lineHeight: 1.2,
+              lineHeight: 1,
             }}
           >
-            ↗
+            <ExternalLink size={12} />
           </button>
         </div>
       )}
@@ -410,7 +414,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
                     background: 'rgba(0,0,0,0.2)',
                     borderRadius: 3,
                     padding: '2px 6px',
-                    cursor: 'pointer'
+                    cursor: readonly ? 'default' : 'pointer',
                   }}
                   onDoubleClick={(e) => handlePortDoubleClick(e, k, 'input')}
                   title={`Double-click to edit: ${k}`}
@@ -515,11 +519,11 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
 
       {/* Pre/Post condition indicators */}
       {(hasPre || hasPost || description || cdata) && (
-        <div style={{ marginTop: 3, fontSize: 8, opacity: 0.6 }}>
-          {hasPre && <span title="Has pre-conditions">⏱</span>}
-          {hasPost && <span title="Has post-conditions">↩</span>}
-          {description && <span title={description}>📝</span>}
-          {cdata && <span title={`CDATA: ${cdata.slice(0, 30)}${cdata.length > 30 ? '…' : ''}`}>📦</span>}
+        <div style={{ marginTop: 3, fontSize: 8, opacity: 0.7, display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+          {hasPre && <span title="Has pre-conditions" style={{ display: 'inline-flex' }}><Timer size={10} /></span>}
+          {hasPost && <span title="Has post-conditions" style={{ display: 'inline-flex' }}><CornerUpLeft size={10} /></span>}
+          {description && <span title={description} style={{ display: 'inline-flex' }}><FileText size={10} /></span>}
+          {cdata && <span title={`CDATA: ${cdata.slice(0, 30)}${cdata.length > 30 ? '…' : ''}`} style={{ display: 'inline-flex' }}><Package size={10} /></span>}
         </div>
       )}
 

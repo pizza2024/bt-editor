@@ -1,9 +1,16 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import type { BTProject, BTNodeDefinition, NodeStatus } from '../types/bt';
 import type { Node, Edge } from '@xyflow/react';
 import { defaultProject, parseXML, serializeXML } from '../utils/btXml';
 import { createNodeModelsForFormat, isBuiltinNodeType } from '../types/bt-constants';
+import {
+  PROJECT_STORAGE_KEY,
+  readStoredTheme,
+  resolveEditorAdapters,
+  writeStoredTheme,
+} from '../integration/defaultAdapters';
+import type { EditorAdapters } from '../integration/types';
 
 export interface DebugState {
   active: boolean;
@@ -163,6 +170,7 @@ export interface BTStore {
 
   // Theme
   theme: 'dark' | 'light';
+  setTheme: (theme: 'dark' | 'light') => void;
   toggleTheme: () => void;
   initTheme: () => void;
 
@@ -194,7 +202,19 @@ const defaultDebug: DebugState = {
   entries: [],
 };
 
-export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>()(
+export interface BTStoreOptions {
+  storageKey?: string;
+  adapters?: EditorAdapters;
+}
+
+export const createBTStore = (options: string | BTStoreOptions = PROJECT_STORAGE_KEY) => {
+  const normalizedOptions = typeof options === 'string'
+    ? { storageKey: options }
+    : options;
+  const storageKey = normalizedOptions.storageKey ?? PROJECT_STORAGE_KEY;
+  const resolvedAdapters = resolveEditorAdapters(normalizedOptions.adapters);
+
+  return create<BTStore>()(
   persist(
     (set, get) => ({
   project: defaultProject(),
@@ -298,7 +318,7 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
       });
       return project;
     } catch (e) {
-      alert('Failed to parse XML:\n' + (e as Error).message);
+      resolvedAdapters.notifyAdapter.alert('Failed to parse XML:\n' + (e as Error).message);
       return null;
     }
   },
@@ -391,7 +411,7 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
   addTree(id) {
     const { project } = get();
     if (project.trees.find((t) => t.id === id)) {
-      alert(`Tree "${id}" already exists`);
+      resolvedAdapters.notifyAdapter.alert(`Tree "${id}" already exists`);
       return;
     }
     const newTree = {
@@ -413,7 +433,7 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
   renameTree(oldId, newId) {
     const { project, openedTreeIds } = get();
     if (project.trees.find((t) => t.id === newId)) {
-      alert(`Tree "${newId}" already exists`);
+      resolvedAdapters.notifyAdapter.alert(`Tree "${newId}" already exists`);
       return;
     }
     const trees = project.trees.map((t) => {
@@ -431,7 +451,7 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
   deleteTree(id) {
     const { project, openedTreeIds, activeTreeId } = get();
     if (project.trees.length <= 1) {
-      alert('Cannot delete the only tree');
+      resolvedAdapters.notifyAdapter.alert('Cannot delete the only tree');
       return;
     }
 
@@ -440,7 +460,7 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
       .filter((tree) => treeReferencesTarget(tree.root, id))
       .map((tree) => tree.id);
     if (referencedByTrees.length > 0) {
-      alert(
+      resolvedAdapters.notifyAdapter.alert(
         `Cannot delete tree "${id}" because it is referenced by SubTree nodes in: ${referencedByTrees.join(', ')}`
       );
       return;
@@ -503,7 +523,7 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
   deleteNodeModel(type) {
     const { project } = get();
     if (isBuiltinNodeType(type, project.exportFormat ?? 4)) {
-      alert('Cannot delete built-in node types');
+      resolvedAdapters.notifyAdapter.alert('Cannot delete built-in node types');
       return;
     }
     const models = project.nodeModels.filter((m) => m.type !== type);
@@ -628,23 +648,29 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
     return newNode;
   },
 
-  theme: (localStorage.getItem('bt-theme') as 'dark' | 'light') || 'dark',
+  theme: readStoredTheme(resolvedAdapters.storageAdapter),
 
-  toggleTheme() {
-    const newTheme = get().theme === 'dark' ? 'light' : 'dark';
-    localStorage.setItem('bt-theme', newTheme);
-    if (newTheme === 'light') {
+  setTheme(theme) {
+    writeStoredTheme(theme, resolvedAdapters.storageAdapter);
+    if (theme === 'light') {
       document.documentElement.classList.add('theme-light');
     } else {
       document.documentElement.classList.remove('theme-light');
     }
-    set({ theme: newTheme });
+    set({ theme });
+  },
+
+  toggleTheme() {
+    const newTheme = get().theme === 'dark' ? 'light' : 'dark';
+    get().setTheme(newTheme);
   },
 
   initTheme() {
-    const saved = localStorage.getItem('bt-theme') as 'dark' | 'light' | null;
+    const saved = resolvedAdapters.storageAdapter.getItem('bt-theme') as 'dark' | 'light' | null;
     if (saved === 'light') {
       document.documentElement.classList.add('theme-light');
+    } else {
+      document.documentElement.classList.remove('theme-light');
     }
     set({ theme: saved || 'dark' });
   },
@@ -719,7 +745,7 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
           treeId: item.treeId ?? get().activeTreeId,
         })).filter((e) => e.nodeType !== '');
       } catch (e) {
-        console.error('Failed to parse JSON log:', e);
+        resolvedAdapters.loggerAdapter.error('Failed to parse JSON log:', e);
       }
     } else {
       // Text format
@@ -879,6 +905,11 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
     {
       name: storageKey,
       version: 2, // bump when node model schema changes
+      storage: createJSONStorage(() => ({
+        getItem: (name) => resolvedAdapters.storageAdapter.getItem(name),
+        setItem: (name, value) => resolvedAdapters.storageAdapter.setItem(name, value),
+        removeItem: (name) => resolvedAdapters.storageAdapter.removeItem(name),
+      })),
       partialize: (state) => ({
         project: state.project,
         activeTreeId: state.activeTreeId,
@@ -886,7 +917,8 @@ export const createBTStore = (storageKey = 'bt-tree-editor') => create<BTStore>(
       }),
     }
   )
-);
+  );
+};
 
 export const defaultBTStore = createBTStore();
 export const useBTStore = defaultBTStore;

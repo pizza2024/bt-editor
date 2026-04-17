@@ -45,7 +45,7 @@ describe('NodePalette', () => {
 
     const paletteItems = Array.from(container.querySelectorAll('.palette-item'));
     const sequenceItem = paletteItems.find((item) => {
-      const label = item.querySelector('.palette-item-label')?.textContent?.replace('★', '').trim();
+      const label = item.querySelector('.palette-item-label')?.textContent?.trim();
       return label === 'Sequence';
     });
 

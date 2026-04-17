@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useBTStore, useBTStoreApi } from '../store/BTStoreProvider';
+import { Star, X, GripVertical } from 'lucide-react';
 
 interface FavoriteTemplate {
   id: string;
@@ -106,7 +107,7 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
         onClick={() => setIsCollapsed(false)}
         title={t('favorites.title')}
       >
-        <span style={{ fontSize: 14 }}>⭐ {favorites.length}</span>
+        <span style={{ fontSize: 14, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Star size={14} />{favorites.length}</span>
       </div>
     );
   }
@@ -141,7 +142,7 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
         onClick={() => setIsCollapsed(true)}
       >
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-link)' }}>
-          ⭐ {t('favorites.title')} ({favorites.length})
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Star size={13} />{t('favorites.title')} ({favorites.length})</span>
         </span>
         <button
           style={{
@@ -154,7 +155,7 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
           }}
           onClick={(e) => { e.stopPropagation(); setIsCollapsed(true); }}
         >
-          ✕
+          <X size={12} />
         </button>
       </div>
 
@@ -183,7 +184,7 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
               }}
             >
               {/* Drag handle icon */}
-              <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>⋮⋮</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: 10, display: 'inline-flex' }}><GripVertical size={12} /></span>
 
               {/* Category color dot */}
               <span
@@ -240,7 +241,7 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
                 }}
                 title={t('favorites.remove')}
               >
-                ✕
+                <X size={10} />
               </button>
             </div>
           ))

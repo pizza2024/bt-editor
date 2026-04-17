@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Package, X } from 'lucide-react';
 
 interface CdataEditModalProps {
   nodeId: string;
@@ -41,13 +42,13 @@ const CdataEditModal: React.FC<CdataEditModalProps> = ({
         {/* Header */}
         <div className="modal-header">
           <div className="modal-title">
-            <span style={{ color: '#ffe080' }}>📦</span>
+            <span style={{ color: '#ffe080', display: 'inline-flex' }}><Package size={14} /></span>
             <span className="modal-node-type">CDATA Block</span>
             <span className="modal-instance-id" style={{ opacity: 0.6 }}>
               {displayName} · #{nodeId.slice(0, 8)}
             </span>
           </div>
-          <button className="modal-close" onClick={onClose}>×</button>
+          <button className="modal-close" onClick={onClose}><X size={14} /></button>
         </div>
 
         {/* Body */}
