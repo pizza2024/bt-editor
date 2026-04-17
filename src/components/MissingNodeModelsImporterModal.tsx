@@ -5,6 +5,7 @@ import type { BTNodeCategory, BTNodeDefinition, BTPort, PortDirection } from '..
 import { validateNodeModel } from '../utils/btXml';
 import type { MissingNodeModelCandidate } from '../utils/btXml';
 import { useBTEditorIntegration, isIntegrationReadonly } from '../integration/context';
+import { AlertTriangle } from 'lucide-react';
 
 interface MissingNodeModelsImporterModalProps {
   candidates: MissingNodeModelCandidate[];
@@ -191,7 +192,7 @@ const MissingNodeModelsImporterModal: React.FC<MissingNodeModelsImporterModalPro
           {validationErrors.length > 0 && (
             <div className="validation-errors">
               {validationErrors.map((error, index) => (
-                <div key={index} className="validation-error-item">⚠ {error}</div>
+                <div key={index} className="validation-error-item"><AlertTriangle size={12} style={{ marginRight: 4 }} />{error}</div>
               ))}
             </div>
           )}

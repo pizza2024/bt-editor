@@ -5,6 +5,7 @@ import { CATEGORY_COLORS } from '../types/bt-constants';
 import type { BTNodeCategory, BTNodeDefinition } from '../types/bt';
 import NodeModelModal from './NodeModelModal';
 import { useBTEditorIntegration, isIntegrationReadonly } from '../integration/context';
+import { ChevronDown, ChevronRight, TreePine, Star, Pencil, Trash2, Search, Minimize2 } from 'lucide-react';
 
 const CATEGORIES: BTNodeCategory[] = ['Action', 'Condition', 'Control', 'Decorator', 'SubTree'].sort((a, b) =>
   a.localeCompare(b)
@@ -115,52 +116,42 @@ const NodePalette: React.FC = () => {
     <div className={`panel node-palette${collapsed ? ' collapsed' : ''}`}>
       <div className="panel-header" onClick={() => setCollapsed((value) => !value)}>
         <span>Models Palette</span>
-        <span className="collapse-icon">{collapsed ? '▶' : '▼'}</span>
+        <span className="collapse-icon" style={{ display: 'inline-flex' }}>{collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}</span>
       </div>
 
       {!collapsed && (
         <div className="panel-body node-palette-body">
           <div className="node-palette-scroll">
             <div style={{ padding: '8px 8px 4px 8px' }}>
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                <input
-                  className="node-palette-search-input"
-                  type="text"
-                  placeholder={t('palette.searchPlaceholder')}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{
-                    flex: 1,
-                    padding: '5px 8px',
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-light)',
-                    borderRadius: 4,
-                    color: 'var(--text-primary)',
-                    fontSize: 12,
-                    boxSizing: 'border-box',
-                    boxShadow: isLightTheme ? '0 1px 0 rgba(74, 128, 208, 0.14)' : 'none',
-                  }}
-                />
+              <div className="node-palette-search-row">
+                <div className="node-palette-search-wrap">
+                  <input
+                    className="node-palette-search-input"
+                    type="text"
+                    placeholder={t('palette.searchPlaceholder')}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '5px 28px 5px 8px',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-light)',
+                      borderRadius: 4,
+                      color: 'var(--text-primary)',
+                      fontSize: 12,
+                      boxSizing: 'border-box',
+                      boxShadow: isLightTheme ? '0 1px 0 rgba(74, 128, 208, 0.14)' : 'none',
+                    }}
+                  />
+                  <span className="node-palette-search-icon"><Search size={12} /></span>
+                </div>
                 <button
                   type="button"
+                  className="node-palette-collapse-all-btn"
                   title="Collapse all categories"
                   onClick={() => setExpandedCats(new Set())}
-                  style={{
-                    flexShrink: 0,
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-light)',
-                    borderRadius: 4,
-                    color: 'var(--text-muted)',
-                    cursor: 'pointer',
-                    padding: '4px 7px',
-                    fontSize: 11,
-                    lineHeight: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
                 >
-                  ⊟
+                  <Minimize2 size={12} />
                 </button>
               </div>
             </div>
@@ -311,7 +302,7 @@ const PaletteGroup: React.FC<{
       onClick={onToggle}
     >
       <span style={{ fontWeight: 700, letterSpacing: '0.02em' }}>
-        {isExpanded ? '▼' : '▶'} {category}
+        <span style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: 4 }}>{isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>{category}
       </span>
       <span style={{ fontSize: 10, opacity: isLightTheme ? 0.9 : 0.75 }}>{count}</span>
     </button>
@@ -356,10 +347,10 @@ const PaletteItem: React.FC<PaletteItemProps> = ({
       title={def.description || displayLabel || def.type}
     >
       <span className="palette-item-label" style={{ flex: 1, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {isGeneratedSubTree && <span style={{ marginRight: 6, opacity: 0.85 }}>🌳</span>}
+        {isGeneratedSubTree && <span style={{ marginRight: 6, opacity: 0.85, display: 'inline-flex', verticalAlign: 'middle' }}><TreePine size={12} /></span>}
         {!def.builtin && (
           <span className="palette-custom-icon" title={customModelLabel} aria-label={customModelLabel}>
-            ★
+            <Star size={11} />
           </span>
         )}
         {displayLabel ?? def.type}
@@ -369,7 +360,7 @@ const PaletteItem: React.FC<PaletteItemProps> = ({
       <div className="palette-item-actions">
         {onEdit && (
           <button onClick={() => onEdit(def)} className="palette-item-btn" title="Edit model">
-            ✎
+            <Pencil size={12} />
           </button>
         )}
         {onDelete && (
@@ -381,7 +372,7 @@ const PaletteItem: React.FC<PaletteItemProps> = ({
             className="palette-item-btn danger"
             title="Delete model"
           >
-            ✕
+              <Trash2 size={12} />
           </button>
         )}
       </div>

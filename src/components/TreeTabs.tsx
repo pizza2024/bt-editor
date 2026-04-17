@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useBTStore } from '../store/BTStoreProvider';
 import { useBTEditorIntegration } from '../integration/context';
+import { Star, X } from 'lucide-react';
 
 const TreeTabs: React.FC = () => {
   const { t } = useTranslation();
@@ -67,7 +68,7 @@ const TreeTabs: React.FC = () => {
             }}
           >
             <span className="tree-tab-label" title={treeId}>
-              {isMain ? '★ ' : ''}
+              {isMain ? <span style={{ display: 'inline-flex', verticalAlign: 'middle' }}><Star size={11} /></span> : null}
               {treeId}
             </span>
             {visibleTabs.length > 1 && (
@@ -81,7 +82,7 @@ const TreeTabs: React.FC = () => {
                 title={t('treeTabs.close')}
                 aria-label={t('treeTabs.close')}
               >
-                ×
+                <X size={11} />
               </button>
             )}
           </div>

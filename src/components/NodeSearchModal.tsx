@@ -3,6 +3,7 @@ import type { Node } from '@xyflow/react';
 import type { BTNodeCategory } from '../types/bt';
 import { CATEGORY_COLORS } from '../types/bt-constants';
 import { useTranslation } from 'react-i18next';
+import { Search, CornerDownLeft, ArrowUpDown } from 'lucide-react';
 
 interface NodeSearchModalProps {
   nodes: Node[];
@@ -114,7 +115,7 @@ const NodeSearchModal: React.FC<NodeSearchModalProps> = ({ nodes, onSelect, onCl
             borderBottom: '1px solid var(--border-light)',
           }}
         >
-          <span style={{ color: 'var(--text-muted)', fontSize: 16 }}>🔍</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 16, display: 'inline-flex' }}><Search size={16} /></span>
           <input
             ref={inputRef}
             type="text"
@@ -306,7 +307,7 @@ const NodeSearchModal: React.FC<NodeSearchModalProps> = ({ nodes, onSelect, onCl
                         flexShrink: 0,
                       }}
                     >
-                      ↵
+                      <CornerDownLeft size={11} />
                     </kbd>
                   )}
                 </div>
@@ -326,8 +327,8 @@ const NodeSearchModal: React.FC<NodeSearchModalProps> = ({ nodes, onSelect, onCl
             color: 'var(--text-muted)',
           }}
         >
-          <span>↑↓ navigate</span>
-          <span>↵ select</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ArrowUpDown size={11} />navigate</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><CornerDownLeft size={11} />select</span>
           <span>ESC close</span>
         </div>
       </div>

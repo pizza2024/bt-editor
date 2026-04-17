@@ -5,6 +5,7 @@ import { useBTStore, useBTStoreApi } from '../store/BTStoreProvider';
 import type { BTProject } from '../types/bt';
 import { parseXML, serializeXML } from '../utils/btXml';
 import { useBTEditorIntegration, isIntegrationReadonly } from '../integration/context';
+import { Pencil, Check, X, AlertTriangle, ChevronRight } from 'lucide-react';
 
 const XML_PANEL_MIN_WIDTH = 240;
 type XmlPreviewMode = 'local' | 'main';
@@ -286,7 +287,7 @@ const XmlPreviewPanel: React.FC = () => {
                 aria-label={t('xmlPreview.edit')}
                 disabled={readonly}
               >
-                ✎
+                <Pencil size={14} />
               </button>
             </>
           )}
@@ -299,7 +300,7 @@ const XmlPreviewPanel: React.FC = () => {
                 title={t('xmlPreview.save')}
                 aria-label={t('xmlPreview.save')}
               >
-                ✔
+                <Check size={14} />
               </button>
               <button
                 type="button"
@@ -308,7 +309,7 @@ const XmlPreviewPanel: React.FC = () => {
                 title={t('xmlPreview.cancel')}
                 aria-label={t('xmlPreview.cancel')}
               >
-                ✕
+                <X size={14} />
               </button>
             </>
           )}
@@ -319,7 +320,7 @@ const XmlPreviewPanel: React.FC = () => {
             title={t('xmlPreview.collapse')}
             aria-label={t('xmlPreview.collapse')}
           >
-            {'>'}
+            <ChevronRight size={14} />
           </button>
         </div>
       </div>
@@ -357,7 +358,7 @@ const XmlPreviewPanel: React.FC = () => {
             />
             {xmlError && (
               <div className="xml-error-banner">
-                <span className="xml-error-icon">⚠️</span>
+                <span className="xml-error-icon"><AlertTriangle size={14} /></span>
                 <span className="xml-error-text">{xmlError}</span>
               </div>
             )}

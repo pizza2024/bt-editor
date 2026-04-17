@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useBTStore } from '../../store/BTStoreProvider';
 import { useBTEditorIntegration, isIntegrationReadonly } from '../../integration/context';
 import { dispatchEditorWindowEvent } from '../../integration/editorEvents';
+import { ChevronDown, ChevronRight, ExternalLink, Timer, CornerUpLeft, FileText, Package } from 'lucide-react';
 
 interface BTNodeData {
   label: string;
@@ -50,8 +51,6 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
   const isLeaf = category === 'Action' || category === 'Condition' || category === 'SubTree';
   const isRootNode = isRoot === true;
   const isSubTreeNode = category === 'SubTree';
-  const subtreeToggleIcon = isSubTreeExpanded ? '▾' : '▸';
-
   // Memoize port entries grouping
   const { inputPorts, outputPorts, inoutPorts, hasPre, hasPost, portEntries, preEntries, postEntries } = useMemo(() => {
     // Group port entries by direction
@@ -272,7 +271,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
           }}
           title="Subtree is collapsed"
         >
-          ▶
+          <ChevronRight size={10} strokeWidth={2.5} />
         </div>
       )}
 
@@ -298,7 +297,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
           }}
           title="SubTree is expanded"
         >
-          ⬇
+          <ChevronDown size={10} strokeWidth={2.5} />
         </div>
       )}
 
@@ -327,24 +326,28 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
       )}
 
       {isSubTreeNode && (
-        <div style={{ display: 'flex', gap: 4, position: 'absolute', top: 6, right: 6 }}>
+        <div style={{ display: 'flex', gap: 3, position: 'absolute', top: 5, right: 5 }}>
           <button
             type="button"
             onClick={handleToggleExpandSubTree}
             title={isSubTreeExpanded ? 'Collapse SubTree preview in canvas' : 'Expand SubTree preview in canvas'}
             aria-label={isSubTreeExpanded ? 'Collapse SubTree preview' : 'Expand SubTree preview'}
             style={{
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.18)',
+              background: 'rgba(12,20,34,0.36)',
+              border: '1px solid rgba(255,255,255,0.22)',
               color: colors.text,
-              borderRadius: 4,
-              padding: '1px 5px',
-              fontSize: 10,
+              borderRadius: 5,
+              width: 18,
+              height: 18,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
               cursor: 'pointer',
-              lineHeight: 1.2,
+              lineHeight: 1,
             }}
           >
-            {subtreeToggleIcon}
+            {isSubTreeExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           </button>
           <button
             type="button"
@@ -352,17 +355,21 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
             title={`${t('contextMenu.openReferencedTree')} (Ctrl/Cmd+Double Click)`}
             aria-label={t('contextMenu.openReferencedTree')}
             style={{
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.18)',
+              background: 'rgba(12,20,34,0.36)',
+              border: '1px solid rgba(255,255,255,0.22)',
               color: colors.text,
-              borderRadius: 4,
-              padding: '1px 5px',
-              fontSize: 10,
+              borderRadius: 5,
+              width: 18,
+              height: 18,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
               cursor: 'pointer',
-              lineHeight: 1.2,
+              lineHeight: 1,
             }}
           >
-            ↗
+            <ExternalLink size={12} />
           </button>
         </div>
       )}
@@ -512,11 +519,11 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
 
       {/* Pre/Post condition indicators */}
       {(hasPre || hasPost || description || cdata) && (
-        <div style={{ marginTop: 3, fontSize: 8, opacity: 0.6 }}>
-          {hasPre && <span title="Has pre-conditions">⏱</span>}
-          {hasPost && <span title="Has post-conditions">↩</span>}
-          {description && <span title={description}>📝</span>}
-          {cdata && <span title={`CDATA: ${cdata.slice(0, 30)}${cdata.length > 30 ? '…' : ''}`}>📦</span>}
+        <div style={{ marginTop: 3, fontSize: 8, opacity: 0.7, display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+          {hasPre && <span title="Has pre-conditions" style={{ display: 'inline-flex' }}><Timer size={10} /></span>}
+          {hasPost && <span title="Has post-conditions" style={{ display: 'inline-flex' }}><CornerUpLeft size={10} /></span>}
+          {description && <span title={description} style={{ display: 'inline-flex' }}><FileText size={10} /></span>}
+          {cdata && <span title={`CDATA: ${cdata.slice(0, 30)}${cdata.length > 30 ? '…' : ''}`} style={{ display: 'inline-flex' }}><Package size={10} /></span>}
         </div>
       )}
 

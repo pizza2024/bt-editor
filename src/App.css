@@ -409,6 +409,48 @@ body.is-resizing-columns .sidebar-width-resizer::after {
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
+.node-palette-search-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.node-palette-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.node-palette-search-icon {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  display: inline-flex;
+  pointer-events: none;
+}
+
+.node-palette-collapse-all-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.node-palette-collapse-all-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-link);
+}
+
 .node-palette-search-input::placeholder {
   color: var(--text-muted);
 }
@@ -495,10 +537,14 @@ body.is-resizing-columns .sidebar-width-resizer::after {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 12px;
-  padding: 1px 3px;
-  border-radius: 2px;
-  line-height: 1.2;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 .tree-btn:hover { color: var(--text-link); background: var(--bg-hover); }
 .tree-btn.danger:hover { color: var(--text-danger); background: var(--bg-active); }
@@ -541,6 +587,9 @@ body.is-resizing-columns .sidebar-width-resizer::after {
 }
 
 .tree-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -554,9 +603,14 @@ body.is-resizing-columns .sidebar-width-resizer::after {
   background: transparent;
   color: #8fa5c9;
   cursor: pointer;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 12px;
   line-height: 1;
-  padding: 1px 4px;
+  padding: 0;
 }
 
 .tree-tab-close:hover {

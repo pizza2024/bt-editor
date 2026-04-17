@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useBTStore } from '../store/BTStoreProvider';
 import { CATEGORY_COLORS } from '../types/bt-constants';
 import type { BTNodeCategory } from '../types/bt';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 interface NodePickerProps {
   position: { x: number; y: number };
@@ -172,7 +173,7 @@ const NodePicker: React.FC<NodePickerProps> = ({ position, onSelect, onClose }) 
                 onClick={() => toggleCategory(category)}
                 aria-expanded={expanded}
               >
-                <span>{expanded ? '▼' : '▶'} {cat}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}{cat}</span>
                 <span className="node-picker-category-count">{models.length}</span>
               </button>
               {expanded && models.map(model => {

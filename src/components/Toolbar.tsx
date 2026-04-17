@@ -6,6 +6,7 @@ import MissingNodeModelsImporterModal from './MissingNodeModelsImporterModal';
 import { useBTEditorIntegration, isIntegrationReadonly } from '../integration/context';
 import { writeStoredLocale } from '../integration/defaultAdapters';
 import { dispatchEditorWindowEvent } from '../integration/editorEvents';
+import { FolderOpen, Download, Upload, ImageDown, TreePine, Star, Languages, Moon, Sun } from 'lucide-react';
 
 function isProjectModeSwitchLocked(project: { trees: Array<{ root: { children: unknown[] } }>; mainTreeId: string }): boolean {
   return project.trees.some((tree) => tree.root.children.length > 0);
@@ -110,7 +111,7 @@ const Toolbar: React.FC = () => {
     <div className="toolbar">
       {/* Logo */}
       <div className="toolbar-logo">
-        <span style={{ color: '#4a80d0' }}>🌳</span> BT Editor
+        <span style={{ color: '#4a80d0', display: 'inline-flex', marginRight: 6, verticalAlign: 'middle' }}><TreePine size={14} /></span>BT Editor
       </div>
 
       <div className="toolbar-divider" />
@@ -119,13 +120,13 @@ const Toolbar: React.FC = () => {
       {canImportExport && (
         <>
           <button className="toolbar-btn" onClick={handleLoadSample} title={t('toolbar.sample')} disabled={readonly}>
-            📂 {t('toolbar.sample')}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><FolderOpen size={14} />{t('toolbar.sample')}</span>
           </button>
           <button className="toolbar-btn" onClick={() => fileInputRef.current?.click()} title={t('toolbar.importXml')} disabled={readonly}>
-            ⬆ {t('toolbar.importXml')}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Upload size={14} />{t('toolbar.importXml')}</span>
           </button>
           <button className="toolbar-btn" onClick={handleExport} title={t('toolbar.exportXml')}>
-            ⬇ {t('toolbar.exportXml')}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Download size={14} />{t('toolbar.exportXml')}</span>
           </button>
         </>
       )}
@@ -157,7 +158,7 @@ const Toolbar: React.FC = () => {
       </div>
       {canExportPng && (
         <button className="toolbar-btn" onClick={handleExportPNG} title={t('toolbar.exportPng')}>
-          🖼️ {t('toolbar.exportPng')}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ImageDown size={14} />{t('toolbar.exportPng')}</span>
         </button>
       )}
       {/* Keyboard shortcuts help */}
@@ -178,7 +179,7 @@ const Toolbar: React.FC = () => {
       <div style={{ fontSize: 12, color: '#8899bb' }}>
         {t('canvas.treeLabel')}: <span style={{ color: '#c8e0ff', fontWeight: 600 }}>{activeTreeId}</span>
         {activeTreeId === project.mainTreeId && (
-          <span style={{ color: '#f0a020', marginLeft: 6 }}>★ {t('canvas.mainTree')}</span>
+          <span style={{ color: '#f0a020', marginLeft: 6, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Star size={12} />{t('canvas.mainTree')}</span>
         )}
       </div>
 
@@ -192,7 +193,7 @@ const Toolbar: React.FC = () => {
         style={{ minWidth: 60 }}
         disabled={integration?.localeControlled}
       >
-        {i18n.language === 'en' ? '🇺🇸 EN' : '🇨🇳 中文'}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Languages size={14} />{i18n.language === 'en' ? 'EN' : '中文'}</span>
       </button>
 
       {/* Theme toggle */}
@@ -203,7 +204,10 @@ const Toolbar: React.FC = () => {
         style={{ minWidth: 70 }}
         disabled={integration?.themeControlled}
       >
-        {theme === 'dark' ? '🌙 ' + t('toolbar.dark') : '☀️ ' + t('toolbar.light')}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {theme === 'dark' ? <Moon size={14} /> : <Sun size={14} />}
+          {theme === 'dark' ? t('toolbar.dark') : t('toolbar.light')}
+        </span>
       </button>
 
       {/* Help */}

@@ -41,6 +41,7 @@ import NodeSearchModal from './NodeSearchModal';
 import TreeTabs from './TreeTabs';
 import { useBTEditorIntegration, isIntegrationReadonly } from '../integration/context';
 import { addEditorWindowEventListener } from '../integration/editorEvents';
+import { Trash2, Copy, ChevronRight, ChevronDown, TreePine, Star, Package, Plus, CheckSquare, Search, Sparkles, AlertTriangle } from 'lucide-react';
 
 const nodeTypes = { btNode: BTFlowNode };
 const edgeTypes = { btEdge: BTFlowEdge };
@@ -1989,7 +1990,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         {
           id: 'delete',
           label: 'Delete Edge',
-          icon: '🗑️',
+          icon: <Trash2 size={14} />,
           danger: true,
           disabled: readonly,
           action: () => {
@@ -2003,7 +2004,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         {
           id: 'copy',
           label: 'Copy Node',
-          icon: '📋',
+          icon: <Copy size={14} />,
           action: () => {
             // Prefer the current target node from this render; fallback to store lookup.
             const nodeToCopy = targetNode
@@ -2018,7 +2019,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         {
           id: 'delete',
           label: 'Delete Node',
-          icon: '🗑️',
+          icon: <Trash2 size={14} />,
           danger: true,
           disabled: readonly,
           action: () => {
@@ -2037,7 +2038,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         ...(hasChildren ? [{
           id: 'delete-subtree',
           label: 'Delete Subtree',
-          icon: '🗑️',
+          icon: <Trash2 size={14} />,
           danger: true,
           disabled: readonly,
           action: () => {
@@ -2064,7 +2065,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         ...(hasChildren ? [{
           id: 'collapse',
           label: isCollapsed ? 'Expand Subtree' : 'Collapse Subtree',
-          icon: isCollapsed ? '▶' : '▼',
+          icon: isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />,
           action: () => {
             if (menuState.targetId) {
               toggleNodeCollapse(menuState.targetId);
@@ -2074,7 +2075,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         ...(isSubTreeNode ? [{
           id: 'open-subtree',
           label: 'Open Referenced Tree',
-          icon: '🌳',
+          icon: <TreePine size={14} />,
           disabled: !referencedTreeExists,
           action: () => {
             if (referencedTreeId && referencedTreeExists) {
@@ -2086,7 +2087,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         {
           id: 'save-template',
           label: 'Save as Template',
-          icon: '⭐',
+          icon: <Star size={14} />,
           action: () => {
             if (targetData?.nodeType) {
               const fallbackNodeType = targetData.nodeType;
@@ -2158,7 +2159,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         {
           id: 'set-cdata',
           label: 'Set CDATA Block',
-          icon: '📦',
+          icon: <Package size={14} />,
           disabled: readonly,
           action: () => {
             if (readonly) return;
@@ -2172,7 +2173,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         ...(selectedNodeIds.size > 1 ? [{
           id: 'delete-selected',
           label: `Delete Selected (${selectedNodeIds.size})`,
-          icon: '🗑️',
+          icon: <Trash2 size={14} />,
           danger: true,
           disabled: readonly,
           action: () => {
@@ -2190,7 +2191,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         ...(storeApi.getState().clipboard ? [{
           id: 'paste',
           label: 'Paste Node',
-          icon: '📋',
+          icon: <Copy size={14} />,
           disabled: readonly,
           action: () => {
             if (readonly) return;
@@ -2200,7 +2201,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         {
           id: 'add',
           label: 'Add Node',
-          icon: '➕',
+          icon: <Plus size={14} />,
           disabled: readonly,
           action: () => {
             if (readonly) return;
@@ -2216,7 +2217,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         {
           id: 'selectall',
           label: 'Select All',
-          icon: '☑️',
+          icon: <CheckSquare size={14} />,
           action: () => {
             const allIds = new Set(
               nodes
@@ -2231,13 +2232,13 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         {
           id: 'fitview',
           label: 'Fit View',
-          icon: '🔍',
+          icon: <Search size={14} />,
           action: () => rfInstanceRef.current?.fitView(),
         },
         {
           id: 'beautify-layout',
           label: 'Beautify Layout',
-          icon: '✨',
+          icon: <Sparkles size={14} />,
           disabled: readonly,
           action: () => beautifyLayout(),
         },
@@ -2332,7 +2333,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
             title="Beautify Layout"
             aria-label="Beautify Layout"
           >
-            ✨
+            <Sparkles size={14} />
           </ControlButton>
         </Controls>
         <div
@@ -2392,7 +2393,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           }}
           title={`Disconnected nodes: ${disconnectedNodes.map((n) => (n.data as { label?: string }).label || n.id).join(', ')}`}
         >
-          <span style={{ fontSize: 14 }}>⚠️</span>
+          <span style={{ fontSize: 14, display: 'inline-flex' }}><AlertTriangle size={14} /></span>
           <span style={{ fontWeight: 500 }}>One or more nodes are not connected</span>
         </div>
       )}
@@ -2418,7 +2419,7 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
           }}
           title={SUBTREE_LOOP_WARNING_MESSAGE}
         >
-          <span style={{ fontSize: 14 }}>⚠️</span>
+          <span style={{ fontSize: 14, display: 'inline-flex' }}><AlertTriangle size={14} /></span>
           <span style={{ fontWeight: 500 }}>{SUBTREE_LOOP_WARNING_MESSAGE}</span>
         </div>
       )}
