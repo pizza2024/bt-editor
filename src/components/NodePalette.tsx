@@ -30,14 +30,15 @@ const NodePalette: React.FC = () => {
   >(null);
 
   const getPaletteEntries = (cat: BTNodeCategory): PaletteEntry[] => {
-    const baseEntries: PaletteEntry[] = project.nodeModels
-      .filter((m) => m.category === cat)
-      .map((def) => ({ def }));
-
     if (cat !== 'SubTree') {
+      const baseEntries: PaletteEntry[] = project.nodeModels
+        .filter((m) => m.category === cat)
+        .map((def) => ({ def }));
       return baseEntries.sort((a, b) => a.def.type.localeCompare(b.def.type));
     }
 
+    // SubTree palette items are generated from Project trees and always
+    // exclude current main_tree_to_execute.
     const generatedSubTrees: PaletteEntry[] = project.trees
       .filter((tree) => tree.id !== project.mainTreeId)
       .map((tree) => ({
@@ -52,14 +53,7 @@ const NodePalette: React.FC = () => {
         isGeneratedSubTree: true,
       }));
 
-    const hasBaseSubTreeModel = baseEntries.some((entry) => entry.def.type === 'SubTree');
-    const merged: PaletteEntry[] = hasBaseSubTreeModel
-      ? [...generatedSubTrees, ...baseEntries]
-      : [...generatedSubTrees, ...baseEntries, {
-          def: { type: 'SubTree', category: 'SubTree' as BTNodeCategory, builtin: true },
-        }];
-
-    return merged.sort((a, b) => (a.displayLabel ?? a.def.type).localeCompare(b.displayLabel ?? b.def.type));
+    return generatedSubTrees.sort((a, b) => (a.displayLabel ?? a.def.type).localeCompare(b.displayLabel ?? b.def.type));
   };
 
   const allPaletteEntries = CATEGORIES.flatMap((cat) => getPaletteEntries(cat));

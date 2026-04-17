@@ -129,11 +129,6 @@ function hasPathBetweenTrees(graph: Map<string, Set<string>>, fromTreeId: string
   return false;
 }
 
-function wouldCreateSubTreeLoop(project: BTProject, sourceTreeId: string, targetTreeId: string): boolean {
-  const graph = buildSubTreeGraph(project);
-  return hasPathBetweenTrees(graph, targetTreeId, sourceTreeId);
-}
-
 function isSubTreePreviewNode(node: Node): boolean {
   return (node.data as { isSubTreePreview?: boolean } | undefined)?.isSubTreePreview === true;
 }
@@ -260,15 +255,29 @@ function buildFlowNodes(
     });
   };
 
-  nodes.forEach((node) => {
-    const data = node.data as { nodeType?: string; label?: string };
-    const targetTreeId = getSubTreeTargetFromNodeData(data);
-    if (!targetTreeId) return;
-    if (!expandedSubTreeNodeIds.has(node.id)) return;
-    if (targetTreeId === treeId) return;
-    if (wouldCreateSubTreeLoop(project, treeId, targetTreeId)) return;
-    addExpandedSubTreePreview(node, targetTreeId);
-  });
+  // Expand only the nodes explicitly toggled by user, including nested SubTrees
+  // inside preview content. Each host node is processed once to avoid cyclic
+  // references causing infinite rendering.
+  const processedExpandedHostIds = new Set<string>();
+  let hasNewExpansion = true;
+
+  while (hasNewExpansion) {
+    hasNewExpansion = false;
+    const candidates = [...nodes, ...expandedPreviewNodes];
+
+    candidates.forEach((node) => {
+      if (processedExpandedHostIds.has(node.id)) return;
+      if (!expandedSubTreeNodeIds.has(node.id)) return;
+
+      const data = node.data as { nodeType?: string; label?: string };
+      const targetTreeId = getSubTreeTargetFromNodeData(data);
+      if (!targetTreeId) return;
+
+      processedExpandedHostIds.add(node.id);
+      addExpandedSubTreePreview(node, targetTreeId);
+      hasNewExpansion = true;
+    });
+  }
 
   const allNodes = [...nodes, ...expandedPreviewNodes];
   const allEdges = [...edges, ...expandedPreviewEdges];
@@ -282,7 +291,7 @@ function buildFlowNodes(
       data: {
         ...n.data,
         status: data.isSubTreePreview ? 'IDLE' : (debugStatuses.get(n.id) ?? 'IDLE'),
-        isExpandedSubTree: !data.isSubTreePreview && expandedSubTreeNodeIds.has(n.id),
+        isExpandedSubTree: expandedSubTreeNodeIds.has(n.id),
         isSubTreeUnlinked:
           !data.isSubTreePreview
           && data.nodeType === 'SubTree'
@@ -1326,11 +1335,6 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
       const targetTreeId = getSubTreeTargetFromNodeData(data);
       if (!targetTreeId) return;
 
-      if (wouldCreateSubTreeLoop(project, activeTreeId, targetTreeId)) {
-        alert(SUBTREE_LOOP_WARNING_MESSAGE);
-        return;
-      }
-
       storeApi.getState().toggleExpandSubTree(customEvent.detail.nodeId);
     };
 
@@ -2306,8 +2310,8 @@ const BTCanvas: React.FC<BTCanvasProps> = ({
         <div
           style={{
             position: 'absolute',
-            top: disconnectedNodes.length > 0 ? 62 : 12,
-            right: 12,
+            top: 12,
+            left: 12,
             zIndex: 10,
             display: 'flex',
             alignItems: 'center',
