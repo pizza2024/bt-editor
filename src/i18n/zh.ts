@@ -145,12 +145,16 @@ const zh = {
   palette: {
     searchPlaceholder: '搜索模型...',
     searchNodesPlaceholder: '搜索节点...',
+    searchHint: '按名称、描述或分类搜索...',
     noNodesFound: '未找到节点',
+    noModelsMatch: '没有匹配 "{{query}}" 的模型',
+    matchesInCategory: '{{category}} 中 {{count}} 个匹配',
     categories: {
-      actions: '动作',
-      conditions: '条件',
-      decorators: '装饰器',
-      trees: '树',
+      Action: '动作',
+      Condition: '条件',
+      Control: '控制',
+      Decorator: '装饰器',
+      SubTree: '子树',
     },
   },
   // Validation messages

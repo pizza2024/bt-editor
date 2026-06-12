@@ -158,14 +158,20 @@
   justify-content: space-between;
   align-items: center;
   background: var(--bg-tertiary);
+  /* --cat-accent is set inline by NodePalette to the category border color;
+     it powers the 4px-wide left strip that gives every category a visual
+     identity in both themes. */
   border: 1px solid var(--border-color, #2a2a4a);
+  border-left: 4px solid var(--cat-accent, var(--border-color, #2a2a4a));
   border-radius: 4px;
-  padding: 4px 8px;
+  /* extra left padding so the 4px strip doesn't crowd the label */
+  padding: 4px 8px 4px 12px;
+  color: var(--text-primary);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   margin-bottom: 2px;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
 .cat-header:hover { background: var(--bg-hover); }
 
@@ -597,7 +603,7 @@
 
 .node-picker-search {
   padding: 8px;
-  border-bottom: 1px solid #2a3a5a;
+  border-bottom: 1px solid var(--border-color, #2a3a5a);
   background: var(--bg-tertiary);
 }
 
@@ -619,6 +625,56 @@
 
 .node-picker-input::placeholder {
   color: var(--text-muted);
+}
+
+/* ─── Clearable input (× button on the right) ───────────────────── */
+.input-clearable {
+  position: relative;
+  display: block;
+}
+.input-clearable > input,
+.input-clearable > textarea {
+  /* Reserve space for the clear button on the right edge so the caret
+     never collides with the × icon. */
+  padding-right: 26px;
+}
+.input-clear-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text-muted, #8888aa);
+  color: var(--bg-secondary, #ffffff);
+  font-size: 10px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  font-family: inherit;
+}
+.input-clear-btn:hover {
+  opacity: 1;
+  background: var(--text-link, #4a80d0);
+  color: var(--bg-secondary, #ffffff);
+}
+.input-clear-btn:focus-visible {
+  outline: 2px solid var(--text-link, #4a80d0);
+  outline-offset: 1px;
+  opacity: 1;
+}
+/* For textareas the vertical-center trick lands in the middle of the box;
+   pin to the top-right corner instead. */
+.input-clearable > textarea ~ .input-clear-btn {
+  top: 6px;
+  transform: none;
 }
 
 .node-picker-list {

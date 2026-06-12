@@ -4,6 +4,7 @@ import { useBTStore } from '../store/btStore';
 import type { BTNodeDefinition } from '../types/bt';
 import { BUILTIN_NODES, CATEGORY_COLORS } from '../types/bt-constants';
 import type { Node } from '@xyflow/react';
+import ClearableInput from './inputs/ClearableInput';
 
 // Pre/post condition attribute keys (matching NodeEditModal)
 const PRE_KEYS = ['_failureIf', '_successIf', '_skipIf', '_while'] as const;
@@ -271,7 +272,7 @@ const PropertiesPanel: React.FC = () => {
       {(builtinDef || isSubTree) && !isLeaf && (
         <Section title={t('properties.name')}>
           <div style={{ display: 'flex', gap: 6 }}>
-            <input
+            <ClearableInput
               value={localName}
               onChange={(e) => setLocalName(e.target.value)}
               placeholder={t('properties.optionalAlias')}
@@ -323,7 +324,7 @@ const PropertiesPanel: React.FC = () => {
                 {p.name}
                 <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 2 }}>({p.direction})</span>
               </label>
-              <input
+              <ClearableInput
                 value={localPorts[p.name] ?? ''}
                 onChange={(e) => updatePort(p.name, e.target.value)}
                 placeholder="{}"
@@ -351,7 +352,7 @@ const PropertiesPanel: React.FC = () => {
             <label style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 90, flexShrink: 0 }}>
               {t(`conditions.${PRE_I18N_KEYS[key]}`)}
             </label>
-            <input
+            <ClearableInput
               type="text"
               value={localPreconditions[key] ?? ''}
               onChange={(e) => setLocalPreconditions(prev => ({ ...prev, [key]: e.target.value }))}
@@ -375,7 +376,7 @@ const PropertiesPanel: React.FC = () => {
             <label style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 90, flexShrink: 0 }}>
               {t(`conditions.${POST_I18N_KEYS[key]}`)}
             </label>
-            <input
+            <ClearableInput
               type="text"
               value={localPostconditions[key] ?? ''}
               onChange={(e) => setLocalPostconditions(prev => ({ ...prev, [key]: e.target.value }))}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useBTStore } from '../store/btStore';
+import ClearableInput from './inputs/ClearableInput';
 
 const TreeManager: React.FC = () => {
   const { t } = useTranslation();
@@ -45,7 +46,7 @@ const TreeManager: React.FC = () => {
               onClick={() => !isRenaming && setActiveTree(tree.id)}
             >
               {isRenaming ? (
-                <input
+                <ClearableInput
                   autoFocus
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
@@ -99,7 +100,7 @@ const TreeManager: React.FC = () => {
       </div>
 
       <div style={{ marginTop: 8, display: 'flex', gap: 4 }}>
-        <input
+        <ClearableInput
           value={newTreeId}
           onChange={(e) => setNewTreeId(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleAdd()}

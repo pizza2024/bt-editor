@@ -4,6 +4,7 @@ import { useBTStore } from '../store/btStore';
 import { CATEGORY_COLORS } from '../types/bt-constants';
 import type { BTNodeCategory, BTNodeDefinition } from '../types/bt';
 import NodeModelModal from './NodeModelModal';
+import ClearableInput from './inputs/ClearableInput';
 
 const CATEGORIES: BTNodeCategory[] = ['Action', 'Condition', 'Control', 'Decorator', 'SubTree'].sort((a, b) => a.localeCompare(b)) as BTNodeCategory[];
 
@@ -17,12 +18,23 @@ const NodePalette: React.FC = () => {
   // Model modal state: null = closed, 'create' = create new, BTNodeDefinition = edit existing
   const [modelModal, setModelModal] = useState<{ mode: 'create'; defaultCategory: BTNodeCategory } | { mode: 'edit'; def: BTNodeDefinition } | null>(null);
 
-  // Filter nodes by search query
-  const filteredNodes = searchQuery.trim()
-    ? project.nodeModels.filter((m) =>
-        m.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.description?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+  // Filter models by search query. Matches against:
+  //   - raw type name
+  //   - description
+  //   - raw category name (e.g. "Action")
+  //   - localized category label (e.g. "动作" in zh, "Action" in en)
+  // so users can type either English category names or their localized
+  // labels and still get all models in that bucket.
+  const query = searchQuery.trim().toLowerCase();
+  const filteredNodes = query
+    ? project.nodeModels.filter((m) => {
+        if (m.type.toLowerCase().includes(query)) return true;
+        if (m.description?.toLowerCase().includes(query)) return true;
+        if (m.category.toLowerCase().includes(query)) return true;
+        const localized = t(`palette.categories.${m.category}`).toLowerCase();
+        if (localized && localized.includes(query)) return true;
+        return false;
+      })
     : null; // null means no search, show all by category
 
   const toggleCat = (cat: string) => {
@@ -36,6 +48,17 @@ const NodePalette: React.FC = () => {
 
   const byCategory = (cat: BTNodeCategory) =>
     project.nodeModels.filter((m) => m.category === cat).sort((a, b) => a.type.localeCompare(b.type));
+
+  // In search mode, group hits by category preserving the canonical order
+  // so the user sees a familiar layout (Action → Condition → …).
+  const filteredByCategory: Array<{ cat: BTNodeCategory; items: BTNodeDefinition[] }> = query
+    ? CATEGORIES
+        .map((cat) => ({
+          cat,
+          items: (filteredNodes ?? []).filter((m) => m.category === cat),
+        }))
+        .filter((g) => g.items.length > 0)
+    : [];
 
   const onDragStart = (event: React.DragEvent, nodeType: string) => {
     event.dataTransfer.setData('application/btnode-type', nodeType);
@@ -69,11 +92,12 @@ const NodePalette: React.FC = () => {
       <>
       {/* Search box */}
       <div style={{ padding: '8px 8px 4px 8px' }}>
-        <input
+        <ClearableInput
           type="text"
-          placeholder={t('palette.searchPlaceholder')}
+          placeholder={t('palette.searchHint')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          wrapperClassName="palette-search-wrapper"
           style={{
             width: '100%',
             padding: '6px 10px',
@@ -87,26 +111,43 @@ const NodePalette: React.FC = () => {
         />
       </div>
 
-      {/* Search results or category list */}
-      {filteredNodes !== null ? (
+      {/* Search results (grouped by category) or default category list */}
+      {query ? (
         <div style={{ padding: '4px 4px 0 4px' }}>
-          {filteredNodes.length > 0 ? (
-            filteredNodes.map((node) => {
-              const colors = CATEGORY_COLORS[node.category];
+          {filteredByCategory.length > 0 ? (
+            filteredByCategory.map(({ cat, items }) => {
+              const colors = CATEGORY_COLORS[cat];
               return (
-                <PaletteItem
-                  key={node.type}
-                  def={node}
-                  colors={colors}
-                  onDragStart={onDragStart}
-                  onEdit={!node.builtin ? () => setModelModal({ mode: 'edit', def: node }) : undefined}
-                  onDelete={!node.builtin ? deleteNodeModel : undefined}
-                />
+                <div key={cat} style={{ marginBottom: 4 }}>
+                  <div
+                    className="cat-header"
+                    // No click handler in search mode — purely a visual
+                    // section header showing the matched category.
+                    style={{ '--cat-accent': colors.border } as React.CSSProperties}
+                  >
+                    <span>{t(`palette.categories.${cat}`)}</span>
+                    <span style={{ fontSize: 10, opacity: 0.7 }}>
+                      {t('palette.matchesInCategory', { count: items.length, category: t(`palette.categories.${cat}`) })}
+                    </span>
+                  </div>
+                  <div style={{ paddingLeft: 4 }}>
+                    {items.map((node) => (
+                      <PaletteItem
+                        key={node.type}
+                        def={node}
+                        colors={colors}
+                        onDragStart={onDragStart}
+                        onEdit={!node.builtin ? () => setModelModal({ mode: 'edit', def: node }) : undefined}
+                        onDelete={!node.builtin ? deleteNodeModel : undefined}
+                      />
+                    ))}
+                  </div>
+                </div>
               );
             })
           ) : (
             <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '8px' }}>
-              No models match &quot;{searchQuery}&quot;
+              {t('palette.noModelsMatch', { query: searchQuery })}
             </div>
           )}
         </div>
@@ -120,10 +161,10 @@ const NodePalette: React.FC = () => {
             <div key={cat} style={{ marginBottom: 4 }}>
               <button
                 className="cat-header"
-                style={{ borderColor: colors.border, color: colors.text }}
+                style={{ '--cat-accent': colors.border } as React.CSSProperties}
                 onClick={() => toggleCat(cat)}
               >
-                <span>{isExpanded ? '▼' : '▶'} {cat}</span>
+                <span>{isExpanded ? '▼' : '▶'} {t(`palette.categories.${cat}`)}</span>
                 <span style={{ fontSize: 10, opacity: 0.7 }}>{nodes.length}</span>
               </button>
 

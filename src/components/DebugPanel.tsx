@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useBTStore } from '../store/btStore';
 import { STATUS_COLORS } from '../types/bt-constants';
+import ClearableTextarea from './inputs/ClearableTextarea';
 
 const SAMPLE_LOG = `0 1 Sequence Root RUNNING MainTree
 10 2 Condition CheckBattery RUNNING MainTree
@@ -83,7 +84,7 @@ const DebugPanel: React.FC = () => {
       {/* Paste log editor */}
       {showLogEditor && (
         <div style={{ marginBottom: 8 }}>
-          <textarea
+          <ClearableTextarea
             value={logText}
             onChange={(e) => setLogText(e.target.value)}
             rows={6}

@@ -145,12 +145,16 @@ const en = {
   palette: {
     searchPlaceholder: 'Search models...',
     searchNodesPlaceholder: 'Search nodes...',
+    searchHint: 'Search by name, description or category...',
     noNodesFound: 'No nodes found',
+    noModelsMatch: 'No models match "{{query}}"',
+    matchesInCategory: '{{count}} match in {{category}}',
     categories: {
-      actions: 'Actions',
-      conditions: 'Conditions',
-      decorators: 'Decorators',
-      trees: 'Trees',
+      Action: 'Action',
+      Condition: 'Condition',
+      Control: 'Control',
+      Decorator: 'Decorator',
+      SubTree: 'SubTree',
     },
   },
   // Validation messages

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ClearableInput from './inputs/ClearableInput';
 
 interface NodeEditModalProps {
   nodeId: string;
@@ -200,7 +201,7 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
               </div>
               <div className="form-group">
                 <label>InstanceName</label>
-                <input
+                <ClearableInput
                   type="text"
                   value={instanceName}
                   onChange={(e) => setInstanceName(e.target.value)}
@@ -242,7 +243,7 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
               )}
               {portRemapEntries.map((entry, index) => (
                 <div key={index} className="form-row" style={{ alignItems: 'center', gap: 8 }}>
-                  <input
+                  <ClearableInput
                     type="text"
                     value={entry.local}
                     onChange={(e) => updatePortRemap(index, 'local', e.target.value)}
@@ -250,7 +251,7 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
                     style={{ flex: 1 }}
                   />
                   <span style={{ color: 'var(--text-link)' }}>:=</span>
-                  <input
+                  <ClearableInput
                     type="text"
                     value={entry.external}
                     onChange={(e) => updatePortRemap(index, 'external', e.target.value)}
@@ -273,7 +274,7 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
           <div className="edit-section">
             <div className="edit-section-title">Description</div>
             <div className="form-group">
-              <input
+              <ClearableInput
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -291,7 +292,7 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
             {PRE_KEYS.map(key => (
               <div key={key} className="form-group">
                 <label>{PRE_LABELS[key]}</label>
-                <input
+                <ClearableInput
                   type="text"
                   value={preCond[key] ?? ''}
                   onChange={(e) => handlePreChange(key, e.target.value)}
@@ -310,7 +311,7 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
             {POST_KEYS.map(key => (
               <div key={key} className="form-group">
                 <label>{POST_LABELS[key]}</label>
-                <input
+                <ClearableInput
                   type="text"
                   value={postCond[key] ?? ''}
                   onChange={(e) => handlePostChange(key, e.target.value)}

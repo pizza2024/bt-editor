@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useBTStore } from '../store/btStore';
+import ClearableInput from './inputs/ClearableInput';
 
 interface FavoriteTemplate {
   id: string;
@@ -169,7 +170,7 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
 
               {/* Name */}
               {editingId === fav.id ? (
-                <input
+                <ClearableInput
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}

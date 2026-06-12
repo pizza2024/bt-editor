@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CATEGORY_COLORS, PORT_DIRECTIONS } from '../types/bt-constants';
 import type { BTNodeCategory, BTNodeDefinition, BTPort, PortDirection } from '../types/bt';
+import ClearableInput from './inputs/ClearableInput';
 
 interface PortFormState {
   name: string;
@@ -101,7 +102,7 @@ const AddNodeModal: React.FC<AddNodeModalProps> = ({ onSave, onClose }) => {
           <div className="form-row">
             <div className="form-group" style={{ flex: 2 }}>
               <label>Node Type *</label>
-              <input
+              <ClearableInput
                 type="text"
                 value={nodeType}
                 onChange={(e) => setNodeType(e.target.value)}
@@ -129,7 +130,7 @@ const AddNodeModal: React.FC<AddNodeModalProps> = ({ onSave, onClose }) => {
           {/* Description */}
           <div className="form-group">
             <label>Description</label>
-            <input
+            <ClearableInput
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -167,7 +168,7 @@ const AddNodeModal: React.FC<AddNodeModalProps> = ({ onSave, onClose }) => {
                     <div className="port-item-body">
                       <div className="port-field port-field-name">
                         <label>Name</label>
-                        <input
+                        <ClearableInput
                           type="text"
                           value={port.name}
                           onChange={(e) => handlePortChange(index, 'name', e.target.value)}
@@ -187,7 +188,7 @@ const AddNodeModal: React.FC<AddNodeModalProps> = ({ onSave, onClose }) => {
                       </div>
                       <div className="port-field port-field-default">
                         <label>Default</label>
-                        <input
+                        <ClearableInput
                           type="text"
                           value={port.defaultValue}
                           onChange={(e) => handlePortChange(index, 'defaultValue', e.target.value)}
@@ -197,7 +198,7 @@ const AddNodeModal: React.FC<AddNodeModalProps> = ({ onSave, onClose }) => {
                     </div>
                     <div className="port-field port-field-desc">
                       <label>Description</label>
-                      <input
+                      <ClearableInput
                         type="text"
                         value={port.description}
                         onChange={(e) => handlePortChange(index, 'description', e.target.value)}

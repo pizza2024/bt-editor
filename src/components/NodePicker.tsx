@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useBTStore } from '../store/btStore';
 import { CATEGORY_COLORS } from '../types/bt-constants';
 import type { BTNodeCategory } from '../types/bt';
+import ClearableInput from './inputs/ClearableInput';
 
 interface NodePickerProps {
   position: { x: number; y: number };
@@ -112,7 +113,7 @@ const NodePicker: React.FC<NodePickerProps> = ({ position, onSelect, onClose }) 
     <div ref={containerRef} className="node-picker" style={pickerStyle}>
       {/* Search input */}
       <div className="node-picker-search">
-        <input
+        <ClearableInput
           ref={inputRef}
           type="text"
           value={search}
