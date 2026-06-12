@@ -12,6 +12,12 @@ const en = {
     dark: 'Dark',
     light: 'Light',
     help: 'Help',
+    layoutStandard: 'Standard',
+    layoutCompact: 'Compact',
+    layoutDirection: 'Layout Direction',
+    layoutTB: 'Top → Bottom',
+    layoutLR: 'Left → Right',
+    layoutDensity: 'Density',
   },
   // Context menu
   contextMenu: {
@@ -22,6 +28,7 @@ const en = {
     copy: 'Copy',
     paste: 'Paste',
     convertToSubtree: 'Convert to Subtree',
+    previewXml: 'Preview XML',
   },
   // Properties panel
   properties: {
@@ -123,6 +130,10 @@ const en = {
     dragHint: 'Drag nodes from palette → canvas · Connect nodes · Double-click to rename',
     treeLabel: 'Tree',
     mainTree: 'MainTree',
+    beautify: 'Beautify Layout',
+    zoomIn: 'Zoom In',
+    zoomOut: 'Zoom Out',
+    zoomReset: 'Reset Zoom (100%)',
   },
   // Tree manager
   treeManager: {
@@ -160,6 +171,17 @@ const en = {
     empty: 'No favorites yet.\nRight-click a node to save it.',
     remove: 'Remove',
     hint: 'Drag to canvas to use',
+  },
+  // XML Preview modal
+  xmlPreview: {
+    title: 'XML Preview',
+    copy: 'Copy',
+    copied: 'Copied!',
+    download: 'Download',
+    close: 'Close',
+    lines: 'lines',
+    chars: 'chars',
+    emptyTree: '(empty tree)',
   },
 };
 

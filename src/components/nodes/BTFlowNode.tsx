@@ -36,7 +36,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
   // SubTree preview state
   const [showPreview, setShowPreview] = useState(false);
   const [previewPos, setPreviewPos] = useState({ x: 0, y: 0 });
-  const { project } = useBTStore();
+  const { project, layoutDirection } = useBTStore();
 
   // Memoize node definition lookup
   const nodeDef = useMemo(
@@ -100,6 +100,8 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
   // Memoize handle list
   const handles = useMemo(() => {
     const result: React.ReactNode[] = [];
+    const targetPos = layoutDirection === 'LR' ? Position.Left : Position.Top;
+    const sourcePos = layoutDirection === 'LR' ? Position.Right : Position.Bottom;
 
     // Target handle (input) - for all non-ROOT nodes
     if (!isRootNode) {
@@ -107,7 +109,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
         <Handle
           key="target"
           type="target"
-          position={Position.Top}
+          position={targetPos}
           style={{ background: '#6888aa', border: 'none', width: 8, height: 8 }}
         />
       );
@@ -119,14 +121,14 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
         <Handle
           key="source"
           type="source"
-          position={Position.Bottom}
+          position={sourcePos}
           style={{ background: '#6888aa', border: 'none', width: 8, height: 8 }}
         />
       );
     }
 
     return result;
-  }, [isRootNode, isLeaf]);
+  }, [isRootNode, isLeaf, layoutDirection]);
 
   // Double click opens edit modal (disabled for ROOT)
   const handleDoubleClick = (e: React.MouseEvent) => {

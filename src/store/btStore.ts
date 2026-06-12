@@ -43,6 +43,12 @@ interface BTStore {
   localEdges: Edge[];
   // Collapsed nodes (hidden in canvas)
   collapsedNodeIds: Set<string>;
+  // Layout direction ('TB' = top→bottom, 'LR' = left→right)
+  layoutDirection: 'TB' | 'LR';
+  // Layout density (spacing)
+  layoutDensity: 'standard' | 'compact';
+  setLayoutDirection: (dir: 'TB' | 'LR') => void;
+  setLayoutDensity: (density: 'standard' | 'compact') => void;
 
   // Project actions
   loadXML: (xml: string) => void;
@@ -137,6 +143,31 @@ export const useBTStore = create<BTStore>()(
   _redoStack: [] as BTProject[],
   // Favorites/Templates
   favorites: [] as FavoriteTemplate[],
+  // Layout direction + density, with one-time migration from legacy `bt-layout-mode` key.
+  layoutDirection: (() => {
+    const v = localStorage.getItem('bt-layout-direction');
+    if (v === 'TB' || v === 'LR') return v;
+    const legacy = localStorage.getItem('bt-layout-mode');
+    if (legacy === 'lr') return 'LR';
+    return 'TB';
+  })(),
+  layoutDensity: (() => {
+    const v = localStorage.getItem('bt-layout-density');
+    if (v === 'standard' || v === 'compact') return v;
+    const legacy = localStorage.getItem('bt-layout-mode');
+    if (legacy === 'compact') return 'compact';
+    return 'standard';
+  })(),
+
+  setLayoutDirection(dir) {
+    localStorage.setItem('bt-layout-direction', dir);
+    set({ layoutDirection: dir });
+  },
+
+  setLayoutDensity(density) {
+    localStorage.setItem('bt-layout-density', density);
+    set({ layoutDensity: density });
+  },
 
   addFavorite(template) {
     const { favorites } = get();

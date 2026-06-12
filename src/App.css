@@ -86,6 +86,26 @@
   color: var(--text-link);
 }
 
+.toolbar-select {
+  background: var(--bg-tertiary);
+  border: 1px solid #2a3a5a;
+  color: var(--text-secondary);
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.toolbar-select:hover {
+  background: var(--bg-hover);
+  color: var(--text-link);
+  border-color: #4a80d0;
+}
+.toolbar-select:focus {
+  outline: none;
+  border-color: #4a80d0;
+}
+
 /* ─── Panel ─────────────────────────────────────────────────────── */
 .panel {
   flex-shrink: 0;
@@ -336,6 +356,234 @@
 
 .context-menu-has-submenu {
   position: relative;
+}
+
+/* ─── Edge delete button (hover-only) ───────────────────────────── */
+.bt-edge-delete-group {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.bt-edge-delete-group > g {
+  transition: transform 0.15s ease;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.bt-edge-delete-group:hover {
+  opacity: 1;
+}
+.bt-edge-delete-group:hover > g {
+  transform: scale(1.2);
+}
+.bt-edge-delete-group:hover circle {
+  fill: #ff6b6b;
+  stroke: #ffffff;
+  stroke-width: 1.2;
+}
+.bt-edge-delete-group:hover path {
+  stroke: #ffffff;
+  stroke-width: 1.8;
+}
+
+/* ─── Canvas toolbar column (bottom-left, square buttons) ─────── */
+.canvas-toolbar-column {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #1a1a2e;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.canvas-square-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  font-family: monospace;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+}
+.canvas-square-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-link);
+  border-color: #4a80d0;
+}
+.canvas-square-btn:active:not(:disabled) {
+  background: var(--bg-active);
+  transform: scale(0.95);
+}
+.canvas-square-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.canvas-square-btn-zoom-label {
+  font-size: 11px;
+  color: var(--text-link);
+  background: #0f1424;
+  font-variant-numeric: tabular-nums;
+}
+
+.canvas-square-divider {
+  height: 1px;
+  background: var(--border-light);
+  margin: 2px 4px;
+}
+
+/* ─── Toolbar direction toggle group ────────────────────────────── */
+.toolbar-toggle-group {
+  display: inline-flex;
+  border: 1px solid #2a3a5a;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+}
+.toolbar-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.toolbar-toggle-btn + .toolbar-toggle-btn {
+  border-left: 1px solid #2a3a5a;
+}
+.toolbar-toggle-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-link);
+}
+.toolbar-toggle-btn.active {
+  background: var(--bg-active);
+  color: var(--text-link);
+}
+.toolbar-toggle-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* ─── XML Preview Modal ──────────────────────────────────────────── */
+.modal-content.xml-preview-modal {
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  border-radius: 0;
+}
+
+.xml-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #2a3a5a;
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.xml-preview-stats {
+  font-size: 11px;
+  color: #6677aa;
+  font-family: monospace;
+}
+
+.xml-preview-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.xml-preview-body {
+  padding: 0;
+  background: #1e1e1e;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.xml-preview-body > * {
+  height: 100%;
+}
+
+.xml-preview-pre {
+  /* Legacy pre-based line-numbered styles retained for fallback; Monaco is
+     rendered through the editor itself so these are now inert. */
+  margin: 0;
+  padding: 12px 0;
+  font-family: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #c8d4e6;
+}
+
+.xml-preview-line {
+  display: flex;
+  align-items: flex-start;
+  padding: 0 16px;
+  white-space: pre;
+}
+
+.xml-preview-line:hover {
+  background: rgba(74, 128, 208, 0.06);
+}
+
+.xml-preview-lineno {
+  display: inline-block;
+  min-width: 42px;
+  padding-right: 16px;
+  text-align: right;
+  color: #445577;
+  user-select: none;
+  border-right: 1px solid #1e2840;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.xml-preview-code {
+  flex: 1;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.xml-preview-empty {
+  padding: 60px 20px;
+  text-align: center;
+  color: #556677;
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* Light theme overrides for XML preview */
+.theme-light .xml-preview-body {
+  background: #fafbfc;
+}
+.theme-light .xml-preview-pre {
+  color: #2a3a4e;
+}
+.theme-light .xml-preview-lineno {
+  color: #aab;
+  border-right-color: #e0e4ec;
+}
+.theme-light .xml-preview-line:hover {
+  background: rgba(74, 128, 208, 0.08);
 }
 
 /* ─── Node Picker (drag to create) ───────────────────────────────── */

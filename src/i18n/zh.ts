@@ -12,6 +12,12 @@ const zh = {
     dark: '深色',
     light: '浅色',
     help: '帮助',
+    layoutStandard: '标准',
+    layoutCompact: '紧凑',
+    layoutDirection: '排列方向',
+    layoutTB: '从上至下',
+    layoutLR: '从左至右',
+    layoutDensity: '间距',
   },
   // Context menu
   contextMenu: {
@@ -22,6 +28,7 @@ const zh = {
     copy: '复制',
     paste: '粘贴',
     convertToSubtree: '转换为子树',
+    previewXml: '预览 XML',
   },
   // Properties panel
   properties: {
@@ -123,6 +130,10 @@ const zh = {
     dragHint: '从面板拖动节点到画布 · 连接节点 · 双击重命名',
     treeLabel: '树',
     mainTree: '主树',
+    beautify: '美化布局',
+    zoomIn: '放大',
+    zoomOut: '缩小',
+    zoomReset: '重置缩放 (100%)',
   },
   // Tree manager
   treeManager: {
@@ -160,6 +171,17 @@ const zh = {
     empty: '暂无收藏\n右键节点即可收藏',
     remove: '移除',
     hint: '拖动到画布使用',
+  },
+  // XML 预览模态框
+  xmlPreview: {
+    title: 'XML 预览',
+    copy: '复制',
+    copied: '已复制!',
+    download: '下载',
+    close: '关闭',
+    lines: '行',
+    chars: '字符',
+    emptyTree: '(空树)',
   },
 };
 

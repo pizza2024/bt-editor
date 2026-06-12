@@ -5,7 +5,18 @@ import { SAMPLE_XML } from '../utils/btXml';
 
 const Toolbar: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { loadXML, exportXML, project, activeTreeId, theme, toggleTheme } = useBTStore();
+  const {
+    loadXML,
+    exportXML,
+    project,
+    activeTreeId,
+    theme,
+    toggleTheme,
+    layoutDirection,
+    setLayoutDirection,
+    layoutDensity,
+    setLayoutDensity,
+  } = useBTStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleLanguage = () => {
@@ -100,6 +111,46 @@ const Toolbar: React.FC = () => {
       </div>
 
       <div style={{ flex: 1 }} />
+
+      {/* Direction toggle group (Top→Bottom / Left→Right) */}
+      <div className="toolbar-toggle-group" title={t('toolbar.layoutDirection')}>
+        <button
+          className={`toolbar-toggle-btn${layoutDirection === 'TB' ? ' active' : ''}`}
+          onClick={() => {
+            if (layoutDirection !== 'TB') {
+              setLayoutDirection('TB');
+              window.dispatchEvent(new CustomEvent('bt-beautify'));
+            }
+          }}
+          title={t('toolbar.layoutTB')}
+        >
+          <span className="toolbar-toggle-icon">⏷</span> {t('toolbar.layoutTB')}
+        </button>
+        <button
+          className={`toolbar-toggle-btn${layoutDirection === 'LR' ? ' active' : ''}`}
+          onClick={() => {
+            if (layoutDirection !== 'LR') {
+              setLayoutDirection('LR');
+              window.dispatchEvent(new CustomEvent('bt-beautify'));
+            }
+          }}
+          title={t('toolbar.layoutLR')}
+        >
+          <span className="toolbar-toggle-icon">⇨</span> {t('toolbar.layoutLR')}
+        </button>
+      </div>
+
+      {/* Density selector */}
+      <select
+        className="toolbar-select"
+        value={layoutDensity}
+        onChange={(e) => setLayoutDensity(e.target.value as 'standard' | 'compact')}
+        title={t('toolbar.layoutDensity')}
+        style={{ minWidth: 100 }}
+      >
+        <option value="standard">{t('toolbar.layoutStandard', 'Standard')}</option>
+        <option value="compact">{t('toolbar.layoutCompact', 'Compact')}</option>
+      </select>
 
       {/* Language toggle */}
       <button

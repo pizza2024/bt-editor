@@ -1,8 +1,8 @@
 import React, { useCallback, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ReactFlow,
   Background,
-  Controls,
   MiniMap,
   addEdge,
   useNodesState,
@@ -18,23 +18,24 @@ import { useBTStore } from '../store/btStore';
 import { treeToFlow, flowToTree, isSameTreeStructure, getDescendantIds } from '../utils/btFlow';
 
 // Collect all child node IDs (edges) from a tree recursively
-function collectEdgeIds(node: { id: string; children: Array<{ id: string }> }): string[] {
-  const ids: string[] = node.children.map((c) => c.id);
-  node.children.forEach((child) => {
+function collectEdgeIds(node: { id: string; children?: Array<{ id: string; children?: Array<{ id: string }> }> }): string[] {
+  const ids: string[] = (node.children ?? []).map((c) => c.id);
+  (node.children ?? []).forEach((child) => {
     ids.push(...collectEdgeIds(child));
   });
   return ids;
 }
-import { autoLayout } from '../utils/btLayout';
+import { autoLayout, beautifyLayout } from '../utils/btLayout';
 import { validatePortConnection } from '../utils/btXml';
 import BTFlowNode from './nodes/BTFlowNode';
 import BTFlowEdge from './edges/BTFlowEdge';
 import { BUILTIN_NODES, CATEGORY_COLORS } from '../types/bt-constants';
-import type { BTNodeDefinition, BTProject, BTNodeCategory, BTPort, BTTreeNode } from '../types/bt';
+import type { BTNodeDefinition, BTProject, BTNodeCategory, BTPort } from '../types/bt';
 import { useContextMenu, type MenuConfig, type MenuItem } from './ContextMenu';
 import NodePicker from './NodePicker';
 import NodeEditModal from './NodeEditModal';
 import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
+import XmlPreviewModal from './XmlPreviewModal';
 
 const nodeTypes = { btNode: BTFlowNode };
 const edgeTypes = { btEdge: BTFlowEdge };
@@ -94,12 +95,17 @@ function checkLeafTargetConnection(
 function buildFlowNodes(
   treeId: string,
   project: BTProject,
-  debugStatuses: Map<string, import('../types/bt').NodeStatus>
+  debugStatuses: Map<string, import('../types/bt').NodeStatus>,
+  direction: 'TB' | 'LR' = 'TB',
+  density: 'standard' | 'compact' = 'standard'
 ): { nodes: Node[]; edges: Edge[] } {
   const tree = project.trees.find((t) => t.id === treeId);
   if (!tree) return { nodes: [], edges: [] };
   let { nodes, edges } = treeToFlow(tree, project.nodeModels);
-  nodes = autoLayout(nodes, edges);
+  nodes = autoLayout(nodes, edges, {
+    compact: density === 'compact',
+    rankdir: direction,
+  });
   // Inject debug statuses
   nodes = nodes.map((n) => ({
     ...n,
@@ -109,6 +115,7 @@ function buildFlowNodes(
 }
 
 const BTCanvas: React.FC = () => {
+  const { t } = useTranslation();
   const {
     project,
     activeTreeId,
@@ -125,6 +132,8 @@ const BTCanvas: React.FC = () => {
     pushHistory,
     collapsedNodeIds,
     toggleNodeCollapse,
+    layoutDirection,
+    layoutDensity,
   } = useBTStore();
 
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
@@ -142,6 +151,9 @@ const BTCanvas: React.FC = () => {
   // Keyboard shortcuts help modal
   const [showHelp, setShowHelp] = React.useState(false);
 
+  // XML preview modal
+  const [showXmlPreview, setShowXmlPreview] = React.useState(false);
+
   // Incomplete connection picker (drag from handle to empty space)
   const [pendingConnection, setPendingConnection] = React.useState<{
     sourceNodeId: string;
@@ -158,9 +170,9 @@ const BTCanvas: React.FC = () => {
   const lastSyncedTreeRef = useRef<string | null>(null);
 
   const initial = useMemo(
-    () => buildFlowNodes(activeTreeId, project, debugState.nodeStatuses),
+    () => buildFlowNodes(activeTreeId, project, debugState.nodeStatuses, layoutDirection, layoutDensity),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeTreeId, project, debugState.nodeStatuses]
+    [activeTreeId, project, debugState.nodeStatuses, layoutDirection, layoutDensity]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initial.nodes);
@@ -170,6 +182,34 @@ const BTCanvas: React.FC = () => {
     setEdges((prev) => prev.filter((edge) => edge.id !== edgeId));
     setSelectedEdgeId((prev) => (prev === edgeId ? null : prev));
   }, [setEdges]);
+
+  // Beautify: one-shot polished layout pass (centers tree, follows current direction).
+  const handleBeautify = useCallback(() => {
+    if (nodes.length === 0) return;
+    useBTStore.getState().pushHistory();
+    const dir = useBTStore.getState().layoutDirection;
+    const laidOut = beautifyLayout(nodes, edges, { direction: dir });
+    setNodes(laidOut);
+    // Sync the collapsed-derived data from current nodes (positions only change).
+    requestAnimationFrame(() => {
+      rfInstanceRef.current?.fitView({ duration: 300, padding: 0.2 });
+    });
+  }, [nodes, edges, setNodes]);
+
+  // Zoom controls (custom square buttons replacing the built-in <Controls>).
+  // The displayed percentage stays in sync via the ReactFlow `onMove` callback
+  // below, so wheel / pinch / pan / programmatic zoom all update it live.
+  const handleZoomIn = useCallback(() => {
+    rfInstanceRef.current?.zoomIn({ duration: 150 });
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    rfInstanceRef.current?.zoomOut({ duration: 150 });
+  }, []);
+
+  const handleZoomReset = useCallback(() => {
+    rfInstanceRef.current?.zoomTo(1, { duration: 150 });
+  }, []);
 
   // ── Ctrl+Drag Subtree ──────────────────────────────────────────────────────
   // Track Ctrl key state separately via keydown/keyup so we can detect it reliably
@@ -310,7 +350,7 @@ const BTCanvas: React.FC = () => {
     const shouldForceLayout = forceLayoutRef.current || lastSyncedTreeRef.current !== activeTreeId;
     if (shouldForceLayout) {
       // Full rebuild with autoLayout for tree switch or initial load
-      const { nodes: n, edges: e } = buildFlowNodes(activeTreeId, project, debugState.nodeStatuses);
+      const { nodes: n, edges: e } = buildFlowNodes(activeTreeId, project, debugState.nodeStatuses, layoutDirection, layoutDensity);
       // Apply collapsed filter
       const collapsed = useBTStore.getState().collapsedNodeIds;
       const collapsedDescendants = new Set<string>();
@@ -337,7 +377,10 @@ const BTCanvas: React.FC = () => {
       const { nodes: newNodes, edges: newEdges } = treeToFlow(tree, project.nodeModels);
 
       // Apply autoLayout to properly position all nodes
-      const laidOutNodes = autoLayout(newNodes, newEdges);
+      const laidOutNodes = autoLayout(newNodes, newEdges, {
+        compact: layoutDensity === 'compact',
+        rankdir: layoutDirection,
+      });
 
       // Apply collapsed filter
       const collapsed = useBTStore.getState().collapsedNodeIds;
@@ -367,7 +410,7 @@ const BTCanvas: React.FC = () => {
       });
       setEdges(withSelectedEdge(newEdges, selectedEdgeId, deleteEdge));
     }
-  }, [activeTreeId, project, debugState.nodeStatuses, selectedEdgeId, deleteEdge, collapsedNodeIds]);
+  }, [activeTreeId, project, debugState.nodeStatuses, selectedEdgeId, deleteEdge, collapsedNodeIds, layoutDirection, layoutDensity]);
 
   // Highlight selected nodes
   React.useEffect(() => {
@@ -792,6 +835,13 @@ const BTCanvas: React.FC = () => {
     return () => window.removeEventListener('bt-export-png', handleExportPNG);
   }, []);
 
+  // Handle external beautify trigger (e.g. direction toggle in the toolbar)
+  React.useEffect(() => {
+    const handleBeautifyEvent = () => handleBeautify();
+    window.addEventListener('bt-beautify', handleBeautifyEvent);
+    return () => window.removeEventListener('bt-beautify', handleBeautifyEvent);
+  }, [handleBeautify]);
+
   // Handle edit modal save (for editing node instances on canvas)
   const handleEditSave = useCallback((data: {
     name?: string;
@@ -926,6 +976,13 @@ const BTCanvas: React.FC = () => {
         return;
       }
 
+      // Ctrl+Shift+S: Preview XML
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'S') {
+        event.preventDefault();
+        setShowXmlPreview((prev) => !prev);
+        return;
+      }
+
       // Ctrl+A: Select all nodes
       if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
         event.preventDefault();
@@ -982,7 +1039,7 @@ const BTCanvas: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [deleteEdge, selectNode, clearSelection, selectedEdgeId, selectedNodeIds, nodes, copyNode, pasteNode, pushHistory, showHelp, setShowHelp]);
+  }, [deleteEdge, selectNode, clearSelection, selectedEdgeId, selectedNodeIds, nodes, copyNode, pasteNode, pushHistory, showHelp, setShowHelp, project.mainTreeId]);
 
   // Handle toolbar help button
   React.useEffect(() => {
@@ -1119,7 +1176,7 @@ const BTCanvas: React.FC = () => {
       node: menuState.targetType === 'node' && menuState.targetId && !isRoot ? [
         {
           id: 'copy',
-          label: '📋 Copy Node',
+          label: 'Copy Node',
           icon: '📋',
           action: () => {
             // Look up node directly from store at action time to avoid stale closure
@@ -1131,7 +1188,7 @@ const BTCanvas: React.FC = () => {
         },
         {
           id: 'delete',
-          label: '🗑️ Delete Node',
+          label: 'Delete Node',
           icon: '🗑️',
           danger: true,
           action: () => {
@@ -1142,7 +1199,7 @@ const BTCanvas: React.FC = () => {
         },
         ...(hasChildren ? [{
           id: 'collapse',
-          label: isCollapsed ? '▶ Expand Subtree' : '▼ Collapse Subtree',
+          label: isCollapsed ? 'Expand Subtree' : 'Collapse Subtree',
           icon: isCollapsed ? '▶' : '▼',
           action: () => {
             if (menuState.targetId) {
@@ -1152,7 +1209,7 @@ const BTCanvas: React.FC = () => {
         }] : []),
         {
           id: 'info',
-          label: 'ℹ️ Node Info',
+          label: 'Node Info',
           icon: 'ℹ️',
           action: () => {
             if (!targetData) return;
@@ -1169,7 +1226,7 @@ const BTCanvas: React.FC = () => {
         { id: 'sep-save', label: '', separator: true } as MenuItem,
         {
           id: 'save-template',
-          label: '⭐ Save as Template',
+          label: 'Save as Template',
           icon: '⭐',
           action: () => {
             if (targetData?.type) {
@@ -1186,7 +1243,7 @@ const BTCanvas: React.FC = () => {
       pane: menuState.targetType === 'pane' ? [
         ...(useBTStore.getState().clipboard ? [{
           id: 'paste',
-          label: '📋 Paste Node',
+          label: 'Paste Node',
           icon: '📋',
           action: () => {
             const newNode = pasteNode();
@@ -1199,7 +1256,7 @@ const BTCanvas: React.FC = () => {
         }] : []),
         {
           id: 'add',
-          label: '➕ Add Node',
+          label: 'Add Node',
           icon: '➕',
           action: () => {
             // Open node picker at center of viewport
@@ -1213,7 +1270,7 @@ const BTCanvas: React.FC = () => {
         { id: 'sep-select', label: '', separator: true } as MenuItem,
         {
           id: 'selectall',
-          label: '☑️ Select All',
+          label: 'Select All',
           icon: '☑️',
           action: () => {
             const allIds = new Set(nodes.map((n) => n.id));
@@ -1223,13 +1280,26 @@ const BTCanvas: React.FC = () => {
         },
         {
           id: 'fitview',
-          label: '🔍 Fit View',
+          label: 'Fit View',
           icon: '🔍',
           action: () => rfInstanceRef.current?.fitView(),
         },
+        {
+          id: 'beautify',
+          label: 'Beautify Layout',
+          icon: '✨',
+          action: () => handleBeautify(),
+        },
+        { id: 'sep-preview', label: '', separator: true } as MenuItem,
+        {
+          id: 'preview-xml',
+          label: 'Preview XML',
+          icon: '🧾',
+          action: () => setShowXmlPreview(true),
+        },
       ] : [],
     };
-  }, [menuState, nodes, deleteEdge, copyNode, pasteNode, pushHistory, selectNode, clearSelection, toggleNodeCollapse]);
+  }, [menuState, nodes, deleteEdge, copyNode, pasteNode, pushHistory, selectNode, clearSelection, toggleNodeCollapse, handleBeautify]);
 
   return (
     <div style={{ width: '100%', height: '100%' }}>
@@ -1259,31 +1329,50 @@ const BTCanvas: React.FC = () => {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onInit={(instance) => { rfInstanceRef.current = instance; }}
+        onMove={(_event, viewport) => setZoomLevel(viewport.zoom)}
         nodeExtent={[[-5000, -5000], [5000, 5000]]}
+        minZoom={0.1}
         fitView
         colorMode="dark"
         defaultEdgeOptions={{ type: 'btEdge', style: { stroke: '#6888aa', strokeWidth: 2 } }}
       >
         <Background variant={BackgroundVariant.Dots} color="#334" gap={20} size={1} />
-        <Controls style={{ background: '#1e2235', border: '1px solid #334' }} />
-        {/* Zoom level indicator */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 16,
-            left: 16,
-            zIndex: 5,
-            background: '#1e2235',
-            border: '1px solid #334',
-            borderRadius: 4,
-            padding: '4px 10px',
-            fontSize: 12,
-            color: '#8899bb',
-            fontFamily: 'monospace',
-            pointerEvents: 'none',
-          }}
-        >
-          {Math.round(zoomLevel * 100)}%
+        {/* Vertical column of square buttons (zoom in, %, zoom out, beautify) */}
+        <div className="canvas-toolbar-column">
+          <button
+            className="canvas-square-btn"
+            onClick={handleZoomIn}
+            title={t('canvas.zoomIn')}
+            aria-label={t('canvas.zoomIn')}
+          >
+            +
+          </button>
+          <button
+            className="canvas-square-btn canvas-square-btn-zoom-label"
+            onClick={handleZoomReset}
+            title={t('canvas.zoomReset')}
+            aria-label={t('canvas.zoomReset')}
+          >
+            {Math.round(zoomLevel * 100)}
+          </button>
+          <button
+            className="canvas-square-btn"
+            onClick={handleZoomOut}
+            title={t('canvas.zoomOut')}
+            aria-label={t('canvas.zoomOut')}
+          >
+            −
+          </button>
+          <div className="canvas-square-divider" />
+          <button
+            className="canvas-square-btn"
+            onClick={handleBeautify}
+            title={t('canvas.beautify')}
+            aria-label={t('canvas.beautify')}
+            disabled={nodes.length === 0}
+          >
+            ✨
+          </button>
         </div>
         <MiniMap
           nodeColor={(n) => {
@@ -1373,6 +1462,15 @@ const BTCanvas: React.FC = () => {
 
       {/* Keyboard shortcuts help modal */}
       {showHelp && <KeyboardShortcutsHelp onClose={() => setShowHelp(false)} />}
+
+      {/* XML Preview modal */}
+      {showXmlPreview && (
+        <XmlPreviewModal
+          xml={useBTStore.getState().exportXML()}
+          fileName={`${project.mainTreeId}.xml`}
+          onClose={() => setShowXmlPreview(false)}
+        />
+      )}
     </div>
   );
 };
