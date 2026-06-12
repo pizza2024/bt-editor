@@ -56,9 +56,9 @@ const TreeManager: React.FC = () => {
                   }}
                   onClick={(e) => e.stopPropagation()}
                   style={{
-                    background: '#1a1a2e',
-                    border: '1px solid #4a80d0',
-                    color: '#ccd',
+                    background: 'var(--bg-tertiary, #1a1a2e)',
+                    border: '1px solid var(--text-link, #4a80d0)',
+                    color: 'var(--text-primary, #ccd)',
                     borderRadius: 3,
                     padding: '2px 4px',
                     fontSize: 12,
@@ -67,7 +67,7 @@ const TreeManager: React.FC = () => {
                 />
               ) : (
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {isMain && <span style={{ color: '#f0a020', marginRight: 4 }}>★</span>}
+                  {isMain && <span style={{ color: 'var(--edge-warning, #f0a020)', marginRight: 4 }}>★</span>}
                   {tree.id}
                 </span>
               )}
@@ -106,9 +106,9 @@ const TreeManager: React.FC = () => {
           placeholder={t('treeManager.newTreePlaceholder')}
           style={{
             flex: 1,
-            background: '#1a1a2e',
-            border: '1px solid #334',
-            color: '#ccd',
+            background: 'var(--bg-tertiary, #1a1a2e)',
+            border: '1px solid var(--border-light, #334)',
+            color: 'var(--text-primary, #ccd)',
             borderRadius: 4,
             padding: '4px 6px',
             fontSize: 12,

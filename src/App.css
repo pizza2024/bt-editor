@@ -52,7 +52,7 @@
   padding: 0 12px;
   height: 44px;
   background: var(--bg-primary);
-  border-bottom: 1px solid #1e2840;
+  border-bottom: 1px solid var(--toolbar-bottom-border, #1e2840);
   flex-shrink: 0;
 }
 
@@ -72,7 +72,7 @@
 
 .toolbar-btn {
   background: var(--bg-tertiary);
-  border: 1px solid #2a3a5a;
+  border: 1px solid var(--border-color, #2a3a5a);
   color: var(--text-secondary);
   border-radius: 5px;
   padding: 4px 10px;
@@ -88,7 +88,7 @@
 
 .toolbar-select {
   background: var(--bg-tertiary);
-  border: 1px solid #2a3a5a;
+  border: 1px solid var(--border-color, #2a3a5a);
   color: var(--text-secondary);
   border-radius: 5px;
   padding: 4px 8px;
@@ -99,11 +99,11 @@
 .toolbar-select:hover {
   background: var(--bg-hover);
   color: var(--text-link);
-  border-color: #4a80d0;
+  border-color: var(--text-link, #4a80d0);
 }
 .toolbar-select:focus {
   outline: none;
-  border-color: #4a80d0;
+  border-color: var(--text-link, #4a80d0);
 }
 
 /* ─── Panel ─────────────────────────────────────────────────────── */
@@ -158,7 +158,7 @@
   justify-content: space-between;
   align-items: center;
   background: var(--bg-tertiary);
-  border: 1px solid #2a2a4a;
+  border: 1px solid var(--border-color, #2a2a4a);
   border-radius: 4px;
   padding: 4px 8px;
   font-size: 12px;
@@ -211,7 +211,7 @@
 .tree-item:hover { background: var(--bg-tertiary); }
 .tree-item.active {
   background: var(--bg-hover);
-  border-color: #2a4a7a;
+  border-color: var(--tree-item-active-border, #2a4a7a);
   color: var(--text-link);
 }
 
@@ -240,7 +240,7 @@
 /* ─── Buttons ───────────────────────────────────────────────────── */
 .btn-primary {
   background: var(--bg-active);
-  border: 1px solid #2a5a9a;
+  border: 1px solid var(--text-link, #2a5a9a);
   color: var(--text-link);
   border-radius: 4px;
   padding: 4px 10px;
@@ -253,7 +253,7 @@
 
 .btn-secondary {
   background: var(--bg-tertiary);
-  border: 1px solid #2a3a5a;
+  border: 1px solid var(--border-color, #2a3a5a);
   color: var(--text-secondary);
   border-radius: 4px;
   padding: 4px 8px;
@@ -266,7 +266,7 @@
 
 .btn-danger {
   background: var(--bg-active);
-  border: 1px solid #5a2a2a;
+  border: 1px solid var(--text-danger, #5a2a2a);
   color: var(--text-warning);
   border-radius: 4px;
   padding: 4px 8px;
@@ -282,7 +282,7 @@
 /* ─── Context Menu ──────────────────────────────────────────────── */
 .context-menu {
   background: var(--bg-tertiary);
-  border: 1px solid #2a3a5a;
+  border: 1px solid var(--border-color, #2a3a5a);
   border-radius: 6px;
   padding: 4px 0;
   min-width: 140px;
@@ -332,7 +332,7 @@
 
 .context-menu-separator {
   height: 1px;
-  background: #2a3a5a;
+  background: var(--border-color, #2a3a5a);
   margin: 4px 8px;
 }
 
@@ -346,7 +346,7 @@
   left: 100%;
   top: 0;
   background: var(--bg-tertiary);
-  border: 1px solid #2a3a5a;
+  border: 1px solid var(--border-color, #2a3a5a);
   border-radius: 6px;
   padding: 4px 0;
   min-width: 160px;
@@ -376,7 +376,7 @@
 }
 .bt-edge-delete-group:hover circle {
   fill: #ff6b6b;
-  stroke: #ffffff;
+  stroke: var(--edge-delete-stroke, #ffffff);
   stroke-width: 1.2;
 }
 .bt-edge-delete-group:hover path {
@@ -393,8 +393,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: #1a1a2e;
-  border: 1px solid var(--border-light);
+  background: var(--node-toolbar-bg, #1a1a2e);
+  border: 1px solid var(--node-toolbar-divider, var(--border-light));
   border-radius: 6px;
   padding: 4px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
@@ -420,7 +420,7 @@
 .canvas-square-btn:hover:not(:disabled) {
   background: var(--bg-hover);
   color: var(--text-link);
-  border-color: #4a80d0;
+  border-color: var(--text-link, #4a80d0);
 }
 .canvas-square-btn:active:not(:disabled) {
   background: var(--bg-active);
@@ -434,20 +434,20 @@
 .canvas-square-btn-zoom-label {
   font-size: 11px;
   color: var(--text-link);
-  background: #0f1424;
+  background: var(--zoom-label-bg, #0f1424);
   font-variant-numeric: tabular-nums;
 }
 
 .canvas-square-divider {
   height: 1px;
-  background: var(--border-light);
+  background: var(--node-toolbar-divider, var(--border-light));
   margin: 2px 4px;
 }
 
 /* ─── Toolbar direction toggle group ────────────────────────────── */
 .toolbar-toggle-group {
   display: inline-flex;
-  border: 1px solid #2a3a5a;
+  border: 1px solid var(--border-color, #2a3a5a);
   border-radius: 5px;
   overflow: hidden;
   background: var(--bg-tertiary);
@@ -503,7 +503,7 @@
 
 .xml-preview-stats {
   font-size: 11px;
-  color: #6677aa;
+  color: var(--text-muted, #6677aa);
   font-family: monospace;
 }
 
@@ -589,7 +589,7 @@
 /* ─── Node Picker (drag to create) ───────────────────────────────── */
 .node-picker {
   background: var(--bg-tertiary);
-  border: 1px solid #2a3a5a;
+  border: 1px solid var(--border-color, #2a3a5a);
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
   overflow: hidden;
@@ -614,7 +614,7 @@
 
 .node-picker-input:focus {
   outline: none;
-  border-color: #4a80d0;
+  border-color: var(--text-link, #4a80d0);
 }
 
 .node-picker-input::placeholder {
@@ -660,7 +660,7 @@
 .node-picker-item-desc {
   display: block;
   font-size: 10px;
-  color: #667;
+  color: var(--text-muted, #667);
   margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
@@ -670,7 +670,7 @@
 .node-picker-empty {
   padding: 20px;
   text-align: center;
-  color: #667;
+  color: var(--text-muted, #667);
   font-size: 12px;
 }
 
@@ -690,7 +690,7 @@
 
 .modal-content {
   background: var(--bg-tertiary);
-  border: 1px solid #2a3a5a;
+  border: 1px solid var(--border-color, #2a3a5a);
   border-radius: 8px;
   min-width: 360px;
   max-width: 480px;
@@ -729,7 +729,7 @@
 .modal-close {
   background: none;
   border: none;
-  color: #667;
+  color: var(--text-muted, #667);
   font-size: 20px;
   cursor: pointer;
   padding: 0;
@@ -762,7 +762,7 @@
 .form-group > label {
   display: block;
   font-size: 11px;
-  color: #6677aa;
+  color: var(--text-muted, #6677aa);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 6px;
@@ -784,7 +784,7 @@
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #4a80d0;
+  border-color: var(--text-link, #4a80d0);
 }
 
 .form-group select {
@@ -799,7 +799,7 @@
 }
 
 .form-hint code {
-  color: #88aacc;
+  color: var(--text-link, #88aacc);
   background: var(--bg-tertiary);
   padding: 1px 4px;
   border-radius: 3px;
@@ -859,14 +859,14 @@
   margin-bottom: 16px;
   padding: 10px 12px;
   background: var(--bg-tertiary);
-  border: 1px solid #2a3a5a;
+  border: 1px solid var(--border-color, #2a3a5a);
   border-radius: 6px;
 }
 
 .edit-section-title {
   font-size: 11px;
   font-weight: 600;
-  color: #88aacc;
+  color: var(--text-link, #88aacc);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 8px;
@@ -914,12 +914,12 @@
 }
 
 .condition-row input:focus {
-  border-color: #4a80d0;
+  border-color: var(--text-link, #4a80d0);
   outline: none;
 }
 
 .condition-row input::placeholder {
-  color: #445;
+  color: var(--placeholder-color, #445);
 }
 
 /* Checkbox label */
@@ -928,14 +928,14 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: #aac;
+  color: var(--text-muted, #aac);
   cursor: pointer;
 }
 
 .checkbox-label input[type="checkbox"] {
   width: 14px;
   height: 14px;
-  accent-color: #4a80d0;
+  accent-color: var(--text-link, #4a80d0);
 }
 
 .input-disabled {
@@ -968,7 +968,7 @@
 .palette-item-btn {
   background: none;
   border: 1px solid var(--border-light);
-  color: #667;
+  color: var(--text-muted, #667);
   cursor: pointer;
   font-size: 10px;
   padding: 2px 4px;
@@ -979,7 +979,7 @@
 .palette-item-btn:hover {
   background: var(--bg-hover);
   color: var(--text-link);
-  border-color: #4a80d0;
+  border-color: var(--text-link, #4a80d0);
 }
 
 .palette-item-btn.danger:hover {
@@ -1007,20 +1007,20 @@
 
 .ports-header label {
   font-size: 11px;
-  color: #6677aa;
+  color: var(--text-muted, #6677aa);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .ports-count {
   margin-left: 4px;
-  color: #88aacc;
+  color: var(--text-link, #88aacc);
 }
 
 .btn-add-port {
   background: none;
   border: 1px solid var(--border-light);
-  color: #88aacc;
+  color: var(--text-link, #88aacc);
   border-radius: 4px;
   padding: 3px 10px;
   font-size: 11px;
@@ -1030,7 +1030,7 @@
 
 .btn-add-port:hover {
   background: var(--bg-hover);
-  border-color: #4a80d0;
+  border-color: var(--text-link, #4a80d0);
   color: var(--text-link);
 }
 
@@ -1042,7 +1042,7 @@
 
 .port-item {
   background: var(--bg-tertiary);
-  border: 1px solid #2a3a5a;
+  border: 1px solid var(--border-color, #2a3a5a);
   border-radius: 6px;
   padding: 10px;
 }
@@ -1105,7 +1105,7 @@
 
 .port-field input:focus,
 .port-field select:focus {
-  border-color: #4a80d0;
+  border-color: var(--text-link, #4a80d0);
   outline: none;
 }
 
@@ -1213,7 +1213,7 @@
 
 .preview-port-name {
   font-family: monospace;
-  color: #ffe080;
+  color: var(--edge-warning, #ffe080);
 }
 
 /* Port view row (edit-instance mode) */
@@ -1242,12 +1242,12 @@
 
 .port-def-name {
   font-family: monospace;
-  color: #aac;
+  color: var(--text-muted, #aac);
   font-weight: 500;
 }
 
 .port-def-desc {
-  color: #667;
+  color: var(--text-muted, #667);
   font-size: 10px;
   font-style: italic;
 }
@@ -1267,7 +1267,7 @@
   box-sizing: border-box;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-light);
-  color: #ffe080;
+  color: var(--edge-warning, #ffe080);
   border-radius: 4px;
   padding: 4px 6px;
   font-size: 11px;
@@ -1275,7 +1275,7 @@
 }
 
 .port-value-input input:focus {
-  border-color: #4a80d0;
+  border-color: var(--text-link, #4a80d0);
   outline: none;
 }
 

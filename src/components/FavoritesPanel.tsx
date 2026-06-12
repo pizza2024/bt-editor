@@ -68,8 +68,8 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
           top: 12,
           right: 12,
           zIndex: 5,
-          background: '#1e2235',
-          border: '1px solid #334',
+          background: 'var(--bg-secondary, #1e2235)',
+          border: '1px solid var(--border-light, #334)',
           borderRadius: 6,
           padding: '8px 12px',
           cursor: 'pointer',
@@ -89,8 +89,8 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
         top: 12,
         right: 12,
         zIndex: 5,
-        background: '#1e2235',
-        border: '1px solid #334',
+        background: 'var(--bg-secondary, #1e2235)',
+        border: '1px solid var(--border-light, #334)',
         borderRadius: 6,
         width: 220,
         maxHeight: 400,
@@ -106,19 +106,19 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '8px 12px',
-          borderBottom: '1px solid #334',
+          borderBottom: '1px solid var(--border-light, #334)',
           cursor: 'pointer',
         }}
         onClick={() => setIsCollapsed(true)}
       >
-        <span style={{ fontSize: 13, fontWeight: 600, color: '#c8e0ff' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-link, #c8e0ff)' }}>
           ⭐ {t('favorites.title')} ({favorites.length})
         </span>
         <button
           style={{
             background: 'none',
             border: 'none',
-            color: '#8899bb',
+            color: 'var(--text-muted, #8899bb)',
             cursor: 'pointer',
             fontSize: 12,
             padding: '2px 6px',
@@ -132,7 +132,7 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
       {/* Favorites list */}
       <div style={{ overflow: 'auto', maxHeight: 340, padding: 8 }}>
         {favorites.length === 0 ? (
-          <div style={{ color: '#667788', fontSize: 12, textAlign: 'center', padding: '20px 0' }}>
+          <div style={{ color: 'var(--text-muted, #667788)', fontSize: 12, textAlign: 'center', padding: '20px 0' }}>
             {t('favorites.empty')}
           </div>
         ) : (
@@ -142,8 +142,8 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
               draggable
               onDragStart={(e) => handleDragStart(e, fav)}
               style={{
-                background: '#252840',
-                border: '1px solid #334',
+                background: 'var(--bg-tertiary, #252840)',
+                border: '1px solid var(--border-light, #334)',
                 borderRadius: 4,
                 padding: '6px 10px',
                 marginBottom: 6,
@@ -154,7 +154,7 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
               }}
             >
               {/* Drag handle icon */}
-              <span style={{ color: '#556677', fontSize: 10 }}>⋮⋮</span>
+              <span style={{ color: 'var(--text-muted, #556677)', fontSize: 10 }}>⋮⋮</span>
 
               {/* Category color dot */}
               <span
@@ -179,10 +179,10 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
                   autoFocus
                   style={{
                     flex: 1,
-                    background: '#1a1a2e',
-                    border: '1px solid #446',
+                    background: 'var(--bg-primary, #1a1a2e)',
+                    border: '1px solid var(--border-color, #446)',
                     borderRadius: 3,
-                    color: '#c8e0ff',
+                    color: 'var(--text-link, #c8e0ff)',
                     fontSize: 12,
                     padding: '2px 4px',
                     outline: 'none',
@@ -190,7 +190,7 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
                 />
               ) : (
                 <span
-                  style={{ flex: 1, fontSize: 12, color: '#aaccee', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  style={{ flex: 1, fontSize: 12, color: 'var(--text-secondary, #aaccee)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                   onDoubleClick={(e) => { e.stopPropagation(); handleEditStart(fav); }}
                   title={`${fav.type}${fav.ports ? ' - ' + Object.entries(fav.ports).map(([k, v]) => `${k}: ${v}`).join(', ') : ''}`}
                 >
@@ -204,7 +204,7 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#667788',
+                  color: 'var(--text-muted, #667788)',
                   cursor: 'pointer',
                   fontSize: 10,
                   padding: '2px 4px',
@@ -220,7 +220,7 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ onDragStart }) => {
 
       {/* Hint */}
       {favorites.length > 0 && (
-        <div style={{ fontSize: 10, color: '#556677', textAlign: 'center', padding: '4px 8px', borderTop: '1px solid #2a2a3a' }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted, #556677)', textAlign: 'center', padding: '4px 8px', borderTop: '1px solid var(--border-color, #2a2a3a)' }}>
           {t('favorites.hint')}
         </div>
       )}

@@ -235,7 +235,7 @@ const PropertiesPanel: React.FC = () => {
     return (
       <div className="panel properties-panel">
         <div className="panel-header">{t('properties.panel')}</div>
-        <div style={{ color: '#667', padding: 12, fontSize: 12 }}>
+        <div style={{ color: 'var(--text-muted)', padding: 12, fontSize: 12 }}>
           {t('properties.selectNode')}
         </div>
       </div>
@@ -261,7 +261,7 @@ const PropertiesPanel: React.FC = () => {
         </div>
         <div style={{ fontWeight: 700, color: colors.text, fontSize: 14 }}>{btNode.type}</div>
         {(nodeDef?.description ?? builtinDef?.description) && (
-          <div style={{ fontSize: 11, color: '#8899bb', marginTop: 4 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
             {nodeDef?.description ?? builtinDef?.description}
           </div>
         )}
@@ -308,7 +308,7 @@ const PropertiesPanel: React.FC = () => {
               {t('properties.save')}
             </button>
           </div>
-          <div style={{ fontSize: 10, color: '#556' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
             {t('properties.availableTrees', { trees: project.trees.map((tree) => tree.id).join(', ') })}
           </div>
         </Section>
@@ -319,7 +319,7 @@ const PropertiesPanel: React.FC = () => {
         <Section title={t('properties.portValues')}>
           {allPorts.map((p) => (
             <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <label style={{ fontSize: 11, color: '#8899bb', minWidth: 80, flexShrink: 0 }}>
+              <label style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 80, flexShrink: 0 }}>
                 {p.name}
                 <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 2 }}>({p.direction})</span>
               </label>
@@ -335,7 +335,7 @@ const PropertiesPanel: React.FC = () => {
           <button className="btn-primary" onClick={handleSavePorts} style={{ marginTop: 4 }}>
             {t('properties.apply')}
           </button>
-          <div style={{ fontSize: 10, color: '#556', marginTop: 4 }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
             {t('properties.portDescription')}
           </div>
         </Section>
@@ -343,12 +343,12 @@ const PropertiesPanel: React.FC = () => {
 
       {/* Pre-conditions Section */}
       <Section title={t('properties.preconditions')}>
-        <div style={{ fontSize: 10, color: '#556', marginBottom: 6 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6 }}>
           {t('properties.preconditionsDescription')}
         </div>
         {PRE_KEYS.map(key => (
           <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <label style={{ fontSize: 11, color: '#8899bb', minWidth: 90, flexShrink: 0 }}>
+            <label style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 90, flexShrink: 0 }}>
               {t(`conditions.${PRE_I18N_KEYS[key]}`)}
             </label>
             <input
@@ -367,12 +367,12 @@ const PropertiesPanel: React.FC = () => {
 
       {/* Post-conditions Section */}
       <Section title={t('properties.postconditions')}>
-        <div style={{ fontSize: 10, color: '#556', marginBottom: 6 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6 }}>
           {t('properties.postconditionsDescription')}
         </div>
         {POST_KEYS.map(key => (
           <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <label style={{ fontSize: 11, color: '#8899bb', minWidth: 90, flexShrink: 0 }}>
+            <label style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 90, flexShrink: 0 }}>
               {t(`conditions.${POST_I18N_KEYS[key]}`)}
             </label>
             <input
@@ -390,14 +390,14 @@ const PropertiesPanel: React.FC = () => {
       </Section>
 
       {/* Node ID */}
-      <div style={{ fontSize: 10, color: '#445', marginTop: 12 }}>ID: {btNode.id}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 12 }}>ID: {btNode.id}</div>
     </div>
   );
 };
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div style={{ marginBottom: 12 }}>
-    <div style={{ fontSize: 11, color: '#6677aa', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
       {title}
     </div>
     {children}
@@ -405,9 +405,9 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
 );
 
 const inputStyle: React.CSSProperties = {
-  background: '#1a1a2e',
-  border: '1px solid #334',
-  color: '#ccd',
+  background: 'var(--bg-tertiary, #1a1a2e)',
+  border: '1px solid var(--border-light, #334)',
+  color: 'var(--text-primary, #ccd)',
   borderRadius: 4,
   padding: '3px 6px',
   fontSize: 12,

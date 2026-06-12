@@ -238,7 +238,7 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
                 Map local port names to external (child tree) port names: local_port := external_port
               </span>
               {portRemapEntries.length === 0 && (
-                <div className="form-hint" style={{ color: '#8899bb' }}>No port mappings configured</div>
+                <div className="form-hint" style={{ color: 'var(--text-muted)' }}>No port mappings configured</div>
               )}
               {portRemapEntries.map((entry, index) => (
                 <div key={index} className="form-row" style={{ alignItems: 'center', gap: 8 }}>
@@ -249,7 +249,7 @@ const NodeEditModal: React.FC<NodeEditModalProps> = ({
                     placeholder="local_port"
                     style={{ flex: 1 }}
                   />
-                  <span style={{ color: '#4a80d0' }}>:=</span>
+                  <span style={{ color: 'var(--text-link)' }}>:=</span>
                   <input
                     type="text"
                     value={entry.external}

@@ -77,10 +77,10 @@ const NodePalette: React.FC = () => {
           style={{
             width: '100%',
             padding: '6px 10px',
-            background: '#0d0d1a',
-            border: '1px solid #334',
+            background: 'var(--input-dark-bg, #0d0d1a)',
+            border: '1px solid var(--border-light, #334)',
             borderRadius: 4,
-            color: '#ccd',
+            color: 'var(--text-primary, #ccd)',
             fontSize: 12,
             boxSizing: 'border-box',
           }}
@@ -105,7 +105,7 @@ const NodePalette: React.FC = () => {
               );
             })
           ) : (
-            <div style={{ fontSize: 11, color: '#556', padding: '8px' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '8px' }}>
               No models match &quot;{searchQuery}&quot;
             </div>
           )}
@@ -140,7 +140,7 @@ const NodePalette: React.FC = () => {
                     />
                   ))}
                   {nodes.length === 0 && (
-                    <div style={{ fontSize: 11, color: '#556', padding: '4px 8px' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '4px 8px' }}>
                       No nodes
                     </div>
                   )}
@@ -152,7 +152,7 @@ const NodePalette: React.FC = () => {
       )}
 
       {/* Add custom node button */}
-      <div style={{ marginTop: 12, borderTop: '1px solid #334', paddingTop: 8 }}>
+      <div style={{ marginTop: 12, borderTop: '1px solid var(--border-light, #334)', paddingTop: 8 }}>
         <button
           className="btn-primary"
           onClick={() => setModelModal({ mode: 'create', defaultCategory: 'Action' })}

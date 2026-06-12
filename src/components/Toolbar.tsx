@@ -72,7 +72,7 @@ const Toolbar: React.FC = () => {
     <div className="toolbar">
       {/* Logo */}
       <div className="toolbar-logo">
-        <span style={{ color: '#4a80d0' }}>🌳</span> BT Editor
+        <span style={{ color: 'var(--toolbar-icon, #4a80d0)' }}>🌳</span> BT Editor
       </div>
 
       <div className="toolbar-divider" />
@@ -103,10 +103,10 @@ const Toolbar: React.FC = () => {
       <div className="toolbar-divider" />
 
       {/* Active tree info */}
-      <div style={{ fontSize: 12, color: '#8899bb' }}>
-        {t('canvas.treeLabel')}: <span style={{ color: '#c8e0ff', fontWeight: 600 }}>{activeTreeId}</span>
+      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+        {t('canvas.treeLabel')}: <span style={{ color: 'var(--text-link)', fontWeight: 600 }}>{activeTreeId}</span>
         {activeTreeId === project.mainTreeId && (
-          <span style={{ color: '#f0a020', marginLeft: 6 }}>★ {t('canvas.mainTree')}</span>
+          <span style={{ color: 'var(--edge-warning, #f0a020)', marginLeft: 6 }}>★ {t('canvas.mainTree')}</span>
         )}
       </div>
 
@@ -173,7 +173,7 @@ const Toolbar: React.FC = () => {
       </button>
 
       {/* Help */}
-      <div style={{ fontSize: 11, color: '#445', textAlign: 'right' }}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'right' }}>
         {t('canvas.dragHint')}
       </div>
     </div>

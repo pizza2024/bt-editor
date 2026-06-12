@@ -134,7 +134,46 @@ const BTCanvas: React.FC = () => {
     toggleNodeCollapse,
     layoutDirection,
     layoutDensity,
+    theme,
   } = useBTStore();
+
+  // Resolve the current CSS variable value at render time. Reading via
+  // getComputedStyle ensures the value follows the active theme because
+  // .theme-light is toggled on documentElement. We subscribe to `theme`
+  // so the component re-renders when the user toggles theme.
+  const cssVar = React.useCallback(
+    (name: string, fallback: string): string => {
+      if (typeof window === 'undefined') return fallback;
+      const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return v || fallback;
+    },
+    []
+  );
+
+  // Theme-aware colors for inline style props (SVG, etc.) that can't use
+  // var(...) directly. Computed fresh every render — cheap because it just
+  // reads computed styles — so theme switches take effect immediately.
+  // The `theme` dep ensures React re-runs this when the user toggles theme.
+  const themeColors = React.useMemo(
+    () => ({
+      dot: cssVar('--canvas-dot', '#334'),
+      minimapBg: cssVar('--minimap-bg', '#1a1a2e'),
+      minimapBorder: cssVar('--minimap-border', '#334'),
+      edgeDefault: cssVar('--edge-default', '#6888aa'),
+      edgeSelected: cssVar('--edge-selected', '#c8e0ff'),
+      edgeWarning: cssVar('--edge-warning', '#f0a020'),
+      edgeInvalid: cssVar('--edge-invalid', '#e04040'),
+      warnBg: cssVar('--warn-banner-bg', '#1a1a2e'),
+      warnBorder: cssVar('--warn-banner-border', '#556'),
+      warnText: cssVar('--warn-banner-text', '#99aacc'),
+      canvasBg: cssVar('--canvas-bg', '#0f0f1e'),
+    }),
+    // theme is intentionally included so the memo re-runs on toggle, even
+    // though the factory itself only uses cssVar. eslint can't see the
+    // implicit coupling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [theme]
+  );
 
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
   const [zoomLevel, setZoomLevel] = React.useState(1);
@@ -367,7 +406,7 @@ const BTCanvas: React.FC = () => {
         data: { ...node.data, isCollapsed: collapsed.has(node.id) },
       }));
       setNodes(visibleNodes);
-      setEdges(withSelectedEdge(e, selectedEdgeId, deleteEdge));
+      setEdges(withSelectedEdge(e, selectedEdgeId, deleteEdge, themeColors));
       lastSyncedTreeRef.current = activeTreeId;
       forceLayoutRef.current = false;
     } else {
@@ -408,9 +447,9 @@ const BTCanvas: React.FC = () => {
         }));
         return merged;
       });
-      setEdges(withSelectedEdge(newEdges, selectedEdgeId, deleteEdge));
+      setEdges(withSelectedEdge(newEdges, selectedEdgeId, deleteEdge, themeColors));
     }
-  }, [activeTreeId, project, debugState.nodeStatuses, selectedEdgeId, deleteEdge, collapsedNodeIds, layoutDirection, layoutDensity]);
+  }, [activeTreeId, project, debugState.nodeStatuses, selectedEdgeId, deleteEdge, collapsedNodeIds, layoutDirection, layoutDensity, themeColors]);
 
   // Highlight selected nodes
   React.useEffect(() => {
@@ -480,16 +519,17 @@ const BTCanvas: React.FC = () => {
           source: sourceNodeId,
           target: newNodeId,
           type: 'btEdge',
-          style: { stroke: '#6888aa', strokeWidth: 2 },
+          style: { stroke: themeColors.edgeDefault, strokeWidth: 2 },
         }, eds),
         null,
-        deleteEdge
+        deleteEdge,
+        themeColors
       ));
 
       setNodePickerPosition(null);
       setPendingConnection(null);
     },
-    [nodePickerPosition, pendingConnection, setNodes, setEdges, deleteEdge]
+    [nodePickerPosition, pendingConnection, setNodes, setEdges, deleteEdge, themeColors]
   );
 
   // Validate connection based on BT rules
@@ -590,14 +630,15 @@ const BTCanvas: React.FC = () => {
         addEdge({
           ...params,
           type: 'btEdge',
-          style: { stroke: '#6888aa', strokeWidth: 2 },
+          style: { stroke: themeColors.edgeDefault, strokeWidth: 2 },
           data: edgeData,
         }, eds),
         null,
-        deleteEdge
+        deleteEdge,
+        themeColors
       ));
     },
-    [deleteEdge, setEdges, nodes, edges, isValidConnection, project.nodeModels]
+    [deleteEdge, setEdges, nodes, edges, isValidConnection, project.nodeModels, themeColors]
   );
 
   // Handle incomplete connection (drag ended without connecting to target)
@@ -815,7 +856,7 @@ const BTCanvas: React.FC = () => {
 
       try {
         const canvas = await html2canvas(flowElement, {
-          backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-primary').trim() || '#0f0f1e',
+          backgroundColor: themeColors.canvasBg,
           scale: 2,
           logging: false,
           useCORS: true,
@@ -833,6 +874,8 @@ const BTCanvas: React.FC = () => {
 
     window.addEventListener('bt-export-png', handleExportPNG);
     return () => window.removeEventListener('bt-export-png', handleExportPNG);
+    // themeColors is read live inside the handler, no need to re-bind on every change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle external beautify trigger (e.g. direction toggle in the toolbar)
@@ -905,8 +948,8 @@ const BTCanvas: React.FC = () => {
   }, [editingNodeId, setNodes, updateNodeName]);
 
   React.useEffect(() => {
-    setEdges((prev) => withSelectedEdge(prev, selectedEdgeId, deleteEdge));
-  }, [selectedEdgeId, deleteEdge, setEdges]);
+    setEdges((prev) => withSelectedEdge(prev, selectedEdgeId, deleteEdge, themeColors));
+  }, [selectedEdgeId, deleteEdge, setEdges, themeColors]);
 
   React.useEffect(() => {
     if (!selectedEdgeId) return;
@@ -1380,10 +1423,10 @@ const BTCanvas: React.FC = () => {
         nodeExtent={[[-5000, -5000], [5000, 5000]]}
         minZoom={0.1}
         fitView
-        colorMode="dark"
-        defaultEdgeOptions={{ type: 'btEdge', style: { stroke: '#6888aa', strokeWidth: 2 } }}
+        colorMode={theme === 'light' ? 'light' : 'dark'}
+        defaultEdgeOptions={{ type: 'btEdge', style: { stroke: themeColors.edgeDefault, strokeWidth: 2 } }}
       >
-        <Background variant={BackgroundVariant.Dots} color="#334" gap={20} size={1} />
+        <Background variant={BackgroundVariant.Dots} color={themeColors.dot} gap={20} size={1} />
         {/* Vertical column of square buttons (zoom in, %, zoom out, beautify) */}
         <div className="canvas-toolbar-column">
           <button
@@ -1426,7 +1469,7 @@ const BTCanvas: React.FC = () => {
             const d = n.data as { colors?: { bg: string } };
             return d.colors?.bg ?? '#333';
           }}
-          style={{ background: '#1a1a2e', border: '1px solid #334' }}
+          style={{ background: themeColors.minimapBg, border: `1px solid ${themeColors.minimapBorder}` }}
         />
       </ReactFlow>
 
@@ -1441,12 +1484,12 @@ const BTCanvas: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            background: '#1a1a2e',
-            border: '1px solid #556',
+            background: themeColors.warnBg,
+            border: `1px solid ${themeColors.warnBorder}`,
             borderRadius: 6,
             padding: '6px 10px',
             fontSize: 11,
-            color: '#99aacc',
+            color: themeColors.warnText,
             boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
           }}
           title={`Unconnected nodes: ${unconnectedNodes.map((n) => (n.data as { label?: string }).label || n.id).join(', ')}`}
@@ -1527,7 +1570,18 @@ export default BTCanvas;
 function withSelectedEdge(
   edges: Edge[],
   selectedEdgeId: string | null,
-  deleteEdge: (edgeId: string) => void
+  deleteEdge: (edgeId: string) => void,
+  themeColors: {
+    edgeDefault: string;
+    edgeSelected: string;
+    edgeWarning: string;
+    edgeInvalid: string;
+  } = {
+    edgeDefault: '#6888aa',
+    edgeSelected: '#c8e0ff',
+    edgeWarning: '#f0a020',
+    edgeInvalid: '#e04040',
+  }
 ): Edge[] {
   return edges.map((edge) => {
     // Preserve existing edge data (typeWarning, sourcePort, targetPort, invalid)
@@ -1541,12 +1595,12 @@ function withSelectedEdge(
       selected: edge.id === selectedEdgeId,
       style: {
         stroke: edge.id === selectedEdgeId
-          ? '#c8e0ff'
+          ? themeColors.edgeSelected
           : isInvalid
-          ? '#e04040'
+          ? themeColors.edgeInvalid
           : isWarning
-          ? '#f0a020'
-          : '#6888aa',
+          ? themeColors.edgeWarning
+          : themeColors.edgeDefault,
         strokeWidth: edge.id === selectedEdgeId ? 3 : 2,
       },
       data: {

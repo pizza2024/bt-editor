@@ -1,6 +1,7 @@
 import React from 'react';
 import { BaseEdge, getBezierPath } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
+import { useBTStore } from '../../store/btStore';
 
 export interface BTFlowEdgeData {
   onDelete?: (edgeId: string) => void;
@@ -12,6 +13,15 @@ export interface BTFlowEdgeData {
   typeWarning?: string;
   /** Whether this connection is invalid (e.g., leaf→any) */
   invalid?: boolean;
+}
+
+// Read a CSS variable from :root (or .theme-light), falling back to a hard-
+// coded color so the edge still renders if the variable is missing. We read
+// live on every render so theme switches take effect immediately.
+function readVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
 }
 
 const BTFlowEdge: React.FC<EdgeProps> = ({
@@ -30,14 +40,17 @@ const BTFlowEdge: React.FC<EdgeProps> = ({
   const hasWarning = !!edgeData?.typeWarning;
   const isInvalid = !!edgeData?.invalid;
 
+  // Subscribe to theme so the SVG re-renders with the right palette on toggle.
+  const theme = useBTStore((s) => s.theme);
+
   // Determine edge styling based on state
   const strokeColor = selected
-    ? '#c8e0ff'
+    ? readVar('--edge-selected', '#c8e0ff')
     : isInvalid
-    ? '#e04040'
+    ? readVar('--edge-invalid', '#e04040')
     : hasWarning
-    ? '#f0a020'
-    : '#6888aa';
+    ? readVar('--edge-warning', '#f0a020')
+    : readVar('--edge-default', '#6888aa');
   const strokeWidth = selected ? 2.5 : isInvalid || hasWarning ? 2.5 : 2;
 
   // Use Bezier path for smooth, curved edges (was getSmoothStepPath)
@@ -61,6 +74,11 @@ const BTFlowEdge: React.FC<EdgeProps> = ({
   const midX = (sourceX + targetX) / 2;
   const midY = (sourceY + targetY) / 2;
 
+  // Theme-aware colors for the delete badge
+  const deleteBg = readVar('--edge-delete-bg', 'rgba(0,0,0,0.6)');
+  const deleteStroke = readVar('--edge-delete-stroke', 'rgba(255,255,255,0.25)');
+  const deleteIconColor = theme === 'light' ? '#1a1a2e' : '#ffffff';
+
   // Delete button group is hidden by default; CSS reveals it on hover.
   return (
     <>
@@ -80,7 +98,7 @@ const BTFlowEdge: React.FC<EdgeProps> = ({
             height={18}
             rx={4}
             fill="rgba(240,160,32,0.15)"
-            stroke="#f0a020"
+            stroke={readVar('--edge-warning', '#f0a020')}
             strokeWidth={1}
           />
           <text
@@ -88,7 +106,7 @@ const BTFlowEdge: React.FC<EdgeProps> = ({
             y={4}
             textAnchor="middle"
             fontSize={9}
-            fill="#f0a020"
+            fill={readVar('--edge-warning', '#f0a020')}
             style={{ userSelect: 'none', pointerEvents: 'none' }}
           >
             ⚠️ type mismatch
@@ -111,10 +129,10 @@ const BTFlowEdge: React.FC<EdgeProps> = ({
           style={{ pointerEvents: 'stroke' }}
         />
         <g transform={`translate(${midX}, ${midY})`}>
-          <circle r={9} fill="rgba(0,0,0,0.6)" stroke="rgba(255,255,255,0.25)" strokeWidth={1} />
+          <circle r={9} fill={deleteBg} stroke={deleteStroke} strokeWidth={1} />
           <path
             d="M -3.5 -3.5 L 3.5 3.5 M 3.5 -3.5 L -3.5 3.5"
-            stroke="#ffffff"
+            stroke={deleteIconColor}
             strokeWidth="1.5"
             strokeLinecap="round"
             fill="none"

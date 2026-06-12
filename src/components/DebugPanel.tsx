@@ -89,9 +89,9 @@ const DebugPanel: React.FC = () => {
             rows={6}
             style={{
               width: '100%',
-              background: '#0f0f1e',
-              border: '1px solid #334',
-              color: '#aabbd0',
+              background: 'var(--bg-primary, #0f0f1e)',
+              border: '1px solid var(--border-light, #334)',
+              color: 'var(--text-secondary, #aabbd0)',
               borderRadius: 4,
               padding: 6,
               fontSize: 11,
@@ -103,7 +103,7 @@ const DebugPanel: React.FC = () => {
           <button className="btn-primary" onClick={handleLoadCustom} style={{ width: '100%', marginTop: 4 }}>
             Apply Log
           </button>
-          <div style={{ fontSize: 10, color: '#556', marginTop: 4 }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
             Format: text (timestamp uid nodeType name status [treeId]) or JSON array
           </div>
         </div>
@@ -116,16 +116,16 @@ const DebugPanel: React.FC = () => {
             <button className="btn-secondary" onClick={() => debugStep('back')} disabled={playIndex <= -1}>◀</button>
             <button className="btn-primary" onClick={debugPlay}>▶ Play</button>
             <button className="btn-secondary" onClick={() => debugStep('forward')} disabled={playIndex >= entries.length - 1}>▶</button>
-            <span style={{ marginLeft: 4, fontSize: 11, color: '#8899bb' }}>
+            <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--text-muted)' }}>
               {playIndex + 1} / {entries.length}
             </span>
           </div>
 
           {/* Progress bar */}
-          <div style={{ background: '#1a1a2e', borderRadius: 4, height: 6, marginBottom: 8, overflow: 'hidden' }}>
+          <div style={{ background: 'var(--bg-tertiary, #1a1a2e)', borderRadius: 4, height: 6, marginBottom: 8, overflow: 'hidden' }}>
             <div
               style={{
-                background: '#4a80d0',
+                background: 'var(--text-link, #4a80d0)',
                 height: '100%',
                 width: `${entries.length > 0 ? ((playIndex + 1) / entries.length) * 100 : 0}%`,
                 transition: 'width 0.2s',
@@ -136,7 +136,7 @@ const DebugPanel: React.FC = () => {
           {/* Current entry info */}
           {currentEntry && (
             <div style={{
-              background: '#1a1a2e',
+              background: 'var(--bg-tertiary, #1a1a2e)',
               border: `1px solid ${STATUS_COLORS[currentEntry.status]}`,
               borderRadius: 4,
               padding: '6px 8px',
@@ -144,15 +144,15 @@ const DebugPanel: React.FC = () => {
               marginBottom: 8,
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                <span style={{ color: '#8899bb' }}>t={currentEntry.timestamp}ms</span>
+                <span style={{ color: 'var(--text-muted)' }}>t={currentEntry.timestamp}ms</span>
                 <span style={{ color: STATUS_COLORS[currentEntry.status], fontWeight: 700 }}>
                   {currentEntry.status}
                 </span>
               </div>
-              <div style={{ fontWeight: 600, color: '#ccd' }}>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary, #ccd)' }}>
                 {currentEntry.nodeType} <span style={{ opacity: 0.7 }}>"{currentEntry.nodeName}"</span>
               </div>
-              <div style={{ fontSize: 10, color: '#667' }}>tree: {currentEntry.treeId}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>tree: {currentEntry.treeId}</div>
             </div>
           )}
 
@@ -162,7 +162,7 @@ const DebugPanel: React.FC = () => {
             overflowY: 'auto',
             fontSize: 10,
             fontFamily: 'monospace',
-            background: '#0f0f1e',
+            background: 'var(--bg-primary, #0f0f1e)',
             borderRadius: 4,
             padding: 4,
           }}>
@@ -171,13 +171,13 @@ const DebugPanel: React.FC = () => {
                 key={i}
                 style={{
                   padding: '1px 4px',
-                  background: i === playIndex ? '#1e2a3e' : 'transparent',
-                  color: i <= playIndex ? '#aabbd0' : '#445',
+                  background: i === playIndex ? 'var(--bg-hover, #1e2a3e)' : 'transparent',
+                  color: i <= playIndex ? 'var(--text-secondary, #aabbd0)' : 'var(--text-muted, #445)',
                   cursor: 'default',
-                  borderLeft: i === playIndex ? '2px solid #4a80d0' : '2px solid transparent',
+                  borderLeft: i === playIndex ? '2px solid var(--text-link, #4a80d0)' : '2px solid transparent',
                 }}
               >
-                <span style={{ color: '#556' }}>{e.timestamp}ms </span>
+                <span style={{ color: 'var(--text-muted, #556)' }}>{e.timestamp}ms </span>
                 <span>{e.nodeType} </span>
                 <span style={{ opacity: 0.7 }}>"{e.nodeName}" </span>
                 <span style={{ color: STATUS_COLORS[e.status] }}>{e.status}</span>
@@ -188,7 +188,7 @@ const DebugPanel: React.FC = () => {
       )}
 
       {!active && (
-        <div style={{ color: '#445', fontSize: 12, textAlign: 'center', padding: '20px 0' }}>
+        <div style={{ color: 'var(--text-muted, #445)', fontSize: 12, textAlign: 'center', padding: '20px 0' }}>
           No debug log loaded.<br />
           <span style={{ fontSize: 11, opacity: 0.7 }}>Load a log file or use the sample to replay a BT execution.</span>
         </div>

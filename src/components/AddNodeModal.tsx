@@ -90,7 +90,7 @@ const AddNodeModal: React.FC<AddNodeModalProps> = ({ onSave, onClose }) => {
         {/* Header */}
         <div className="modal-header">
           <div className="modal-title">
-            <span style={{ color: '#c8e0ff' }}>Create Custom Node</span>
+            <span style={{ color: 'var(--text-link)' }}>Create Custom Node</span>
           </div>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>

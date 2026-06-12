@@ -102,6 +102,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
     const result: React.ReactNode[] = [];
     const targetPos = layoutDirection === 'LR' ? Position.Left : Position.Top;
     const sourcePos = layoutDirection === 'LR' ? Position.Right : Position.Bottom;
+    const handleFill = 'var(--handle-fill, #6888aa)';
 
     // Target handle (input) - for all non-ROOT nodes
     if (!isRootNode) {
@@ -110,7 +111,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
           key="target"
           type="target"
           position={targetPos}
-          style={{ background: '#6888aa', border: 'none', width: 8, height: 8 }}
+          style={{ background: handleFill, border: 'none', width: 8, height: 8 }}
         />
       );
     }
@@ -122,7 +123,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
           key="source"
           type="source"
           position={sourcePos}
-          style={{ background: '#6888aa', border: 'none', width: 8, height: 8 }}
+          style={{ background: handleFill, border: 'none', width: 8, height: 8 }}
         />
       );
     }
@@ -232,7 +233,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
           maxHeight: 280,
           overflow: 'auto',
           zIndex: 1000,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+          boxShadow: 'var(--shadow-modal, 0 4px 20px rgba(0,0,0,0.5))',
           fontSize: 12,
           animation: 'previewFadeIn 0.2s ease-out',
         }}
@@ -259,7 +260,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
           alignItems: 'center',
           gap: 6,
           padding: '4px 8px',
-          background: 'rgba(255,255,255,0.05)',
+          background: 'var(--overlay-on-node, rgba(255,255,255,0.05))',
           borderRadius: 4,
           marginBottom: 6,
         }}>
@@ -272,7 +273,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
           <div style={{ marginBottom: 6 }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>⏱ Preconditions:</div>
             {preList.map(({ k, v }) => (
-              <div key={k} style={{ fontSize: 10, padding: '2px 6px', background: 'rgba(255,255,255,0.05)', borderRadius: 3, marginBottom: 2 }}>
+              <div key={k} style={{ fontSize: 10, padding: '2px 6px', background: 'var(--overlay-on-node, rgba(255,255,255,0.05))', borderRadius: 3, marginBottom: 2 }}>
                 <span style={{ color: 'var(--text-secondary)' }}>{k}:</span>{' '}
                 <span style={{ color: 'var(--accent-color, #80c0ff)' }}>{v}</span>
               </div>
@@ -335,7 +336,9 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
           fontFamily: 'monospace',
           fontSize: 11,
           textAlign: 'center',
-          boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.3)' : '0 2px 8px rgba(0,0,0,0.5)',
+          boxShadow: selected
+            ? '0 0 0 2px var(--selection-glow, rgba(255,255,255,0.3))'
+            : 'var(--shadow-elevated, 0 2px 8px rgba(0,0,0,0.5))',
           userSelect: 'none',
           position: 'relative',
           cursor: 'pointer',
@@ -363,7 +366,9 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
         fontFamily: 'monospace',
         fontSize: 12,
         textAlign: 'center',
-        boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.3)' : '0 2px 8px rgba(0,0,0,0.5)',
+        boxShadow: selected
+          ? '0 0 0 2px var(--selection-glow, rgba(255,255,255,0.3))'
+          : 'var(--shadow-elevated, 0 2px 8px rgba(0,0,0,0.5))',
         transition: 'border-color 0.2s, box-shadow 0.2s',
         userSelect: 'none',
         position: 'relative',
@@ -384,7 +389,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
             borderRadius: '50%',
             width: 16,
             height: 16,
-            border: '2px solid var(--bg-primary)',
+            border: '2px solid var(--node-status-border, var(--bg-primary))',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -414,7 +419,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
           marginTop: 6,
           marginBottom: 2,
           paddingTop: 4,
-          borderTop: '1px solid rgba(255,255,255,0.1)',
+          borderTop: '1px solid var(--node-divider, rgba(255,255,255,0.1))',
           fontSize: 10
         }}>
           {/* Input ports */}
@@ -428,7 +433,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
                     alignItems: 'center',
                     gap: 6,
                     marginBottom: 2,
-                    background: 'rgba(0,0,0,0.2)',
+                    background: 'var(--overlay-on-node-strong, rgba(0,0,0,0.2))',
                     borderRadius: 3,
                     padding: '2px 6px',
                     cursor: 'pointer'
@@ -466,7 +471,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
                     alignItems: 'center',
                     gap: 6,
                     marginBottom: 2,
-                    background: 'rgba(0,0,0,0.2)',
+                    background: 'var(--overlay-on-node-strong, rgba(0,0,0,0.2))',
                     borderRadius: 3,
                     padding: '2px 6px',
                     cursor: 'pointer'
@@ -504,7 +509,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
                     alignItems: 'center',
                     gap: 6,
                     marginBottom: 2,
-                    background: 'rgba(100,100,0,0.2)',
+                    background: 'var(--overlay-on-node-inout, rgba(100,100,0,0.2))',
                     borderRadius: 3,
                     padding: '2px 6px',
                     cursor: 'pointer'
@@ -518,7 +523,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
                     textTransform: 'uppercase',
                     fontWeight: 600,
                     minWidth: 24,
-                    color: '#ffe066'
+                    color: 'var(--inout-port-label, #ffe066)'
                   }}>IN/OUT</span>
                   <span style={{ opacity: 0.8, fontWeight: 500 }}>{k}</span>
                   <span style={{
@@ -554,7 +559,7 @@ const BTFlowNode: React.FC<NodeProps> = React.memo(({ data, selected, id: nodeId
             borderRadius: '50%',
             width: 14,
             height: 14,
-            border: '2px solid #1a1a2e',
+            border: '2px solid var(--node-status-border, var(--bg-primary))',
           }}
         />
       )}
