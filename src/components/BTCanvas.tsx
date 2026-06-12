@@ -15,7 +15,7 @@ import '@xyflow/react/dist/style.css';
 import html2canvas from 'html2canvas';
 
 import { useBTStore } from '../store/btStore';
-import { treeToFlow, flowToTree, isSameTreeStructure, getDescendantIds } from '../utils/btFlow';
+import { treeToFlow, flowToTree, isSameTreeStructure, getDescendantIds, isRootNode } from '../utils/btFlow';
 
 // Collect all child node IDs (edges) from a tree recursively
 function collectEdgeIds(node: { id: string; children?: Array<{ id: string; children?: Array<{ id: string }> }> }): string[] {
@@ -926,10 +926,47 @@ const BTCanvas: React.FC = () => {
         event.preventDefault();
         if (selectedNodeIds.size > 0) {
           useBTStore.getState().pushHistory();
-          const idsToDelete = new Set(selectedNodeIds);
-          setNodes((prev) => prev.filter((n) => !idsToDelete.has(n.id)));
-          setEdges((prev) => prev.filter((e) => !idsToDelete.has(e.source) && !idsToDelete.has(e.target)));
-          clearSelection();
+          // Root must NEVER be deleted. We use THREE redundant identifiers so
+          // a single data-shape mismatch can't slip the root through:
+          //   1. data.isRoot === true (virtual editor root)
+          //   2. data.nodeType === 'ROOT' (same, different code path)
+          //   3. no incoming edges in the current tree (real BT root, e.g.
+          //      <Sequence name="Root"> in a sample XML has nodeType
+          //      "Sequence" but is still the root of its tree and must be
+          //      protected).
+          const targets = new Set<string>();
+          edges.forEach((e) => targets.add(e.target));
+          const rootIds = new Set(
+            nodes
+              .filter(
+                (n) =>
+                  isRootNode(n) || // isRoot flag / nodeType === 'ROOT'
+                  !targets.has(n.id) // no incoming edges → tree root
+              )
+              .map((n) => n.id)
+          );
+          const idsToDelete = new Set(
+            Array.from(selectedNodeIds).filter((id) => !rootIds.has(id))
+          );
+          if (idsToDelete.size > 0) {
+            // Belt-and-braces: re-verify the root is kept inside the filter
+            // callback using the freshest prev. Anything that even looks like a
+            // root (by id or by isRootNode check) is preserved.
+            setNodes((prev) =>
+              prev.filter((n) => !idsToDelete.has(n.id) || isRootNode(n))
+            );
+            setEdges((prev) => prev.filter((e) => !idsToDelete.has(e.source) && !idsToDelete.has(e.target)));
+          }
+          // Deselect anything that was selected but kept (e.g. the root) so
+          // the next keystroke doesn't try to delete it again.
+          const remainingSelection = new Set(
+            Array.from(selectedNodeIds).filter((id) => rootIds.has(id))
+          );
+          if (remainingSelection.size > 0) {
+            useBTStore.getState().setSelectedNodes(remainingSelection);
+          } else {
+            clearSelection();
+          }
         } else if (selectedEdgeId) {
           useBTStore.getState().pushHistory();
           deleteEdge(selectedEdgeId);
@@ -1141,8 +1178,7 @@ const BTCanvas: React.FC = () => {
     if (nodes.length === 0) return [];
     return nodes.filter((n) => {
       // Skip ROOT - it doesn't need connections
-      const data = n.data as { isRoot?: boolean };
-      if (data?.isRoot) return false;
+      if (isRootNode(n)) return false;
       const hasIncoming = edges.some((e) => e.target === n.id);
       const hasOutgoing = edges.some((e) => e.source === n.id);
       return !hasIncoming && !hasOutgoing;
@@ -1192,6 +1228,12 @@ const BTCanvas: React.FC = () => {
           icon: '🗑️',
           danger: true,
           action: () => {
+            // Defense-in-depth: the menu is hidden for root already, but refuse
+            // to remove the root if some other path got us here.
+            const targetNode = menuState.targetId
+              ? (useBTStore.getState().localNodes.find((n) => n.id === menuState.targetId) ?? null)
+              : null;
+            if (isRootNode(targetNode)) return;
             useBTStore.getState().pushHistory();
             setNodes((prev) => prev.filter((n) => n.id !== menuState.targetId));
             setEdges((prev) => prev.filter((e) => e.source !== menuState.targetId && e.target !== menuState.targetId));
@@ -1330,6 +1372,11 @@ const BTCanvas: React.FC = () => {
         edgeTypes={edgeTypes}
         onInit={(instance) => { rfInstanceRef.current = instance; }}
         onMove={(_event, viewport) => setZoomLevel(viewport.zoom)}
+        // Disable ReactFlow's built-in Backspace/Delete handler. Its global
+        // key listener calls deleteElements() on every selected node without
+        // knowing about isRoot, which would silently undo our root-protection
+        // in the keydown handler above. We delete via our own handler instead.
+        deleteKeyCode={null}
         nodeExtent={[[-5000, -5000], [5000, 5000]]}
         minZoom={0.1}
         fitView

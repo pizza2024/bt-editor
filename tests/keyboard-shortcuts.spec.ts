@@ -13,7 +13,10 @@ test.describe('Keyboard Shortcuts', () => {
       await page.waitForTimeout(800);
 
       const nodes = page.locator('.react-flow__node');
-      await nodes.first().click();
+      // Skip the root (always the first node) so the test exercises
+      // non-root deletion — root deletion is covered by the dedicated
+      // Root-protection describe block below.
+      await nodes.nth(1).click();
       await page.waitForTimeout(200);
 
       const countBefore = await nodes.count();
@@ -29,7 +32,7 @@ test.describe('Keyboard Shortcuts', () => {
       await page.waitForTimeout(800);
 
       const nodes = page.locator('.react-flow__node');
-      await nodes.first().click();
+      await nodes.nth(1).click();
       await page.waitForTimeout(200);
 
       const countBefore = await nodes.count();
@@ -66,7 +69,7 @@ test.describe('Keyboard Shortcuts', () => {
       expect(selectedCount).toBe(totalCount);
     });
 
-    test('Ctrl+A then Delete removes all nodes', async ({ page }) => {
+    test('Ctrl+A then Delete keeps the root and removes every other node', async ({ page }) => {
       await loadSampleTree(page);
       await page.waitForTimeout(800);
 
@@ -75,8 +78,9 @@ test.describe('Keyboard Shortcuts', () => {
       await page.keyboard.press('Delete');
       await page.waitForTimeout(500);
 
+      // Root is always preserved; every other node should be gone.
       const remaining = await page.locator('.react-flow__node').count();
-      expect(remaining).toBe(0);
+      expect(remaining).toBe(1);
     });
   });
 
@@ -319,6 +323,53 @@ test.describe('Keyboard Shortcuts', () => {
       await page.waitForTimeout(500);
 
       await expect(modal).not.toBeVisible();
+    });
+  });
+
+  test.describe('Root protection', () => {
+    // Regression: ReactFlow's built-in useGlobalKeyHandler listens for Backspace
+    // and calls deleteElements() on every selected node, ignoring isRoot. Our
+    // own keydown handler does check isRoot, but if both run, the root still
+    // gets deleted. The fix is to disable ReactFlow's handler via
+    // deleteKeyCode={null} and own the delete path entirely.
+
+    test('Ctrl+A + Backspace must keep the root node', async ({ page }) => {
+      await loadSampleTree(page);
+      await page.waitForTimeout(800);
+
+      const nodes = page.locator('.react-flow__node');
+      const totalBefore = await nodes.count();
+      expect(totalBefore).toBeGreaterThan(1);
+
+      await page.keyboard.press('Control+a');
+      await page.waitForTimeout(200);
+
+      const selectedBefore = await page.locator('.react-flow__node.selected').count();
+      expect(selectedBefore).toBe(totalBefore);
+
+      await page.keyboard.press('Backspace');
+      await page.waitForTimeout(400);
+
+      const totalAfter = await nodes.count();
+      // Root must remain, every other node should be gone.
+      expect(totalAfter).toBe(1);
+    });
+
+    test('Ctrl+A + Delete must keep the root node', async ({ page }) => {
+      await loadSampleTree(page);
+      await page.waitForTimeout(800);
+
+      const nodes = page.locator('.react-flow__node');
+      const totalBefore = await nodes.count();
+      expect(totalBefore).toBeGreaterThan(1);
+
+      await page.keyboard.press('Control+a');
+      await page.waitForTimeout(200);
+      await page.keyboard.press('Delete');
+      await page.waitForTimeout(400);
+
+      const totalAfter = await nodes.count();
+      expect(totalAfter).toBe(1);
     });
   });
 });

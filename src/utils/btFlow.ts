@@ -5,6 +5,18 @@ import { CATEGORY_COLORS } from '../types/bt-constants';
 
 let _edgeCounter = 0;
 
+/**
+ * True if the given flow node represents the editor's virtual root.
+ * Uses two redundant identifiers (isRoot flag + nodeType) so deletion guards
+ * stay correct even if the data object was rebuilt with a different shape
+ * (e.g. via the bt-nodes-updated event, an older XML import, or a re-layout).
+ */
+export function isRootNode(node: Node | undefined | null): boolean {
+  if (!node) return false;
+  const data = node.data as { isRoot?: boolean; nodeType?: string } | undefined;
+  return data?.isRoot === true || data?.nodeType === EDITOR_ROOT_TYPE;
+}
+
 // Extended node data including childrenCount for multi-handle support
 export interface BTFlowNodeData {
   label: string;
